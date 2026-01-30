@@ -2,6 +2,7 @@ import requests
 import json
 from dotenv import load_dotenv
 import os
+import time 
 
 load_dotenv()
 
@@ -11,39 +12,67 @@ headers = {
     'Accept': 'application/json',
     'apikey': api_key
 }
-lat = 50.5092
-lon = 19.41
-max_distance = 5
 
-url = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
+# def get_air_quality_data(station_id:int) -> dict:
+#     url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
+#     request_air_quality_data = requests.get(url, headers=headers)
+#     air_quality_data = request_air_quality_data.json()
+#     #print(json.dumps(air_quality_data, indent=2))
+#     return air_quality_data
 
-nearest_station = requests.get(url, headers=headers)
-nearest_station_data = nearest_station.json()
-print(nearest_station_data)
-
-def find_nearest_station_id(lat=float, lon=float, max_distance=int):
-    url = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
-    nearest_station = requests.get(url, headers=headers)
-    nearest_station_data = nearest_station.json()
-    #print(json.dumps(nearest_station_json, indent=2)) # Makes the returned data easier to read
-    for station_id in nearest_station_data:
-        return(station_id["id"])
-
-station_id = find_nearest_station_id(50.5082, 19.4148, 5)
-print(station_id)    
-
-def get_air_quality_data(station_id=int):
+def fetch_air_quality_data(station_id:int) -> dict:
+    """
+    Functions takes an ID of a specific station and fetches data from it.
+    """
     url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
-    request_air_quality_data = requests.get(url, headers=headers)
-    air_quality_data = request_air_quality_data.json()
-    print(json.dumps(air_quality_data, indent=2))
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
 
 
-metetorogical_data = get_air_quality_data(station_id)
-print(metetorogical_data)
+old_data_limit = 3600 # seconds
+    
+def fetch_new_data(station_id:int) -> dict: 
+    url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    data["saved_timestamp"] = time.time()
+
+    with open(f"air_data_{station_id}.json", "w") as f:
+        json.dump(data, f)
+
+    return data
+
+def get_station_data(station_id:int):
+    filename = f"air_data_{station_id}.json"
+    if os.path.exists(filename):
+        file_age = time.time() - os.path.getmtime(filename)
+        if file_age < old_data_limit:
+            print("Using cached data")
+            with open(filename, "r") as f:
+                return json.load()
+        else:
+            print("Data is too old, fetching new one")
+    else:
+        print("No file found, fetching new data")
+    data = fetch_new_data(station_id)
+    with open(filename, "w") as f:
+        json.dump(data, f)
+    return data
 
 
 
-# print(result)
 
-#def measure_data 
+def get_air_quality_data(station_id:int):
+    with open("fetch_air_quality_data", "r") as f:
+        if f is None:
+            fetch_air_quality_data()
+
+
+
+fetch
+load
+get 
+
+print(fetch_air_quality_data(2464))
