@@ -1,4 +1,5 @@
 import requests
+import json
 from dotenv import load_dotenv
 import os
 
@@ -10,34 +11,39 @@ headers = {
     'Accept': 'application/json',
     'apikey': api_key
 }
-50.50829350719181, 19.414849479879827
+lat = 50.5092
+lon = 19.41
+max_distance = 5
+
+url = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
+
+nearest_station = requests.get(url, headers=headers)
+nearest_station_data = nearest_station.json()
+print(nearest_station_data)
+
+def find_nearest_station_id(lat=float, lon=float, max_distance=int):
+    url = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
+    nearest_station = requests.get(url, headers=headers)
+    nearest_station_data = nearest_station.json()
+    #print(json.dumps(nearest_station_json, indent=2)) # Makes the returned data easier to read
+    for station_id in nearest_station_data:
+        return(station_id["id"])
+
+station_id = find_nearest_station_id(50.5082, 19.4148, 5)
+print(station_id)    
+
+def get_air_quality_data(station_id=int):
+    url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
+    request_air_quality_data = requests.get(url, headers=headers)
+    air_quality_data = request_air_quality_data.json()
+    print(json.dumps(air_quality_data, indent=2))
 
 
-lat = 50.5082
-lon = 19.4144
-max_distance = 1 
-installation_id = 2464
+metetorogical_data = get_air_quality_data(station_id)
+print(metetorogical_data)
 
 
-url_inst = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
-url_meas = f"https://airapi.airly.eu/v2/measurements/installation?installationId={installation_id}"
 
+# print(result)
 
-nearest_installation = requests.get(url_inst, headers=headers)
-measure = requests.get(url_meas, headers=headers)
-
-nearest_installation_data = nearest_installation.json()
-measure_data = measure.json()
-
-#print(nearest_installation_data)
-#print(measure_data)
-
-
-def find_nearest_station_id(lat=int, lon=int, max_distance=int):
-    url_inst = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
-    nearest_station = requests.get(url_inst, headers=headers)
-    nearest_station_json = nearest_station.json()
-    #print(json.dumps(nearest_station_json, indent=2))
-    for item in nearest_station_json:
-        return(item["id"])
-    #return json.dumps(nearest_station_json, indent=2)
+#def measure_data 
