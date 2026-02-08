@@ -7,28 +7,37 @@ import time
 load_dotenv()
 
 api_key = os.getenv("airly_api")
+api_key_2 = os.getenv("owm_api")
 
 headers = {
     'Accept': 'application/json',
     'apikey': api_key
 }
 
-def find_nearest_station_id(lat:float, lon:float, max_distance:int) -> int:
-    url = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
-    nearest_station_data = requests.get(url, headers=headers).json()
-    for station_id in nearest_station_data:
-        return(station_id["id"])
 
+def find_nearest_station_id(lat:float, lon:float, max_distance:int) -> int:
+    try:
+        url = f"https://airapi.airly.eu/v2/installations/nearest?lat={lat}&lng={lon}&maxDistanceKM={max_distance}"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        nearest_station_data = response.json()
+        for station_id in nearest_station_data:
+            return(station_id["id"])
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 401:
+            print(f"Incorrect API key{e}")
 #station_id = find_nearest_station_id(50.5082, 19.4148, 5)    
 
 def fetch_air_quality_data(station_id:int) -> dict:
+    if station_id is not int:
+        print("Incorrect API key")
     url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
     request_air_quality_data = requests.get(url, headers=headers)
     request_air_quality_data.raise_for_status()
     air_quality_data = request_air_quality_data.json()
     return air_quality_data
 
-old_data_limit = 3600 # seconds
+old_data_limit = 1 # seconds
 
 def get_air_quality_data(station_id:int):
     filename = f"air_data_{station_id}"
@@ -44,7 +53,7 @@ def get_air_quality_data(station_id:int):
         print("No file found. Fetching new data")
     data = fetch_air_quality_data(station_id)
     with open(filename, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=2)
     return data
 
 def get_pm25_value(meterological_data) -> float:
@@ -70,18 +79,19 @@ def translate_pm25(pm25_result: float) -> str:
         return "Incorrect pm25 level"
 
 
-
-nearest_station_id = find_nearest_station_id(50.5082, 19.4148, 5)
-meterological_data = get_air_quality_data(nearest_station_id)
-pm25_value = get_pm25_value(meterological_data)
-air_quality = translate_pm25(pm25_value)
-print(air_quality)
-            
 def get_temperature(meterological_data) -> float:
     for value in meterological_data.values():
         for item in value["values"]:
             if item["name"] == "TEMPERATURE":
                 return item["value"]
+
+nearest_station_id = find_nearest_station_id(50.5082, 19.4148, 5)
+meterological_data = get_air_quality_data(nearest_station_id)
+pm25_value = get_pm25_value(meterological_data)
+air_quality = translate_pm25(pm25_value)
+temp = get_temperature(meterological_data)
+print(air_quality)
+print(temp)            
             
     
 def fetch_meterological_data():

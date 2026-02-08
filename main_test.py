@@ -7,72 +7,43 @@ import time
 load_dotenv()
 
 api_key = os.getenv("airly_api")
+api_key_2 = os.getenv("owm_api")
 
 headers = {
     'Accept': 'application/json',
     'apikey': api_key
 }
 
-# def get_air_quality_data(station_id:int) -> dict:
-#     url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
-#     request_air_quality_data = requests.get(url, headers=headers)
-#     air_quality_data = request_air_quality_data.json()
-#     #print(json.dumps(air_quality_data, indent=2))
-#     return air_quality_data
+lat = 50.50
+lon = 19.41
 
-def fetch_air_quality_data(station_id:int) -> dict:
-    """
-    Functions takes an ID of a specific station and fetches data from it.
-    """
-    url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
-    response = requests.get(url, headers=headers)
+def fetch_weather_data() -> dict:
+    url2 = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relative_humidity_2m,rain,wind_speed_10m,wind_direction_10m,weather_code"
+    response = requests.get(url2)
     response.raise_for_status()
     return response.json()
 
+x = fetch_weather_data()
+print(x)
 
-old_data_limit = 3600 # seconds
-    
-def fetch_new_data(station_id:int) -> dict: 
-    url = f"https://airapi.airly.eu/v2/measurements/installation?installationId={station_id}"
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    data = response.json()
-    data["saved_timestamp"] = time.time()
+old_data_limit = 1
 
-    with open(f"air_data_{station_id}.json", "w") as f:
-        json.dump(data, f)
-
-    return data
-
-def get_station_data(station_id:int):
-    filename = f"air_data_{station_id}.json"
+def get_weather_data():
+    filename = "weather_data"
     if os.path.exists(filename):
         file_age = time.time() - os.path.getmtime(filename)
         if file_age < old_data_limit:
-            print("Using cached data")
+            print("Using fetched data")
             with open(filename, "r") as f:
-                return json.load()
+                return json.load(f)
         else:
-            print("Data is too old, fetching new one")
+            print("Data is too old, fetching new one.")
     else:
-        print("No file found, fetching new data")
-    data = fetch_new_data(station_id)
+        print("No file found. Fetching new data")
+    data = fetch_weather_data()
     with open(filename, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=2)
     return data
 
-
-
-
-def get_air_quality_data(station_id:int):
-    with open("fetch_air_quality_data", "r") as f:
-        if f is None:
-            fetch_air_quality_data()
-
-
-
-fetch
-load
-get 
-
-print(fetch_air_quality_data(2464))
+y = get_weather_data()
+print(y)
