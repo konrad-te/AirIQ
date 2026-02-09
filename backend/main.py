@@ -37,7 +37,7 @@ def fetch_air_quality_data(station_id:int) -> dict:
     air_quality_data = request_air_quality_data.json()
     return air_quality_data
 
-old_data_limit = 1 # seconds
+old_data_limit = 3600 # seconds
 
 def get_air_quality_data(station_id:int):
     filename = f"air_data_{station_id}"
@@ -92,10 +92,7 @@ air_quality = translate_pm25(pm25_value)
 temp = get_temperature(meterological_data)
 print(air_quality)
 print(temp)            
-            
-    
-def fetch_meterological_data():
-    pass
+
 
 # pm25_result = get_pm25_value(meterological_data)
 # print(pm25_result)

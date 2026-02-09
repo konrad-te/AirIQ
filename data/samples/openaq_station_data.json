@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "name": "openaq-api",
+    "website": "/",
+    "page": 1,
+    "limit": 100,
+    "found": 1
+  },
+  "results": [
+    {
+      "id": 10185,
+      "name": "Zawiercie, ul. K.I.Ga\u0142czy\u0144skiego",
+      "locality": "Zawiercie",
+      "timezone": "Europe/Warsaw",
+      "country": {
+        "id": 77,
+        "code": "PL",
+        "name": "Poland"
+      },
+      "owner": {
+        "id": 4,
+        "name": "Unknown Governmental Organization"
+      },
+      "provider": {
+        "id": 70,
+        "name": "EEA"
+      },
+      "isMobile": false,
+      "isMonitor": true,
+      "instruments": [
+        {
+          "id": 2,
+          "name": "Government Monitor"
+        }
+      ],
+      "sensors": [
+        {
+          "id": 32965,
+          "name": "pm10 \u00b5g/m\u00b3",
+          "parameter": {
+            "id": 1,
+            "name": "pm10",
+            "units": "\u00b5g/m\u00b3",
+            "displayName": "PM10"
+          }
+        }
+      ],
+      "coordinates": {
+        "latitude": 50.493044999989486,
+        "longitude": 19.439012000320393
+      },
+      "licenses": [
+        {
+          "id": 10,
+          "name": "ODC-BY",
+          "attribution": {
+            "name": "Unknown Governmental Organization",
+            "url": null
+          },
+          "dateFrom": "2016-11-17",
+          "dateTo": null
+        }
+      ],
+      "bounds": [
+        19.439012000320393,
+        50.493044999989486,
+        19.439012000320393,
+        50.493044999989486
+      ],
+      "distance": 2406.83453045,
+      "datetimeFirst": {
+        "utc": "2019-08-26T10:00:00Z",
+        "local": "2019-08-26T12:00:00+02:00"
+      },
+      "datetimeLast": {
+        "utc": "2026-02-09T04:00:00Z",
+        "local": "2026-02-09T05:00:00+01:00"
+      }
+    }
+  ]
+}
