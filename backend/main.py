@@ -3,7 +3,9 @@ import json
 from dotenv import load_dotenv
 import os
 import time
+from typing import Any, Dict, Optional
 
+cache_folder = r"C:\Users\konra\Desktop\Air\data\cache"
 load_dotenv()
 
 api_key = os.getenv("airly_api")
@@ -73,7 +75,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict:
     """
    
     key = f"{lat:.4f}_{lon:.4f}" # :.4f means round to 4 decimals
-    filename = f"air_point_{key}.json"
+    filename = os.path.join(cache_folder, f"air_point_{key}.json")
     if os.path.exists(filename):
         file_age = time.time() - os.path.getmtime(filename)
         if file_age < old_data_limit:
@@ -91,34 +93,72 @@ def get_air_quality_data(lat: float, lon: float) -> dict:
         json.dump(data, f, indent=2, ensure_ascii=False)
     return data
 
-def get_value_from_current(data: dict, name: str) -> float | None:
+
+def extract_airly_current(data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Extract a specific measurement value from the current air quality data.
+    Extracts normalized air quality data from Airly 'current' response.
 
-    The function searches the "current.values" list in the provided data
-    structure and returns the numeric value associated with the given
-    measurement name (e.g. "PM25", "PM10", "TEMPERATURE").
-
-    If the requested measurement is not found or the expected data structure
-    is missing, the function returns None.
-
-    Args:
-        data (dict): Air quality data containing a "current" section.
-        name (str): Name of the measurement to retrieve.
-
-    Returns:
-        float | None: The measurement value if found, otherwise None.
+    Returns a standardized structure:
+    {
+        "current": {...},
+        "measurement_window": {...},
+        "source": {...}
+    }
     """
-    
-    values = data.get("current", {}).get("values") or []
-    for item in values:
-        if item.get("name") == name:
-            return item.get("value")
-    return None
+    current_section = data.get("current", {})
+    values_list = current_section.get("values", [])
 
-data = get_air_quality_data(50.50921921512974, 19.411960729382777)
-pm25 = get_value_from_current(data, "PM25")
-print(pm25)
+    # Convert list of {name, value} into dictionary
+    raw_values = {
+        item.get("name"): item.get("value")
+        for item in values_list
+        if "name" in item
+    }
+
+    normalized_current = {
+        "pm25": raw_values.get("PM25"),
+        "pm10": raw_values.get("PM10"),
+        "temperature_c": raw_values.get("TEMPERATURE"),
+        "humidity_pct": raw_values.get("HUMIDITY"),
+        "pressure_hpa": raw_values.get("PRESSURE"),
+    }
+    return {
+        "current": normalized_current,
+        "measurement_window": {
+            "from": current_section.get("fromDateTime"),
+            "to": current_section.get("tillDateTime"),
+        },
+        "source": {
+            "provider": "airly",
+            "method": "point"
+        }
+    }
+
+if __name__ == "__main__":
+    lat, lon = 50.50921921512974, 19.411960729382777
+
+    raw = get_air_quality_data(lat, lon)
+    normalized = extract_airly_current(raw)
+
+    print("Normalized output:")
+    print(json.dumps(normalized, indent=2, ensure_ascii=False))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
