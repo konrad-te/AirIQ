@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirIQ — Welcome</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    #map { height: 100%; width: 100%; }
+
+    /* Subtle animated "fog" overlay */
+    .fog {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(900px 500px at 20% 10%, rgba(255,255,255,.07), transparent 60%),
+        radial-gradient(800px 600px at 80% 30%, rgba(0,255,180,.05), transparent 55%),
+        radial-gradient(900px 700px at 50% 90%, rgba(90,140,255,.05), transparent 60%);
+      animation: drift 10s ease-in-out infinite alternate;
+      mix-blend-mode: screen;
+    }
+    @keyframes drift {
+      from { transform: translate3d(0,0,0) scale(1); opacity: .75; }
+      to   { transform: translate3d(12px,-8px,0) scale(1.02); opacity: .9; }
+    }
+
+    /* Glass modal (Concept A) */
+    .glass {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -55%);
+      width: min(560px, calc(100% - 32px));
+      border-radius: 18px;
+      padding: 20px 20px 18px;
+      color: rgba(255,255,255,.92);
+      background: rgba(10, 14, 22, 0.58);
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      backdrop-filter: blur(14px);
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      letter-spacing: .3px;
+    }
+    .logoDot {
+      width: 10px; height: 10px; border-radius: 999px;
+      background: rgba(0,255,180,.95);
+      box-shadow: 0 0 18px rgba(0,255,180,.55);
+    }
+    h1 { margin: 12px 0 6px; font-size: 22px; }
+    p  { margin: 0 0 14px; color: rgba(255,255,255,.72); line-height: 1.45; }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.92);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      font-weight: 600;
+    }
+    .btn:hover { transform: translateY(-1px); background: rgba(255,255,255,.10); }
+    .btnPrimary {
+      border-color: rgba(0,255,180,.35);
+      background: rgba(0,255,180,.12);
+    }
+    .meta {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: rgba(255,255,255,.55);
+      font-size: 12px;
+    }
+    .link {
+      color: rgba(0,255,180,.95);
+      text-decoration: none;
+    }
+    .link:hover { text-decoration: underline; }
+
+    /* Pulsing station marker */
+    .pulse {
+      width: 10px; height: 10px; border-radius: 999px;
+      position: relative;
+      box-shadow: 0 0 12px rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.25);
+    }
+    .pulse::after {
+      content: "";
+      position: absolute;
+      inset: -10px;
+      border-radius: 999px;
+      opacity: .55;
+      animation: pulse 1.8s ease-out infinite;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(.25); opacity: .0; }
+      30%  { opacity: .55; }
+      100% { transform: scale(1); opacity: 0; }
+    }
+
+    /* Small top-right status */
+    .status {
+      position: fixed;
+      top: 14px; right: 14px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(10, 14, 22, 0.55);
+      border: 1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(12px);
+      color: rgba(255,255,255,.8);
+      font-size: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .liveDot {
+      width: 8px; height: 8px; border-radius: 999px;
+      background: rgba(0,255,180,.95);
+      box-shadow: 0 0 16px rgba(0,255,180,.55);
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:.35} 50%{opacity:1} }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="fog"></div>
+
+  <div class="status">
+    <span class="liveDot"></span>
+    <span>Live stations preview</span>
+  </div>
+
+  <!-- Concept A: Center modal -->
+  <div class="glass">
+    <div class="brand">
+      <div class="logoDot"></div>
+      <strong>AirIQ</strong>
+    </div>
+    <h1>See air quality anywhere — instantly.</h1>
+    <p>
+      Explore live stations on a world map. Register to save locations and alerts,
+      or continue without an account.
+    </p>
+
+    <div class="row">
+      <button class="btn btnPrimary" onclick="alert('Go to /register')">Create account</button>
+      <button class="btn" onclick="alert('Continue as guest')">Continue as guest</button>
+      <button class="btn" onclick="locateMe()">Use my location</button>
+    </div>
+
+    <div class="meta">
+      <span>Tip: hover a station dot</span>
+      <a class="link" href="#" onclick="alert('Show how it works')">How it works</a>
+    </div>
+  </div>
+
+  <script>
+    // Dark tiles (Carto basemaps)
+    const map = L.map('map', { zoomControl: false, worldCopyJump: true }).setView([20, 0], 2);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd',
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }).addTo(map);
+
+    // Demo stations (replace with your API later)
+    // Each station has a "level": good / moderate / bad
+    const stations = [
+      { name: "Warsaw",    lat: 52.2297, lon: 21.0122, level: "moderate", pm25: 18 },
+      { name: "Kraków",    lat: 50.0647, lon: 19.9450, level: "bad",      pm25: 42 },
+      { name: "Stockholm", lat: 59.3293, lon: 18.0686, level: "good",     pm25: 7  },
+      { name: "London",    lat: 51.5072, lon: -0.1276, level: "moderate", pm25: 16 },
+      { name: "NYC",       lat: 40.7128, lon: -74.006, level: "good",     pm25: 9  },
+      { name: "Bangkok",   lat: 13.7563, lon: 100.5018, level: "bad",     pm25: 55 },
+      { name: "Sydney",    lat: -33.8688, lon: 151.2093, level: "good",   pm25: 6  },
+    ];
+
+    function colorFor(level) {
+      if (level === "good") return "rgba(60, 255, 170, 0.95)";
+      if (level === "moderate") return "rgba(255, 210, 70, 0.95)";
+      return "rgba(255, 80, 110, 0.95)";
+    }
+
+    stations.forEach(s => {
+      const el = document.createElement("div");
+      el.className = "pulse";
+      el.style.background = colorFor(s.level);
+      el.style.setProperty("--c", colorFor(s.level));
+      el.style.borderColor = "rgba(255,255,255,.22)";
+      el.style.boxShadow = `0 0 18px ${colorFor(s.level)}`;
+
+      // Make the pulse ring match station color
+      el.style.position = "relative";
+      el.style.setProperty("outline", "none");
+      el.style.setProperty("cursor", "pointer");
+      el.style.setProperty("transform", "translateZ(0)");
+      el.style.setProperty("willChange", "transform, opacity");
+      // Color the ring
+      el.style.setProperty("--ring", colorFor(s.level));
+      el.style.setProperty("filter", "saturate(1.1)");
+
+      // Hack: set ring color by injecting style into ::after using inline stylesheet
+      // (simple demo; later you can replace markers with canvas/WebGL)
+      const style = document.createElement("style");
+      style.textContent = `.pulse::after{ border:2px solid rgba(255,255,255,.0); background: ${colorFor(s.level)}22; }`;
+      document.head.appendChild(style);
+
+      const icon = L.divIcon({ className: "", html: el, iconSize: [10, 10], iconAnchor: [5, 5] });
+      const marker = L.marker([s.lat, s.lon], { icon }).addTo(map);
+
+      marker.bindTooltip(
+        `<strong>${s.name}</strong><br/>PM2.5: ${s.pm25} µg/m³<br/>Level: ${s.level}`,
+        { direction: "top", opacity: 0.95, sticky: true }
+      );
+    });
+
+    function locateMe() {
+      if (!navigator.geolocation) return alert("Geolocation not supported in this browser.");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          map.setView([latitude, longitude], 10, { animate: true });
+          L.circle([latitude, longitude], {
+            radius: 600,
+            weight: 1,
+            fillOpacity: 0.12
+          }).addTo(map).bindTooltip("You are here").openTooltip();
+        },
+        () => alert("Couldn’t access location (permission denied).")
+      );
+    }
+  </script>
+</body>
+</html>
