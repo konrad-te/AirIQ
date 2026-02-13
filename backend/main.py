@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import time
@@ -291,113 +292,129 @@ def translate_values_from_data(
 #     print(json.dumps(normalized, indent=2, ensure_ascii=False))
 
 """
-Geocode testing
+Geocode Nominatim
+Implement Nominatim solution that translates a adress into a geolocation, cache the information inside data/cache and use a logic that checks the cache before making a Nominatim request.
+https://nominatim.org/release-docs/develop/api/Lookup/#endpoint
 """
 
-"""
-Solution 1:
-Using our existing Openweather API which comes with a Geocoding API.
-"""
+nominatim_cache_limit = 2592000  # 30 days
 
 
-def get_lat_lon_from_city(city_name: str) -> tuple[float, float] | None:
-    api_key = os.getenv("owm_api")
-    if not api_key:
-        print("Error: OWM API key not found.")
+def _normalize_address(address: str) -> str:
+    """Normalize address input so equivalent strings map to the same cache key."""
+    return " ".join(address.strip().lower().split())
+
+
+def get_lat_lon_nominatim_cached(address: str) -> tuple[float, float] | None:
+    """
+    Translate an address into (lat, lon) using Nominatim with local caching.
+
+    Cache-first flow:
+    1. Normalize the address and check for a matching file in data/cache.
+    2. If cache is fresh, return cached coordinates.
+    3. Otherwise query Nominatim and cache the returned coordinates.
+    """
+    normalized_address = _normalize_address(address)
+    if not normalized_address:
+        print("Error: Address cannot be empty.")
         return None
 
-    url = "http://api.openweathermap.org/geo/1.0/direct"
-    params = {"q": city_name, "limit": 1, "appid": api_key}
+    os.makedirs(cache_folder, exist_ok=True)
+    cache_key = hashlib.sha256(normalized_address.encode("utf-8")).hexdigest()[:16]
+    cache_file = os.path.join(cache_folder, "nominatim_cache.json")
 
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-
-        if data:
-            return data[0]["lat"], data[0]["lon"]
-        else:
-            print(f"Location '{city_name}' not found.")
-            return None
-    except requests.RequestException as e:
-        print(f"Geocoding error: {e}")
-        return None
-
-    # if __name__ == "__main__":
-    city = "Stockholm"  # Or input("Enter city: ")
-
-    # 1. Get Coordinates
-    coords = get_lat_lon_from_city(city)
-
-    if coords:
-        lat, lon = coords
-        print(f"Coordinates for {city}: {lat}, {lon}")
-
-        # 2. Get Air Quality (using your existing function)
-        raw = get_air_quality_data(lat, lon)
-
-        # 3. Normalize (using your existing function)
-        normalized = extract_airly_current(raw)
-
-        print("Normalized output:")
-        print(json.dumps(normalized, indent=2, ensure_ascii=False))
+    cache_data: dict[str, Any] = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+            if not isinstance(cache_data, dict):
+                cache_data = {}
+        except (json.JSONDecodeError, OSError):
+            print("Geocode cache file is empty/invalid. Rebuilding cache file.")
+            cache_data = {}
     else:
-        print("Could not determine location.")
+        print("No geocode cache file found. A new one will be created.")
 
+    if isinstance(cache_data.get("entries"), dict):
+        cache_entries = cache_data["entries"]
+    else:
+        # Support both {"entries": {...}} and legacy root-level dict shape.
+        cache_entries = cache_data
 
-"""
-Solution 2:
-Using the Geopy library module
-"""
+    cached_entry = cache_entries.get(cache_key)
+    if isinstance(cached_entry, dict):
+        try:
+            cached_at = float(cached_entry.get("cached_at", 0))
+            if cached_at and (time.time() - cached_at) < nominatim_cache_limit:
+                lat = float(cached_entry["lat"])
+                lon = float(cached_entry["lon"])
+                print("Using cached Nominatim geocode data.")
+                return lat, lon
+            print("Cached geocode entry is too old. Fetching fresh Nominatim data.")
+        except (KeyError, TypeError, ValueError):
+            print("Geocode cache entry is invalid. Fetching fresh Nominatim data.")
+    else:
+        print("No cached geocode entry found. Fetching from Nominatim.")
 
-
-def get_lat_lon_geopy(address: str):
-    """
-    Translates an address (street, city, country) into latitude and longitude.
-    """
-    # 1. CRITICAL: Change this to something unique, ideally your email.
-    #    If you share this string with other students, you all get banned together.
-    my_user_agent = "fakemailer@fakemail.com"
-
-    geolocator = Nominatim(user_agent=my_user_agent)
+    nominatim_url = "https://nominatim.openstreetmap.org/search"
+    user_agent = os.getenv(
+        "nominatim_user_agent",
+        "AirIQ-Learning-Project/1.0 (contact: student@example.com)",
+    )
+    nominatim_email = os.getenv("nominatim_email")
+    headers = {"User-Agent": user_agent}
+    params = {"q": address, "format": "jsonv2", "limit": 1, "addressdetails": 1}
+    if nominatim_email:
+        params["email"] = nominatim_email
 
     try:
-        # 2. Rate Limiting: Sleep to be polite to the free server
+        # Respect Nominatim usage policy by limiting request frequency.
         time.sleep(1.2)
+        response = requests.get(
+            nominatim_url, params=params, headers=headers, timeout=10
+        )
+        response.raise_for_status()
+        results = response.json()
 
-        # 3. Geocode the full address
-        #    addressdetails=True helps verification, but strictly we just need the location.
-        location = geolocator.geocode(address)
+        if not results:
+            print(f"Address '{address}' not found in Nominatim.")
+            return None
 
-        if location:
-            return location.latitude, location.longitude
+        first_result = results[0]
+        lat = float(first_result["lat"])
+        lon = float(first_result["lon"])
+
+        cached_payload = {
+            "query": address,
+            "normalized_query": normalized_address,
+            "lat": lat,
+            "lon": lon,
+            "display_name": first_result.get("display_name"),
+            "place_id": first_result.get("place_id"),
+            "cached_at": time.time(),
+        }
+        cache_entries[cache_key] = cached_payload
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump({"entries": cache_entries}, f, indent=2, ensure_ascii=False)
+
+        return lat, lon
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 403:
+            print(
+                "Nominatim blocked the request (403). Set a unique "
+                "nominatim_user_agent and nominatim_email in .env."
+            )
+        print(f"Nominatim request error: {e}")
+        return None
+    except requests.RequestException as e:
+        print(f"Nominatim request error: {e}")
+        return None
+    except (KeyError, TypeError, ValueError) as e:
+        print(f"Unexpected Nominatim response format: {e}")
         return None
 
-    except (GeocoderTimedOut, GeocoderServiceError) as e:
-        print(f"Error fetching '{address}': {e}")
-        # If you see "Non-successful status code 509", it means you are still IP banned.
-        return None
-    except Exception as e:
-        print(f"General Error: {e}")
-        return None
 
-    # if __name__ == "__main__":
-    # Test with SPECIFIC Home Addresses
-    test_addresses = [
-        "Kungsgatan 1, Stockholm",  # Specific Street
-        "10 Downing Street, London",  # Famous Address
-        "Empire State Building, NY",  # Landmark
-        "Gatunamn 99, Ingenstans",  # Fake Address
-    ]
-
-    print(f"{'Address':<30} | {'Latitude':<10} | {'Longitude':<10}")
-    print("-" * 56)
-
-    for addr in test_addresses:
-        result = get_lat_lon_geopy(addr)
-
-        if result:
-            lat, lon = result
-            print(f"{addr:<30} | {lat:<10.4f} | {lon:<10.4f}")
-        else:
-            print(f"{addr:<30} | {'Not Found':<10} | {'-' * 10}")
+if __name__ == "__main__":
+    coords = get_lat_lon_nominatim_cached("Kungsgatan 4, Stockholm")
+    print("Coords:", coords)
