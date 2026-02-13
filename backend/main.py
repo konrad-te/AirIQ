@@ -1,21 +1,20 @@
-import requests
 import json
-from dotenv import load_dotenv
 import os
 import time
 from typing import Any, Dict, Optional
 
-cache_folder = r"C:\Users\konra\Desktop\Air\data\cache"
+import requests
+from dotenv import load_dotenv
+from geopy.exc import GeocoderServiceError, GeocoderTimedOut
+from geopy.geocoders import Nominatim
+
+cache_folder = r"C:\Users\Admin\Desktop\AI Ingenjör och Maskininlärning\Webbramverk i python\AirIQ\data\cache"
 load_dotenv()
 
 api_key = os.getenv("airly_api")
 api_key_2 = os.getenv("owm_api")
 
-headers = {
-    'Accept': 'application/json',
-    'apikey': api_key
-}
-
+headers = {"Accept": "application/json", "apikey": api_key}
 
 
 def fetch_air_quality_data(lat: float, lon: float) -> dict:
@@ -23,13 +22,14 @@ def fetch_air_quality_data(lat: float, lon: float) -> dict:
     Fetches air quality data for a specific geographic point using Airly's
     interpolated measurements (based on nearby stations within ~1.5 km).
     Returns a dict: Air quality data including current, history, and forecast sections.
-    """ 
+    """
 
     url = "https://airapi.airly.eu/v2/measurements/point"
     params = {"lat": lat, "lng": lon}
     response = requests.get(url, headers=headers, params=params, timeout=10)
     response.raise_for_status()
     return response.json()
+
 
 # vvv Used to test the function vvv
 # data = fetch_air_quality_data(50.509139467141765, 19.413033344281995)
@@ -48,7 +48,9 @@ def airly_has_data(data: dict) -> bool:
     # If values are empty, treat as no data
     return False
 
+
 old_data_limit = 3600  # seconds
+
 
 def get_air_quality_data(lat: float, lon: float) -> dict:
     """
@@ -73,8 +75,8 @@ def get_air_quality_data(lat: float, lon: float) -> dict:
     Returns:
         dict: Air quality data fetched from cache or the external API.
     """
-   
-    key = f"{lat:.4f}_{lon:.4f}" # :.4f means round to 4 decimals
+
+    key = f"{lat:.4f}_{lon:.4f}"  # :.4f means round to 4 decimals
     filename = os.path.join(cache_folder, f"air_point_{key}.json")
     if os.path.exists(filename):
         file_age = time.time() - os.path.getmtime(filename)
@@ -87,7 +89,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict:
     else:
         print("No cache found. Fetching new data.")
     data = fetch_air_quality_data(lat, lon)
-    if not airly_has_data(data): # If data is empty - don't cache the file
+    if not airly_has_data(data):  # If data is empty - don't cache the file
         return data
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -110,9 +112,7 @@ def extract_airly_current(data: Dict[str, Any]) -> Dict[str, Any]:
 
     # Convert list of {name, value} into dictionary
     raw_values = {
-        item.get("name"): item.get("value")
-        for item in values_list
-        if "name" in item
+        item.get("name"): item.get("value") for item in values_list if "name" in item
     }
 
     normalized_current = {
@@ -128,54 +128,8 @@ def extract_airly_current(data: Dict[str, Any]) -> Dict[str, Any]:
             "from": current_section.get("fromDateTime"),
             "to": current_section.get("tillDateTime"),
         },
-        "source": {
-            "provider": "airly",
-            "method": "point"
-        }
+        "source": {"provider": "airly", "method": "point"},
     }
-
-if __name__ == "__main__":
-    lat, lon = 50.50921921512974, 19.411960729382777
-
-    raw = get_air_quality_data(lat, lon)
-    normalized = extract_airly_current(raw)
-
-    print("Normalized output:")
-    print(json.dumps(normalized, indent=2, ensure_ascii=False))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 """
@@ -325,3 +279,125 @@ def translate_values_from_data(
         }
 
     return translated_values
+
+
+# if __name__ == "__main__":
+#     lat, lon = 50.50921921512974, 19.411960729382777
+
+#     raw = get_air_quality_data(lat, lon)
+#     normalized = extract_airly_current(raw)
+
+#     print("Normalized output:")
+#     print(json.dumps(normalized, indent=2, ensure_ascii=False))
+
+"""
+Geocode testing
+"""
+
+"""
+Solution 1:
+Using our existing Openweather API which comes with a Geocoding API.
+"""
+
+
+def get_lat_lon_from_city(city_name: str) -> tuple[float, float] | None:
+    api_key = os.getenv("owm_api")
+    if not api_key:
+        print("Error: OWM API key not found.")
+        return None
+
+    url = "http://api.openweathermap.org/geo/1.0/direct"
+    params = {"q": city_name, "limit": 1, "appid": api_key}
+
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        if data:
+            return data[0]["lat"], data[0]["lon"]
+        else:
+            print(f"Location '{city_name}' not found.")
+            return None
+    except requests.RequestException as e:
+        print(f"Geocoding error: {e}")
+        return None
+
+    # if __name__ == "__main__":
+    city = "Stockholm"  # Or input("Enter city: ")
+
+    # 1. Get Coordinates
+    coords = get_lat_lon_from_city(city)
+
+    if coords:
+        lat, lon = coords
+        print(f"Coordinates for {city}: {lat}, {lon}")
+
+        # 2. Get Air Quality (using your existing function)
+        raw = get_air_quality_data(lat, lon)
+
+        # 3. Normalize (using your existing function)
+        normalized = extract_airly_current(raw)
+
+        print("Normalized output:")
+        print(json.dumps(normalized, indent=2, ensure_ascii=False))
+    else:
+        print("Could not determine location.")
+
+
+"""
+Solution 2:
+Using the Geopy library module
+"""
+
+
+def get_lat_lon_geopy(address: str):
+    """
+    Translates an address (street, city, country) into latitude and longitude.
+    """
+    # 1. CRITICAL: Change this to something unique, ideally your email.
+    #    If you share this string with other students, you all get banned together.
+    my_user_agent = "fakemailer@fakemail.com"
+
+    geolocator = Nominatim(user_agent=my_user_agent)
+
+    try:
+        # 2. Rate Limiting: Sleep to be polite to the free server
+        time.sleep(1.2)
+
+        # 3. Geocode the full address
+        #    addressdetails=True helps verification, but strictly we just need the location.
+        location = geolocator.geocode(address)
+
+        if location:
+            return location.latitude, location.longitude
+        return None
+
+    except (GeocoderTimedOut, GeocoderServiceError) as e:
+        print(f"Error fetching '{address}': {e}")
+        # If you see "Non-successful status code 509", it means you are still IP banned.
+        return None
+    except Exception as e:
+        print(f"General Error: {e}")
+        return None
+
+    # if __name__ == "__main__":
+    # Test with SPECIFIC Home Addresses
+    test_addresses = [
+        "Kungsgatan 1, Stockholm",  # Specific Street
+        "10 Downing Street, London",  # Famous Address
+        "Empire State Building, NY",  # Landmark
+        "Gatunamn 99, Ingenstans",  # Fake Address
+    ]
+
+    print(f"{'Address':<30} | {'Latitude':<10} | {'Longitude':<10}")
+    print("-" * 56)
+
+    for addr in test_addresses:
+        result = get_lat_lon_geopy(addr)
+
+        if result:
+            lat, lon = result
+            print(f"{addr:<30} | {lat:<10.4f} | {lon:<10.4f}")
+        else:
+            print(f"{addr:<30} | {'Not Found':<10} | {'-' * 10}")
