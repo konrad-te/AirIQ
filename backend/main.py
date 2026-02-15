@@ -1,118 +1,384 @@
-import requests
-import json
-from dotenv import load_dotenv
 import os
+import json
 import time
-from typing import Any, Dict, Optional
+import math
+from typing import Any, Dict, Optional, Tuple
+
+import requests
+from dotenv import load_dotenv
+
+# ---------------------------
+# Config
+# ---------------------------
 
 cache_folder = r"C:\Users\konra\Desktop\Air\data\cache"
 load_dotenv()
 
 api_key = os.getenv("airly_api")
-api_key_2 = os.getenv("owm_api")
+if not api_key:
+    raise RuntimeError("Missing airly_api in your .env")
 
-headers = {
-    'Accept': 'application/json',
-    'apikey': api_key
-}
+headers = {"Accept": "application/json", "apikey": api_key}
+
+OLD_DATA_LIMIT = 3600  # seconds
+NEAREST_MAX_DISTANCE_KM = 10
+INTERPOLATION_CLOSE_KM = 1.5  # your “interpolated should work” mental model threshold
+INSTALLATION_INDEX_TTL = 7 * 24 * 3600  # 7 days
+
+DEBUG = False  # set True temporarily when diagnosing
+
+POINT_URL = "https://airapi.airly.eu/v2/measurements/point"
+NEAREST_URL = "https://airapi.airly.eu/v2/measurements/nearest"
 
 
+# ---------------------------
+# Cache helpers
+# ---------------------------
 
-def fetch_air_quality_data(lat: float, lon: float) -> dict:
-    """
-    Fetches air quality data for a specific geographic point using Airly's
-    interpolated measurements (based on nearby stations within ~1.5 km).
-    Returns a dict: Air quality data including current, history, and forecast sections.
-    """ 
+def _ensure_cache_dir() -> None:
+    os.makedirs(cache_folder, exist_ok=True)
 
-    url = "https://airapi.airly.eu/v2/measurements/point"
+
+def _cache_read(path: str, max_age_seconds: int) -> Optional[dict]:
+    if not os.path.exists(path):
+        return None
+    age = time.time() - os.path.getmtime(path)
+    if age >= max_age_seconds:
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _cache_write(path: str, data: dict) -> None:
+    _ensure_cache_dir()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+# ---------------------------
+# Airly fetchers
+# ---------------------------
+
+def fetch_airly_point(lat: float, lon: float) -> dict:
     params = {"lat": lat, "lng": lon}
-    response = requests.get(url, headers=headers, params=params, timeout=10)
-    response.raise_for_status()
-    return response.json()
+    r = requests.get(POINT_URL, headers=headers, params=params, timeout=10)
+    r.raise_for_status()
+    return r.json()
 
-# vvv Used to test the function vvv
-# data = fetch_air_quality_data(50.509139467141765, 19.413033344281995)
-# print(json.dumps(data, indent=2, ensure_ascii=False))
 
+def fetch_airly_nearest(lat: float, lon: float, max_distance_km: int = NEAREST_MAX_DISTANCE_KM) -> dict:
+    params = {
+        "lat": lat,
+        "lng": lon,
+        "maxDistanceKM": max_distance_km,
+        "indexType": "AIRLY_CAQI",
+    }
+    r = requests.get(NEAREST_URL, headers=headers, params=params, timeout=10)
+    r.raise_for_status()
+    return r.json()
+
+
+# ---------------------------
+# Response parsing helpers
+# ---------------------------
 
 def airly_has_data(data: dict) -> bool:
-    """
-    Checks whether the Airly response contains any actual measurement values.
-    Returns False when no nearby stations are available (values list is empty).
-    """
-    current = data.get("current", {})
+    current = data.get("current", {}) or {}
     values = current.get("values") or []
-    if values:  # has at least one measurement
-        return True
-    # If values are empty, treat as no data
-    return False
+    return isinstance(values, list) and len(values) > 0
 
-old_data_limit = 3600  # seconds
+
+def get_installation_id(nearest_data: dict) -> Optional[int]:
+    # Most common: nearest_data["installation"]["id"]
+    inst = nearest_data.get("installation")
+    if isinstance(inst, dict):
+        inst_id = inst.get("id")
+        if isinstance(inst_id, int):
+            return inst_id
+
+    # Alternate: nearest_data["installationId"]
+    inst_id = nearest_data.get("installationId")
+    if isinstance(inst_id, int):
+        return inst_id
+
+    return None
+
+
+def _try_get_lat_lon_from_obj(obj: Any) -> Optional[Tuple[float, float]]:
+    """
+    Helper to extract lat/lon from common patterns:
+    - {"latitude": .., "longitude": ..}
+    - {"lat": .., "lng": ..}
+    - {"lat": .., "lon": ..}
+    """
+    if not isinstance(obj, dict):
+        return None
+
+    lat = obj.get("latitude", obj.get("lat"))
+    lon = obj.get("longitude", obj.get("lng", obj.get("lon")))
+
+    if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+        return float(lat), float(lon)
+    return None
+
+
+def get_installation_coords(nearest_data: dict) -> Optional[Tuple[float, float]]:
+    """
+    Airly often provides installation.location.{latitude,longitude}
+    but sometimes responses differ (especially outside PL).
+    We try a few reasonable places.
+    """
+    # Typical: installation -> location
+    inst = nearest_data.get("installation")
+    if isinstance(inst, dict):
+        loc = inst.get("location")
+        coords = _try_get_lat_lon_from_obj(loc)
+        if coords:
+            return coords
+
+        # Sometimes directly on installation
+        coords = _try_get_lat_lon_from_obj(inst)
+        if coords:
+            return coords
+
+    # Sometimes top-level location-ish fields
+    coords = _try_get_lat_lon_from_obj(nearest_data.get("location"))
+    if coords:
+        return coords
+
+    return None
+
+
+# ---------------------------
+# Geo (Haversine)
+# ---------------------------
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+
+# ---------------------------
+# Optional: index cache (lat/lon -> installationId)
+# ---------------------------
+
+def _index_cache_path() -> str:
+    return os.path.join(cache_folder, "installation_index.json")
+
+
+def _load_installation_index() -> dict:
+    data = _cache_read(_index_cache_path(), INSTALLATION_INDEX_TTL)
+    return data if isinstance(data, dict) else {}
+
+
+def _save_installation_index(index: dict) -> None:
+    _cache_write(_index_cache_path(), index)
+
+
+def _index_key(lat: float, lon: float) -> str:
+    return f"{lat:.4f}_{lon:.4f}"
+
+
+# ---------------------------
+# Main retrieval logic
+# ---------------------------
 
 def get_air_quality_data(lat: float, lon: float) -> dict:
     """
-    Retrieve air quality data for a geographic point using local caching.
+    Flow:
+    1) Use /point (interpolated) if possible (cached by lat/lon).
+    2) If /point has no values, use /nearest within NEAREST_MAX_DISTANCE_KM.
+       - Accept nearest if it has values EVEN when installation metadata is missing.
+       - If station coords are available, compute distance and label it:
+           * "nearest_close" if <= INTERPOLATION_CLOSE_KM
+           * "nearest" otherwise
+    3) If still no data, return the /point response with explanation metadata.
 
-    The function first attempts to load cached air quality data based on the
-    provided latitude and longitude. Cache files are keyed by rounded
-    coordinates (4 decimal places) to avoid excessive file creation.
-
-    If cached data exists and is newer than `old_data_limit`, it is returned
-    immediately. Otherwise, fresh data is fetched from the external air quality
-    API.
-
-    Responses that do not contain valid air quality sensor data are returned
-    but deliberately not cached, ensuring that missing or incomplete data does
-    not become permanently stored.
-
-    Args:
-        lat (float): Latitude of the requested location.
-        lon (float): Longitude of the requested location.
-
-    Returns:
-        dict: Air quality data fetched from cache or the external API.
+    Always attaches `_airiq_source` metadata for your normalizer/UI layer.
     """
-   
-    key = f"{lat:.4f}_{lon:.4f}" # :.4f means round to 4 decimals
-    filename = os.path.join(cache_folder, f"air_point_{key}.json")
-    if os.path.exists(filename):
-        file_age = time.time() - os.path.getmtime(filename)
-        if file_age < old_data_limit:
-            print("Using cached data")
-            with open(filename, "r", encoding="utf-8") as f:
-                return json.load(f)
-        else:
-            print("Cached data is too old, fetching new data.")
-    else:
-        print("No cache found. Fetching new data.")
-    data = fetch_air_quality_data(lat, lon)
-    if not airly_has_data(data): # If data is empty - don't cache the file
-        return data
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    return data
+    _ensure_cache_dir()
+    rounded_key = _index_key(lat, lon)
 
+    # --- 1) POINT CACHE ---
+    point_cache_path = os.path.join(cache_folder, f"air_point_{rounded_key}.json")
+    cached_point = _cache_read(point_cache_path, OLD_DATA_LIMIT)
+    if cached_point is not None:
+        cached_point["_airiq_source"] = {
+            "provider": "airly",
+            "method": "point",
+            "message": "Used interpolated point measurements (nearby stations available).",
+        }
+        return cached_point
+
+    # --- 1) POINT FETCH ---
+    point_data = fetch_airly_point(lat, lon)
+
+    if DEBUG:
+        cur = point_data.get("current", {}) or {}
+        print("DEBUG POINT RESPONSE:")
+        print(json.dumps({
+            "values_len": len(cur.get("values") or []),
+            "indexes": cur.get("indexes"),
+        }, indent=2, ensure_ascii=False))
+
+    if airly_has_data(point_data):
+        _cache_write(point_cache_path, point_data)
+        point_data["_airiq_source"] = {
+            "provider": "airly",
+            "method": "point",
+            "message": "Used interpolated point measurements (nearby stations available).",
+        }
+        return point_data
+
+    # --- 2) NEAREST ---
+    index = _load_installation_index()
+    inst_id_from_index = index.get(rounded_key)
+
+    # 2a) Try cached station via index (only works if we previously had an installationId)
+    if isinstance(inst_id_from_index, int):
+        station_cache_path = os.path.join(
+            cache_folder, f"air_station_{inst_id_from_index}_{NEAREST_MAX_DISTANCE_KM}km.json"
+        )
+        cached_station = _cache_read(station_cache_path, OLD_DATA_LIMIT)
+        if cached_station is not None and airly_has_data(cached_station):
+            coords = get_installation_coords(cached_station)
+            distance_km = None
+            if coords:
+                st_lat, st_lon = coords
+                distance_km = haversine_km(lat, lon, st_lat, st_lon)
+
+            method = "nearest"
+            msg = f"/point had no values, so used cached nearest measurements (<= {NEAREST_MAX_DISTANCE_KM} km)."
+            if distance_km is not None:
+                if distance_km <= INTERPOLATION_CLOSE_KM:
+                    method = "nearest_close"
+                    msg = (
+                        f"/point had no values, but nearest station is very close (~{distance_km:.1f} km). "
+                        "Using nearest station measurements."
+                    )
+                else:
+                    msg += f" Nearest station is ~{distance_km:.1f} km away."
+
+            cached_station["_airiq_source"] = {
+                "provider": "airly",
+                "method": method,
+                "max_distance_km": NEAREST_MAX_DISTANCE_KM,
+                "installation_id": inst_id_from_index,
+                "distance_km": round(distance_km, 2) if distance_km is not None else None,
+                "message": msg,
+                "point_interpolation_available": False,
+            }
+            return cached_station
+
+    # 2b) No usable cache -> call nearest
+    try:
+        nearest_data = fetch_airly_nearest(lat, lon, max_distance_km=NEAREST_MAX_DISTANCE_KM)
+    except requests.RequestException as e:
+        # If nearest fails, return point with clear reason
+        point_data["_airiq_source"] = {
+            "provider": "airly",
+            "method": "none",
+            "max_distance_km": NEAREST_MAX_DISTANCE_KM,
+            "message": f"/point had no values and /nearest request failed: {e}",
+            "point_interpolation_available": False,
+        }
+        return point_data
+
+    if DEBUG:
+        cur = nearest_data.get("current", {}) or {}
+        print("DEBUG NEAREST RESPONSE:")
+        print(json.dumps({
+            "installation": nearest_data.get("installation"),
+            "installationId": nearest_data.get("installationId"),
+            "values_len": len(cur.get("values") or []),
+            "indexes": cur.get("indexes"),
+        }, indent=2, ensure_ascii=False))
+
+    inst_id = get_installation_id(nearest_data)
+
+    # Accept nearest if it has values, even if installation metadata is missing
+    if airly_has_data(nearest_data):
+        coords = get_installation_coords(nearest_data)
+        distance_km = None
+        if coords:
+            st_lat, st_lon = coords
+            distance_km = haversine_km(lat, lon, st_lat, st_lon)
+
+        # Cache smartly:
+        if inst_id is not None:
+            station_cache_path = os.path.join(
+                cache_folder, f"air_station_{inst_id}_{NEAREST_MAX_DISTANCE_KM}km.json"
+            )
+            _cache_write(station_cache_path, nearest_data)
+
+            index[rounded_key] = inst_id
+            _save_installation_index(index)
+        else:
+            # Airly sometimes omits installation metadata -> cache by lat/lon key
+            station_cache_path = os.path.join(
+                cache_folder, f"air_nearest_{rounded_key}_{NEAREST_MAX_DISTANCE_KM}km.json"
+            )
+            _cache_write(station_cache_path, nearest_data)
+
+        # Decide “close” labeling if we know distance
+        method = "nearest"
+        msg = f"/point had no values, so used nearest measurements (<= {NEAREST_MAX_DISTANCE_KM} km)."
+
+        if distance_km is not None:
+            if distance_km <= INTERPOLATION_CLOSE_KM:
+                method = "nearest_close"
+                msg = (
+                    f"/point had no values, but nearest station is very close (~{distance_km:.1f} km). "
+                    "Using nearest station measurements."
+                )
+            else:
+                msg += f" Nearest station is ~{distance_km:.1f} km away."
+        else:
+            msg += " (Airly response did not include station coordinates; distance unknown.)"
+
+        if inst_id is None:
+            msg += " (Installation metadata missing.)"
+
+        nearest_data["_airiq_source"] = {
+            "provider": "airly",
+            "method": method,  # "nearest" or "nearest_close"
+            "max_distance_km": NEAREST_MAX_DISTANCE_KM,
+            "installation_id": inst_id,
+            "distance_km": round(distance_km, 2) if distance_km is not None else None,
+            "message": msg,
+            "point_interpolation_available": False,
+        }
+        return nearest_data
+
+    # 3) Still no data -> return point response (do not cache)
+    point_data["_airiq_source"] = {
+        "provider": "airly",
+        "method": "none",
+        "max_distance_km": NEAREST_MAX_DISTANCE_KM,
+        "message": f"No Airly values via /point and no nearest values within {NEAREST_MAX_DISTANCE_KM} km.",
+        "point_interpolation_available": False,
+    }
+    return point_data
+
+
+# ---------------------------
+# Normalizer
+# ---------------------------
 
 def extract_airly_current(data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Extracts normalized air quality data from Airly 'current' response.
+    current_section = data.get("current", {}) or {}
+    values_list = current_section.get("values", []) or []
 
-    Returns a standardized structure:
-    {
-        "current": {...},
-        "measurement_window": {...},
-        "source": {...}
-    }
-    """
-    current_section = data.get("current", {})
-    values_list = current_section.get("values", [])
-
-    # Convert list of {name, value} into dictionary
     raw_values = {
         item.get("name"): item.get("value")
         for item in values_list
-        if "name" in item
+        if isinstance(item, dict) and "name" in item
     }
 
     normalized_current = {
@@ -121,29 +387,39 @@ def extract_airly_current(data: Dict[str, Any]) -> Dict[str, Any]:
         "temperature_c": raw_values.get("TEMPERATURE"),
         "humidity_pct": raw_values.get("HUMIDITY"),
         "pressure_hpa": raw_values.get("PRESSURE"),
+        "no2": raw_values.get("NO2"),
+        "co": raw_values.get("CO"),
+        "o3": raw_values.get("O3"),
+        "so2": raw_values.get("SO2"),
     }
+
+    source = data.get("_airiq_source") or {
+        "provider": "airly",
+        "method": "unknown",
+        "message": "No source info.",
+    }
+
     return {
         "current": normalized_current,
         "measurement_window": {
             "from": current_section.get("fromDateTime"),
             "to": current_section.get("tillDateTime"),
         },
-        "source": {
-            "provider": "airly",
-            "method": "point"
-        }
+        "source": source,
     }
 
+
+# ---------------------------
+# Test run
+# ---------------------------
+
 if __name__ == "__main__":
-    lat, lon = 50.50921921512974, 19.411960729382777
+    lat, lon = 59.3293, 18.0686
 
     raw = get_air_quality_data(lat, lon)
     normalized = extract_airly_current(raw)
 
-    print("Normalized output:")
     print(json.dumps(normalized, indent=2, ensure_ascii=False))
-
-
 
 
 
