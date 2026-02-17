@@ -13,7 +13,12 @@ from dotenv import load_dotenv
 # Config
 # ---------------------------
 
-cache_folder = r"C:\Users\konra\Desktop\Air\data\cache"
+import requests
+from dotenv import load_dotenv
+from geopy.exc import GeocoderServiceError, GeocoderTimedOut
+from geopy.geocoders import Nominatim
+
+cache_folder = r"C:\Users\Admin\Desktop\AI Ingenjör och Maskininlärning\Webbramverk i python\AirIQ\data\cache"
 load_dotenv()
 
 AIRLY_KEY = os.getenv("airly_api")
@@ -944,3 +949,141 @@ def translate_values_from_data(
         }
 
     return translated_values
+
+
+# if __name__ == "__main__":
+#     lat, lon = 50.50921921512974, 19.411960729382777
+
+#     raw = get_air_quality_data(lat, lon)
+#     normalized = extract_airly_current(raw)
+
+#     print("Normalized output:")
+#     print(json.dumps(normalized, indent=2, ensure_ascii=False))
+
+"""
+Geocode Nominatim
+Implement Nominatim solution that translates a adress into a geolocation, cache the information inside data/cache and use a logic that checks the cache before making a Nominatim request.
+https://nominatim.org/release-docs/develop/api/Lookup/#endpoint
+"""
+
+nominatim_cache_limit = 2592000  # 30 days
+
+
+def _normalize_address(address: str) -> str:
+    """Normalize address input so equivalent strings map to the same cache key."""
+    return " ".join(address.strip().lower().split())
+
+
+def get_lat_lon_nominatim_cached(address: str) -> tuple[float, float] | None:
+    """
+    Translate an address into (lat, lon) using Nominatim with local caching.
+
+    Cache-first flow:
+    1. Normalize the address and check for a matching file in data/cache.
+    2. If cache is fresh, return cached coordinates.
+    3. Otherwise query Nominatim and cache the returned coordinates.
+    """
+    normalized_address = _normalize_address(address)
+    if not normalized_address:
+        print("Error: Address cannot be empty.")
+        return None
+
+    os.makedirs(cache_folder, exist_ok=True)
+    cache_key = hashlib.sha256(normalized_address.encode("utf-8")).hexdigest()[:16]
+    cache_file = os.path.join(cache_folder, "nominatim_cache.json")
+
+    cache_data: dict[str, Any] = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+            if not isinstance(cache_data, dict):
+                cache_data = {}
+        except (json.JSONDecodeError, OSError):
+            print("Geocode cache file is empty/invalid. Rebuilding cache file.")
+            cache_data = {}
+    else:
+        print("No geocode cache file found. A new one will be created.")
+
+    if isinstance(cache_data.get("entries"), dict):
+        cache_entries = cache_data["entries"]
+    else:
+        # Support both {"entries": {...}} and legacy root-level dict shape.
+        cache_entries = cache_data
+
+    cached_entry = cache_entries.get(cache_key)
+    if isinstance(cached_entry, dict):
+        try:
+            cached_at = float(cached_entry.get("cached_at", 0))
+            if cached_at and (time.time() - cached_at) < nominatim_cache_limit:
+                lat = float(cached_entry["lat"])
+                lon = float(cached_entry["lon"])
+                print("Using cached Nominatim geocode data.")
+                return lat, lon
+            print("Cached geocode entry is too old. Fetching fresh Nominatim data.")
+        except (KeyError, TypeError, ValueError):
+            print("Geocode cache entry is invalid. Fetching fresh Nominatim data.")
+    else:
+        print("No cached geocode entry found. Fetching from Nominatim.")
+
+    nominatim_url = "https://nominatim.openstreetmap.org/search"
+    user_agent = os.getenv(
+        "nominatim_user_agent",
+        "AirIQ-Learning-Project/1.0 (contact: student@example.com)",
+    )
+    nominatim_email = os.getenv("nominatim_email")
+    headers = {"User-Agent": user_agent}
+    params = {"q": address, "format": "jsonv2", "limit": 1, "addressdetails": 1}
+    if nominatim_email:
+        params["email"] = nominatim_email
+
+    try:
+        # Respect Nominatim usage policy by limiting request frequency.
+        time.sleep(1.2)
+        response = requests.get(
+            nominatim_url, params=params, headers=headers, timeout=10
+        )
+        response.raise_for_status()
+        results = response.json()
+
+        if not results:
+            print(f"Address '{address}' not found in Nominatim.")
+            return None
+
+        first_result = results[0]
+        lat = float(first_result["lat"])
+        lon = float(first_result["lon"])
+
+        cached_payload = {
+            "query": address,
+            "normalized_query": normalized_address,
+            "lat": lat,
+            "lon": lon,
+            "display_name": first_result.get("display_name"),
+            "place_id": first_result.get("place_id"),
+            "cached_at": time.time(),
+        }
+        cache_entries[cache_key] = cached_payload
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump({"entries": cache_entries}, f, indent=2, ensure_ascii=False)
+
+        return lat, lon
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 403:
+            print(
+                "Nominatim blocked the request (403). Set a unique "
+                "nominatim_user_agent and nominatim_email in .env."
+            )
+        print(f"Nominatim request error: {e}")
+        return None
+    except requests.RequestException as e:
+        print(f"Nominatim request error: {e}")
+        return None
+    except (KeyError, TypeError, ValueError) as e:
+        print(f"Unexpected Nominatim response format: {e}")
+        return None
+
+
+if __name__ == "__main__":
+    coords = get_lat_lon_nominatim_cached("Kungsgatan 4, Stockholm")
+    print("Coords:", coords)
