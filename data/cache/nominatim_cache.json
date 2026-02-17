@@ -1,0 +1,22 @@
+{
+  "entries": {
+    "f5343fab6f8bb324": {
+      "query": "Friherregatan 84, Stockholm",
+      "normalized_query": "friherregatan 84, stockholm",
+      "lat": 59.3674333,
+      "lon": 17.8343012,
+      "display_name": "84, Friherregatan, Hässelby strand, Hässelby-Vällingby stadsdelsområde, Stockholms kommun, Stockholms län, 165 57, Sverige",
+      "place_id": 406014291,
+      "cached_at": 1771007004.0731966
+    },
+    "4d7d77a7dd244c46": {
+      "query": "Kungsgatan 4, Stockholm",
+      "normalized_query": "kungsgatan 4, stockholm",
+      "lat": 59.3361973,
+      "lon": 18.0702364,
+      "display_name": "4B, Kungsgatan, Klara, Norrmalm, Norra innerstadens stadsdelsområde, Stockholm, Stockholms kommun, Stockholms län, 111 43, Sverige",
+      "place_id": 153220264,
+      "cached_at": 1771009236.5047605
+    }
+  }
+}
