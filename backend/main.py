@@ -12,8 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 # ---------------------------
 import requests
 from dotenv import load_dotenv
-from geopy.exc import GeocoderServiceError, GeocoderTimedOut
-from geopy.geocoders import Nominatim
 
 load_dotenv()
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -816,20 +814,6 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
     }
 
 
-# ---------------------------
-# Test run
-# ---------------------------
-
-if __name__ == "__main__":
-    # Change to your test coordinate
-    lat, lon = 53.23533544661682, 12.09130881465885
-
-    normalized = get_air_quality_data(lat, lon)
-    print(json.dumps(normalized, indent=2, ensure_ascii=False))
-
-
-
-
 """
 Geocode Nominatim
 Implement Nominatim solution that translates a adress into a geolocation, cache the information inside data/cache and use a logic that checks the cache before making a Nominatim request.
@@ -954,6 +938,16 @@ def get_lat_lon_nominatim_cached(address: str) -> tuple[float, float] | None:
         return None
 
 
+# ---------------------------
+# Test run
+# ---------------------------
+
 if __name__ == "__main__":
+    # Change to your test coordinate
+    lat, lon = 53.23533544661682, 12.09130881465885
+
+    normalized = get_air_quality_data(lat, lon)
+    print(json.dumps(normalized, indent=2, ensure_ascii=False))
+
     coords = get_lat_lon_nominatim_cached("Kungsgatan 4, Stockholm")
     print("Coords:", coords)
