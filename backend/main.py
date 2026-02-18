@@ -1,29 +1,29 @@
-import os
+﻿import hashlib
 import json
-import time
 import math
+import os
+import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, List
-
-import requests
-from dotenv import load_dotenv
-
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 # ---------------------------
 # Config
 # ---------------------------
-
 import requests
 from dotenv import load_dotenv
 from geopy.exc import GeocoderServiceError, GeocoderTimedOut
 from geopy.geocoders import Nominatim
 
-cache_folder = r"C:\Users\Admin\Desktop\AI Ingenjör och Maskininlärning\Webbramverk i python\AirIQ\data\cache"
 load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+cache_folder = str(PROJECT_ROOT / "data" / "cache")
 
 AIRLY_KEY = os.getenv("airly_api")
 OPENAQ_KEY = os.getenv("open_aq")
-CACHE_RAW = os.getenv("CACHE_RAW", "0") == "1"  # will cache raw data if cache_raw is set to 1 in .env (debugging tool)
+CACHE_RAW = (
+    os.getenv("CACHE_RAW", "0") == "1"
+)  # will cache raw data if cache_raw is set to 1 in .env (debugging tool)
 
 
 if not AIRLY_KEY:
@@ -31,47 +31,50 @@ if not AIRLY_KEY:
 
 AIRLY_HEADERS = {"Accept": "application/json", "apikey": AIRLY_KEY}
 
-DEBUG = False # will print debugg messages if set to True
+DEBUG = False  # will print debugg messages if set to True
 
 # TTLs (seconds) - How long is cached data considered valid
-TTL_CURRENT = 10 * 60          # 10 min (current data changes often)
-TTL_STATION = 10 * 60          # 10 min for Airly/OpenAQ nearest station
-TTL_MODEL = 20 * 60            # 20 min for model-based data
+TTL_CURRENT = 10 * 60  # 10 min (current data changes often)
+TTL_STATION = 10 * 60  # 10 min for Airly/OpenAQ nearest station
+TTL_MODEL = 20 * 60  # 20 min for model-based data
 INSTALLATION_INDEX_TTL = 7 * 24 * 3600  # 7 days
 CACHE_CLEANUP_ENABLED = True
-CACHE_MAX_FILES = 2000                 # cap total files
-CACHE_MAX_AGE_SEC = 2 * 24 * 3600      # delete cache files older than 2 days
+CACHE_MAX_FILES = 2000  # cap total files
+CACHE_MAX_AGE_SEC = 2 * 24 * 3600  # delete cache files older than 2 days
 
 # Distances
 AIRLY_NEAREST_MAX_DISTANCE_KM = 5
 OPENAQ_MAX_DISTANCE_KM = 50
 INTERPOLATION_CLOSE_KM = 1.5
 
-# Open-Meteo time window - how much of history/forecast is saved 
+# Open-Meteo time window - how much of history/forecast is saved
 OPENMETEO_PAST_HOURS = 24
 OPENMETEO_FUTURE_HOURS = 24
 
 # Airly endpoints
-AIRLY_POINT_URL = "https://airapi.airly.eu/v2/measurements/point" # interpolated
-AIRLY_NEAREST_URL = "https://airapi.airly.eu/v2/measurements/nearest" # nearest station up to 5km
+AIRLY_POINT_URL = "https://airapi.airly.eu/v2/measurements/point"  # interpolated
+AIRLY_NEAREST_URL = (
+    "https://airapi.airly.eu/v2/measurements/nearest"  # nearest station up to 5km
+)
 
 # OpenAQ endpoint (v3)
-OPENAQ_LATEST_URL = "https://api.openaq.org/v3/latest" # up to 50km 
+OPENAQ_LATEST_URL = "https://api.openaq.org/v3/latest"  # up to 50km
 
 # Open-Meteo Air Quality endpoint
-OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality" # >50km
+OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"  # >50km
 
 
 # ---------------------------
 # Cache helpers
 # ---------------------------
 
-def _ensure_cache_dir() -> None: 
-    """Skapar cache folder om den inte finns""" 
+
+def _ensure_cache_dir() -> None:
+    """Skapar cache folder om den inte finns"""
     os.makedirs(cache_folder, exist_ok=True)
 
 
-def _cache_read(path: str, max_age_seconds: int) -> Optional[dict]: 
+def _cache_read(path: str, max_age_seconds: int) -> Optional[dict]:
     """
     Reads cached JSON data from a file if it exists and is still valid.
 
@@ -108,10 +111,11 @@ def _cache_write(path: str, data: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
+
 def _cleanup_cache_dir(
     max_files: int = CACHE_MAX_FILES,
     max_age_sec: int = CACHE_MAX_AGE_SEC,
-    ) -> None:
+) -> None:
     """
     Deletes old cache files to prevent disk spam.
     - removes files older than max_age_sec
@@ -187,8 +191,8 @@ def _cleanup_cache_dir(
             pass
 
 
-
 COORD_PRECISION = 3  # 3 decimals ~ 111m lat resolution (roughly)
+
 
 def _index_key(lat: float, lon: float) -> str:
     return f"{lat:.{COORD_PRECISION}f}_{lon:.{COORD_PRECISION}f}"
@@ -202,6 +206,7 @@ def _cache_path(name: str) -> str:
 # Geo (Haversine)
 # ---------------------------
 
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculates distance based on two geolocations"""
     R = 6371.0
@@ -209,7 +214,10 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
 
-    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
@@ -217,6 +225,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ---------------------------
 # Installation index cache (lat/lon -> installationId)
 # ---------------------------
+
 
 def _index_cache_path() -> str:
     """Helps reduce repeated /nearest API calls by remembering which
@@ -239,6 +248,7 @@ def _save_installation_index(index: dict) -> None:
 # Airly fetchers
 # ---------------------------
 
+
 def fetch_airly_point(lat: float, lon: float) -> dict:
     """Interpolated method"""
     params = {"lat": lat, "lng": lon}
@@ -247,14 +257,18 @@ def fetch_airly_point(lat: float, lon: float) -> dict:
     return r.json()
 
 
-def fetch_airly_nearest(lat: float, lon: float, max_distance_km: int = AIRLY_NEAREST_MAX_DISTANCE_KM) -> dict:
+def fetch_airly_nearest(
+    lat: float, lon: float, max_distance_km: int = AIRLY_NEAREST_MAX_DISTANCE_KM
+) -> dict:
     params = {
         "lat": lat,
         "lng": lon,
         "maxDistanceKM": max_distance_km,
         "indexType": "AIRLY_CAQI",
     }
-    r = requests.get(AIRLY_NEAREST_URL, headers=AIRLY_HEADERS, params=params, timeout=10)
+    r = requests.get(
+        AIRLY_NEAREST_URL, headers=AIRLY_HEADERS, params=params, timeout=10
+    )
     r.raise_for_status()
     return r.json()
 
@@ -300,6 +314,7 @@ def get_airly_installation_id(nearest_data: dict) -> Optional[int]:
 # Normalization helpers
 # ---------------------------
 
+
 def _to_float(x: Any) -> Optional[float]:
     try:
         if x is None:
@@ -336,14 +351,16 @@ def _normalize_airly_timeseries(series: Any) -> List[Dict[str, Any]]:
         if not isinstance(slot, dict):
             continue
         values = _airly_values_to_dict(slot.get("values"))
-        rows.append({
-            "time": slot.get("fromDateTime") or slot.get("tillDateTime"),
-            "pm25": _to_float(values.get("PM25")),
-            "pm10": _to_float(values.get("PM10")),
-            "temperature_c": _to_float(values.get("TEMPERATURE")),
-            "humidity_pct": _to_float(values.get("HUMIDITY")),
-            "pressure_hpa": _to_float(values.get("PRESSURE")),
-        })
+        rows.append(
+            {
+                "time": slot.get("fromDateTime") or slot.get("tillDateTime"),
+                "pm25": _to_float(values.get("PM25")),
+                "pm10": _to_float(values.get("PM10")),
+                "temperature_c": _to_float(values.get("TEMPERATURE")),
+                "humidity_pct": _to_float(values.get("HUMIDITY")),
+                "pressure_hpa": _to_float(values.get("PRESSURE")),
+            }
+        )
     return rows
 
 
@@ -370,8 +387,8 @@ def normalize_airly(raw: Dict[str, Any], source: Dict[str, Any]) -> Dict[str, An
         "meta": {
             "timezone": "UTC",
             "units": {
-                "pm": "µg/m³",
-                "temperature": "°C",
+                "pm": "Âµg/mÂ³",
+                "temperature": "Â°C",
                 "pressure": "hPa",
             },
         },
@@ -382,7 +399,7 @@ def normalize_airly(raw: Dict[str, Any], source: Dict[str, Any]) -> Dict[str, An
         "source": source,
         "cache": {
             "created_at": datetime.now(timezone.utc).isoformat(),
-        }
+        },
     }
 
     if CACHE_RAW:
@@ -400,7 +417,10 @@ def normalized_has_data(normalized: Dict[str, Any]) -> bool:
 # OpenAQ fallback
 # ---------------------------
 
-def fetch_openaq_latest_nearby(lat: float, lon: float, radius_km: float) -> Optional[Dict[str, Any]]:
+
+def fetch_openaq_latest_nearby(
+    lat: float, lon: float, radius_km: float
+) -> Optional[Dict[str, Any]]:
     if not OPENAQ_KEY:
         return None
 
@@ -423,7 +443,7 @@ def fetch_openaq_latest_nearby(lat: float, lon: float, radius_km: float) -> Opti
 
     # pick closest entry with pm2.5/pm10
     for loc in results:
-        coords = (loc.get("coordinates") or {})
+        coords = loc.get("coordinates") or {}
         lat2 = coords.get("latitude")
         lon2 = coords.get("longitude")
         if lat2 is None or lon2 is None:
@@ -474,7 +494,7 @@ def fetch_openaq_latest_nearby(lat: float, lon: float, radius_km: float) -> Opti
             "forecast": [],
             "meta": {
                 "timezone": "UTC",
-                "units": {"pm": "µg/m³"},
+                "units": {"pm": "Âµg/mÂ³"},
             },
             "measurement_window": {"from": None, "to": None},
             "source": source,
@@ -492,6 +512,7 @@ def fetch_openaq_latest_nearby(lat: float, lon: float, radius_km: float) -> Opti
 # ---------------------------
 # Open-Meteo fallback (model)
 # ---------------------------
+
 
 def _parse_iso_utc(ts: str) -> Optional[datetime]:
     if not ts or not isinstance(ts, str):
@@ -514,8 +535,8 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> Optional[Dict[str, An
         "timezone": "UTC",
         "current": "pm10,pm2_5",
         "hourly": "pm10,pm2_5",
-        "past_days": 1,          # gives us history window
-        "forecast_days": 2,      # gives us forecast window
+        "past_days": 1,  # gives us history window
+        "forecast_days": 2,  # gives us forecast window
     }
 
     r = requests.get(OPENMETEO_AQ_URL, params=params, timeout=12)
@@ -585,7 +606,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> Optional[Dict[str, An
         "forecast": forecast,
         "meta": {
             "timezone": "UTC",
-            "units": {"pm": "µg/m³"},
+            "units": {"pm": "Âµg/mÂ³"},
         },
         "measurement_window": {"from": cur_time, "to": cur_time},
         "source": source,
@@ -601,6 +622,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> Optional[Dict[str, An
 # ---------------------------
 # Main retrieval (normalized + caching)
 # ---------------------------
+
 
 def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
     """
@@ -645,14 +667,22 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
     inst_id = index.get(key)
 
     if isinstance(inst_id, int):
-        airly_station_cache = _cache_path(f"norm_airly_station_{inst_id}_{AIRLY_NEAREST_MAX_DISTANCE_KM}km.json")
+        airly_station_cache = _cache_path(
+            f"norm_airly_station_{inst_id}_{AIRLY_NEAREST_MAX_DISTANCE_KM}km.json"
+        )
         cached_station = _cache_read(airly_station_cache, TTL_STATION)
-        if cached_station and isinstance(cached_station, dict) and normalized_has_data(cached_station):
+        if (
+            cached_station
+            and isinstance(cached_station, dict)
+            and normalized_has_data(cached_station)
+        ):
             return cached_station
 
     # If no cached station, call nearest
     try:
-        raw_nearest = fetch_airly_nearest(lat, lon, max_distance_km=AIRLY_NEAREST_MAX_DISTANCE_KM)
+        raw_nearest = fetch_airly_nearest(
+            lat, lon, max_distance_km=AIRLY_NEAREST_MAX_DISTANCE_KM
+        )
     except requests.RequestException as e:
         # If nearest fails, continue to other providers
         raw_nearest = {}
@@ -692,25 +722,37 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
 
             if isinstance(inst_id2, int):
                 # station cache by installation id
-                airly_station_cache = _cache_path(f"norm_airly_station_{inst_id2}_{AIRLY_NEAREST_MAX_DISTANCE_KM}km.json")
+                airly_station_cache = _cache_path(
+                    f"norm_airly_station_{inst_id2}_{AIRLY_NEAREST_MAX_DISTANCE_KM}km.json"
+                )
                 _cache_write(airly_station_cache, norm_nearest)
                 index[key] = inst_id2
                 _save_installation_index(index)
             else:
                 # fallback cache by location key (rare case)
-                airly_nearest_cache = _cache_path(f"norm_airly_nearest_{key}_{AIRLY_NEAREST_MAX_DISTANCE_KM}km.json")
+                airly_nearest_cache = _cache_path(
+                    f"norm_airly_nearest_{key}_{AIRLY_NEAREST_MAX_DISTANCE_KM}km.json"
+                )
                 _cache_write(airly_nearest_cache, norm_nearest)
 
             return norm_nearest
 
     # ---------- 3) OpenAQ nearest ----------
-    openaq_cache = _cache_path(f"norm_openaq_nearest_{key}_{OPENAQ_MAX_DISTANCE_KM}km.json")
+    openaq_cache = _cache_path(
+        f"norm_openaq_nearest_{key}_{OPENAQ_MAX_DISTANCE_KM}km.json"
+    )
     cached_openaq = _cache_read(openaq_cache, TTL_STATION)
-    if cached_openaq and isinstance(cached_openaq, dict) and normalized_has_data(cached_openaq):
+    if (
+        cached_openaq
+        and isinstance(cached_openaq, dict)
+        and normalized_has_data(cached_openaq)
+    ):
         return cached_openaq
 
     try:
-        norm_openaq = fetch_openaq_latest_nearby(lat, lon, radius_km=OPENAQ_MAX_DISTANCE_KM)
+        norm_openaq = fetch_openaq_latest_nearby(
+            lat, lon, radius_km=OPENAQ_MAX_DISTANCE_KM
+        )
     except (requests.RequestException, RuntimeError) as e:
         norm_openaq = None
         if DEBUG:
@@ -722,9 +764,15 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
         return norm_openaq
 
     # ---------- 4) Open-Meteo model ----------
-    openmeteo_cache = _cache_path(f"norm_openmeteo_model_{key}_{OPENMETEO_PAST_HOURS}h_{OPENMETEO_FUTURE_HOURS}h.json")
+    openmeteo_cache = _cache_path(
+        f"norm_openmeteo_model_{key}_{OPENMETEO_PAST_HOURS}h_{OPENMETEO_FUTURE_HOURS}h.json"
+    )
     cached_model = _cache_read(openmeteo_cache, TTL_MODEL)
-    if cached_model and isinstance(cached_model, dict) and normalized_has_data(cached_model):
+    if (
+        cached_model
+        and isinstance(cached_model, dict)
+        and normalized_has_data(cached_model)
+    ):
         return cached_model
 
     try:
@@ -754,7 +802,7 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
         },
         "history": [],
         "forecast": [],
-        "meta": {"timezone": "UTC", "units": {"pm": "µg/m³"}},
+        "meta": {"timezone": "UTC", "units": {"pm": "Âµg/mÂ³"}},
         "measurement_window": {"from": None, "to": None},
         "source": {
             "provider": "none",
@@ -778,28 +826,6 @@ if __name__ == "__main__":
 
     normalized = get_air_quality_data(lat, lon)
     print(json.dumps(normalized, indent=2, ensure_ascii=False))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 """
