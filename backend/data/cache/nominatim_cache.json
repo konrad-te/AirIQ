@@ -1,0 +1,13 @@
+{
+  "entries": {
+    "4d7d77a7dd244c46": {
+      "query": "Kungsgatan 4, Stockholm",
+      "normalized_query": "kungsgatan 4, stockholm",
+      "lat": 59.3361973,
+      "lon": 18.0702364,
+      "display_name": "4B, Kungsgatan, Klara, Norrmalm, Norra innerstadens stadsdelsområde, Stockholm, Stockholms kommun, Stockholms län, 111 43, Sverige",
+      "place_id": 153232209,
+      "cached_at": 1771503872.1678724
+    }
+  }
+}
