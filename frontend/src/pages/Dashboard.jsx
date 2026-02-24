@@ -68,14 +68,14 @@ function toneToLabel(tone) {
 
 function buildRecommendation(metricTones) {
   if (metricTones.co2 === "over") {
-    return "CO2-nivan ar hogre an ditt gransvarde. En kort vadring kan forbattra luftkvaliteten infor natten.";
+    return "CO2-nivån är högre än ditt gränsvärde. En kort vädring kan forbattra luftkvaliteten infor natten.";
   }
 
   if (metricTones.humidity === "warning") {
-    return "Luftfuktigheten ar over din malsattning. Kort vadring och lagre varmekalla kan ge battre komfort.";
+    return "Luftfuktigheten är över din målsättning. Kort vädring och lägre värmekälla kan ge bättre komfort.";
   }
 
-  return "Luftkvaliteten ser stabil ut. Fortsatt overvakning ger dig tidiga signaler om nivaerna forandras.";
+  return "Luftkvaliteten ser stabil ut. Fortsatt övervakning ger dig tidiga signaler om nivåerna förändras.";
 }
 
 function Sparkline({ values, color }) {
