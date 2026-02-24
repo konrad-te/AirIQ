@@ -26,3 +26,22 @@ select,
 textarea {
   font: inherit;
 }
+
+@keyframes live-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0.9;
+  }
+  65% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 0;
+  }
+}
+
+.animate-live-pulse {
+  animation: live-pulse 1.8s ease-out infinite;
+}
