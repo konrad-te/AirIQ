@@ -1,6 +1,7 @@
 import SpaLink from "../components/common/SpaLink";
 import ThemeToggleButton from "../components/common/ThemeToggleButton";
 import useTheme from "../hooks/useTheme";
+import { useAuth } from "../context/AuthContext";
 
 const METRIC_PLACEHOLDERS = [
   { title: "PM2.5", value: "--", note: "Live room feed coming soon" },
@@ -28,6 +29,7 @@ function prettifyRoomId(roomId) {
 
 export default function Room({ roomId }) {
   const { theme, toggleTheme } = useTheme();
+  const { logout } = useAuth();
   const roomLabel = prettifyRoomId(roomId);
 
   return (
@@ -57,11 +59,18 @@ export default function Room({ roomId }) {
           <div className="flex items-center gap-2">
             <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
             <SpaLink
-              href="/signin"
+              href="/dashboard"
               className="rounded-lg border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-700"
             >
-              Sign in
+              Dashboard
             </SpaLink>
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+            >
+              Log out
+            </button>
           </div>
         </header>
 

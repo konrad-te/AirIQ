@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import RequireAuth from "./components/auth/RequireAuth";
+import SignInModal from "./components/auth/SignInModal";
 import SpaLink from "./components/common/SpaLink";
-import Landing from "./pages/Landing";
+import { useAuth } from "./context/AuthContext";
+import Dashboard from "./pages/Dashboard";
+import PublicLanding from "./pages/PublicLanding";
 import Room from "./pages/Room";
-import SignIn from "./pages/SignIn";
 
 function getPathname() {
   if (typeof window === "undefined") {
@@ -29,23 +32,23 @@ function NotFound() {
           404
         </p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">
-          Sidan kunde inte hittas
+          Page not found
         </h1>
         <p className="mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-300">
-          Kontrollera adressen eller ga tillbaka till startsidan.
+          Check the URL or return to the public landing.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <SpaLink
             href="/"
             className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500"
           >
-            Till Landing
+            Public landing
           </SpaLink>
           <SpaLink
-            href="/signin"
+            href="/dashboard"
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            Sign in
+            Dashboard
           </SpaLink>
         </div>
       </section>
@@ -54,7 +57,61 @@ function NotFound() {
 }
 
 function App() {
+  const { isAuthenticated, logout } = useAuth();
   const [pathname, setPathname] = useState(getPathname);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
+  const [postLoginPath, setPostLoginPath] = useState(null);
+
+  const navigate = useCallback((nextPath, options = {}) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const replace = options.replace === true;
+    const currentPath = window.location.pathname || "/";
+    if (currentPath !== nextPath) {
+      if (replace) {
+        window.history.replaceState({}, "", nextPath);
+      } else {
+        window.history.pushState({}, "", nextPath);
+      }
+    }
+
+    setPathname(nextPath);
+  }, []);
+
+  const openSignInModal = useCallback((options = {}) => {
+    setPostLoginPath(options.navigateTo ?? null);
+    setIsSignInOpen(true);
+  }, []);
+
+  const closeSignInModal = useCallback(() => {
+    setIsSignInOpen(false);
+    setPostLoginPath(null);
+  }, []);
+
+  const handleSignInSuccess = useCallback(() => {
+    setIsSignInOpen(false);
+
+    const nextPath = postLoginPath;
+    setPostLoginPath(null);
+    if (nextPath) {
+      navigate(nextPath);
+    }
+  }, [navigate, postLoginPath]);
+
+  const handleGoDashboard = useCallback(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard");
+      return;
+    }
+
+    openSignInModal({ navigateTo: "/dashboard" });
+  }, [isAuthenticated, navigate, openSignInModal]);
+
+  const handleUnauthenticated = useCallback(() => {
+    navigate("/", { replace: true });
+  }, [navigate]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -84,10 +141,7 @@ function App() {
       }
 
       event.preventDefault();
-      if (url.pathname !== window.location.pathname) {
-        window.history.pushState({}, "", url.pathname);
-        setPathname(url.pathname);
-      }
+      navigate(url.pathname);
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -97,22 +151,54 @@ function App() {
       window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("click", handleDocumentClick);
     };
-  }, []);
+  }, [navigate]);
 
-  if (pathname === "/") {
-    return <Landing />;
-  }
-
-  if (pathname === "/signin") {
-    return <SignIn />;
-  }
+  useEffect(() => {
+    if (pathname === "/signin") {
+      navigate("/", { replace: true });
+    }
+  }, [navigate, pathname]);
 
   const roomId = getRoomRoute(pathname);
-  if (roomId) {
-    return <Room roomId={roomId} />;
+
+  let content = null;
+  if (pathname === "/") {
+    content = (
+      <PublicLanding
+        isAuthenticated={isAuthenticated}
+        onOpenSignIn={() => openSignInModal()}
+        onGoDashboard={handleGoDashboard}
+        onLogOut={logout}
+      />
+    );
+  } else if (pathname === "/signin") {
+    content = null;
+  } else if (pathname === "/dashboard") {
+    content = (
+      <RequireAuth onUnauthenticated={handleUnauthenticated}>
+        <Dashboard />
+      </RequireAuth>
+    );
+  } else if (roomId) {
+    content = (
+      <RequireAuth onUnauthenticated={handleUnauthenticated}>
+        <Room roomId={roomId} />
+      </RequireAuth>
+    );
+  } else {
+    content = <NotFound />;
   }
 
-  return <NotFound />;
+  return (
+    <>
+      {content}
+      <SignInModal
+        isOpen={isSignInOpen}
+        onClose={closeSignInModal}
+        onSuccess={handleSignInSuccess}
+      />
+    </>
+  );
 }
 
 export default App;
