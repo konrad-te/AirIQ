@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SENSOR_STATUS_LABELS } from "../../mock/sensors";
 import SensorPanel from "../sensors/SensorPanel";
 
@@ -27,6 +27,12 @@ const STATUS_COLORS = {
 };
 
 const STATUS_OPTIONS = ["all", "good", "moderate", "poor"];
+const WORLD_VIEWPORT = {
+  minLat: -58,
+  maxLat: 84,
+  minLng: -179,
+  maxLng: 179,
+};
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -37,38 +43,11 @@ function formatTime(value) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function buildViewportFromSensors(sensors) {
-  if (!sensors.length) {
-    return {
-      minLat: 59.27,
-      maxLat: 59.36,
-      minLng: 18.0,
-      maxLng: 18.13,
-    };
-  }
-
-  const lats = sensors.map((sensor) => sensor.lat);
-  const lngs = sensors.map((sensor) => sensor.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const latPadding = (maxLat - minLat || 0.02) * 0.45;
-  const lngPadding = (maxLng - minLng || 0.02) * 0.45;
-
-  return {
-    minLat: minLat - latPadding,
-    maxLat: maxLat + latPadding,
-    minLng: minLng - lngPadding,
-    maxLng: maxLng + lngPadding,
-  };
-}
-
-function buildFocusViewport(sensor, baseViewport) {
-  const latSpan = 0.05;
-  const lngSpan = 0.08;
-  const minLat = clamp(sensor.lat - latSpan / 2, baseViewport.minLat, baseViewport.maxLat - latSpan);
-  const minLng = clamp(sensor.lng - lngSpan / 2, baseViewport.minLng, baseViewport.maxLng - lngSpan);
+function buildFocusViewport(sensor) {
+  const latSpan = 56;
+  const lngSpan = 90;
+  const minLat = clamp(sensor.lat - latSpan / 2, WORLD_VIEWPORT.minLat, WORLD_VIEWPORT.maxLat - latSpan);
+  const minLng = clamp(sensor.lng - lngSpan / 2, WORLD_VIEWPORT.minLng, WORLD_VIEWPORT.maxLng - lngSpan);
 
   return {
     minLat,
@@ -137,7 +116,12 @@ function MarkerIcon({ status }) {
 function MarkerShape({ sensor, isSelected, onClick, onMouseEnter, onMouseLeave }) {
   const colors = STATUS_COLORS[sensor.status];
   const isPoor = sensor.status === "poor";
-  const shapeClass = sensor.status === "good" ? "rounded-full" : sensor.status === "moderate" ? "rounded-md" : "rounded-sm rotate-45";
+  const shapeClass =
+    sensor.status === "good"
+      ? "rounded-full"
+      : sensor.status === "moderate"
+        ? "rounded-md"
+        : "rounded-sm rotate-45";
   const iconClass = isPoor ? "-rotate-45" : "";
 
   return (
@@ -174,8 +158,11 @@ export default function LandingSensorMap({ sensors, selectedSensorId, onSelectSe
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [hoveredSensorId, setHoveredSensorId] = useState(null);
-  const baseViewport = useMemo(() => buildViewportFromSensors(sensors), [sensors]);
-  const [viewport, setViewport] = useState(baseViewport);
+  const [viewport, setViewport] = useState(WORLD_VIEWPORT);
+
+  useEffect(() => {
+    setViewport(WORLD_VIEWPORT);
+  }, [statusFilter, search]);
 
   const filteredSensors = useMemo(() => {
     const searchLower = search.trim().toLowerCase();
@@ -190,14 +177,12 @@ export default function LandingSensorMap({ sensors, selectedSensorId, onSelectSe
     });
   }, [search, sensors, statusFilter]);
 
-  const selectedSensor =
-    sensors.find((sensor) => sensor.id === selectedSensorId) ?? null;
-
+  const selectedSensor = sensors.find((sensor) => sensor.id === selectedSensorId) ?? null;
   const mapUrl = useMemo(() => buildMapUrl(viewport, selectedSensor), [viewport, selectedSensor]);
 
   function handleSelectSensor(sensor) {
     onSelectSensor(sensor.id);
-    setViewport(buildFocusViewport(sensor, baseViewport));
+    setViewport(buildFocusViewport(sensor));
   }
 
   return (
@@ -206,9 +191,9 @@ export default function LandingSensorMap({ sensors, selectedSensorId, onSelectSe
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Geomap with live sensors</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">World map sensors</h3>
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                Sensor overlay with live mock values and status-aware marker system.
+                Live mock network across regions with status-aware marker states.
               </p>
             </div>
 
@@ -225,11 +210,11 @@ export default function LandingSensorMap({ sensors, selectedSensorId, onSelectSe
             </div>
           </header>
 
-          <div className="relative h-[400px] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900">
+          <div className="relative h-[420px] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900">
             <iframe
-              title="AirIQ public sensor geomap"
+              title="AirIQ world sensor map"
               src={mapUrl}
-              className="h-full w-full border-0 pointer-events-none"
+              className="pointer-events-none h-full w-full border-0"
               loading="lazy"
             />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(15,23,42,0.1),transparent_40%),radial-gradient(circle_at_75%_25%,rgba(255,255,255,0.3),transparent_40%)] dark:bg-[radial-gradient(circle_at_20%_80%,rgba(14,165,233,0.1),transparent_45%),radial-gradient(circle_at_75%_25%,rgba(15,23,42,0.45),transparent_40%)]" />
@@ -257,15 +242,15 @@ export default function LandingSensorMap({ sensors, selectedSensorId, onSelectSe
                     onMouseLeave={() => setHoveredSensorId(null)}
                   />
 
-                  {isHovered && (
-                    <div className="pointer-events-none absolute -top-[84px] left-1/2 w-48 -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-xl backdrop-blur-sm dark:border-slate-600 dark:bg-slate-800/95">
+                  {isHovered ? (
+                    <div className="pointer-events-none absolute -top-[84px] left-1/2 w-52 -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-xl backdrop-blur-sm dark:border-slate-600 dark:bg-slate-800/95">
                       <p className="font-semibold text-slate-900 dark:text-slate-100">{sensor.name}</p>
                       <p className="mt-1 text-slate-600 dark:text-slate-300">
                         PM2.5 {sensor.pm25} ug/m3 | Temp {sensor.temperature} C
                       </p>
                       <p className="text-slate-500 dark:text-slate-400">Updated {formatTime(sensor.updatedAt)}</p>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
@@ -274,12 +259,12 @@ export default function LandingSensorMap({ sensors, selectedSensorId, onSelectSe
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setViewport(baseViewport)}
+              onClick={() => setViewport(WORLD_VIEWPORT)}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
             >
-              Reset map view
+              Reset world view
             </button>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Mock stream refreshes every 5-10 seconds.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Mock stream refreshes every 8 seconds.</p>
           </div>
         </article>
 
@@ -291,30 +276,43 @@ export default function LandingSensorMap({ sensors, selectedSensorId, onSelectSe
             </span>
           </header>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_170px]">
+          <div className="mt-3 space-y-2">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-sky-500/30"
+              placeholder="Search sensors by name"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-sky-500/30"
             />
 
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-sky-500/30"
-            >
-              {STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>
-                  {status === "all" ? "All statuses" : SENSOR_STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              {STATUS_OPTIONS.map((status) => {
+                const isActive = statusFilter === status;
+                const activeClass =
+                  status === "all"
+                    ? "border-slate-400 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900"
+                    : STATUS_COLORS[status].chip;
+
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setStatusFilter(status)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      isActive
+                        ? activeClass
+                        : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {status === "all" ? "All" : SENSOR_STATUS_LABELS[status]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {filteredSensors.length === 0 ? (
             <p className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-300">
-              No sensors match the current filter.
+              No sensors match this filter.
             </p>
           ) : (
             <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
