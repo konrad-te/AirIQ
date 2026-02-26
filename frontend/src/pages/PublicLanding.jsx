@@ -1,22 +1,25 @@
-import { useEffect, useState } from "react";
-import SpaLink from "../components/common/SpaLink";
 import ThemeToggleButton from "../components/common/ThemeToggleButton";
-import LandingSensorMap from "../components/maps/LandingSensorMap";
 import useTheme from "../hooks/useTheme";
-import { createInitialSensors, tickSensors } from "../mock/sensors";
+import WorldSensorBackground from "../components/landing/WorldSensorBackground";
 
-const BIO_CARDS = [
+const VALUE_POINTS = [
+  "Unified room intelligence from every connected sensor stream.",
+  "Action-ready recommendations tuned for home comfort and health.",
+  "Clean operational surface for monitoring trends and anomalies.",
+];
+
+const ABOUT_CARDS = [
   {
-    title: "Mission",
-    text: "AirIQ helps households and small teams understand indoor and nearby air behavior before comfort drops.",
+    title: "AirIQ Mission",
+    text: "Deliver environmental clarity so households can respond before comfort and air quality degrade.",
   },
   {
-    title: "Approach",
-    text: "We combine lightweight sensing, clear visual design, and practical room-level actions into one workflow.",
+    title: "Built By Specialists",
+    text: "Engineers, UX designers, and environmental analysts shaping an approachable monitoring experience.",
   },
   {
-    title: "People",
-    text: "Product, environmental engineering, and UX specialists collaborate to keep insights accessible and useful.",
+    title: "Practical Outcomes",
+    text: "From room-level diagnostics to adaptive recommendations, every module pushes toward useful action.",
   },
 ];
 
@@ -27,159 +30,143 @@ export default function PublicLanding({
   onLogOut,
 }) {
   const { theme, toggleTheme } = useTheme();
-  const [sensors, setSensors] = useState(() => createInitialSensors());
-  const [selectedSensorId, setSelectedSensorId] = useState(() =>
-    sensors.length ? sensors[0].id : null,
-  );
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setSensors((previousSensors) => tickSensors(previousSensors));
-    }, 8000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-800 transition-colors dark:bg-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/85">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <a href="#home" className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-            AirIQ
-          </a>
+    <main className="relative min-h-screen overflow-hidden bg-[#040814] text-slate-100">
+      <WorldSensorBackground className="opacity-95" />
 
-          <nav className="hidden items-center gap-5 text-sm font-semibold text-slate-600 md:flex dark:text-slate-300">
-            <a href="#home" className="transition hover:text-slate-900 dark:hover:text-slate-100">
-              Home
+      <div className="relative z-10">
+        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#040814]/72 backdrop-blur-xl">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+            <a href="#hero" className="text-xl font-bold tracking-tight text-white">
+              AirIQ
             </a>
-            <a href="#biography" className="transition hover:text-slate-900 dark:hover:text-slate-100">
-              Biography
-            </a>
-            <a href="#world-sensors" className="transition hover:text-slate-900 dark:hover:text-slate-100">
-              World Sensors
-            </a>
-            <a href="#footer" className="transition hover:text-slate-900 dark:hover:text-slate-100">
-              Contact
-            </a>
-          </nav>
 
-          <div className="flex items-center gap-2">
-            <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
-            {isAuthenticated ? (
-              <button
-                type="button"
-                onClick={onLogOut}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-700"
-              >
-                Log out
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onOpenSignIn}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-700"
-              >
-                Sign in
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+            <nav className="hidden items-center gap-6 text-sm font-medium text-slate-300 lg:flex">
+              <a href="#hero" className="transition hover:text-white">Home</a>
+              <a href="#about" className="transition hover:text-white">Biography</a>
+              <a href="#network" className="transition hover:text-white">World Network</a>
+              <a href="#footer" className="transition hover:text-white">Contact</a>
+            </nav>
 
-      <div id="home" className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-10">
-          <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-sky-200/45 blur-3xl dark:bg-sky-500/30" />
-          <div className="absolute -bottom-20 -right-16 h-64 w-64 rounded-full bg-emerald-200/45 blur-3xl dark:bg-emerald-500/20" />
-
-          <div className="relative max-w-4xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-              Air quality intelligence
-            </p>
-            <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-slate-100">
-              Clear signals for healthier spaces across your global sensor network.
-            </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base dark:text-slate-300">
-              AirIQ offers a clean operational layer for environmental monitoring, letting you move from scattered
-              sensor values to practical room decisions with confidence.
-            </p>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={onOpenSignIn}
-                className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500"
-              >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={onGoDashboard}
-                className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-700"
-              >
-                Go to Dashboard
-              </button>
+            <div className="flex items-center gap-2">
+              <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={onLogOut}
+                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+                >
+                  Log out
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenSignIn}
+                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+                >
+                  Sign in
+                </button>
+              )}
             </div>
           </div>
-        </section>
+        </header>
 
-        <section id="biography" className="space-y-4">
-          <header>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-              Biography
-            </p>
-            <h2 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">Who builds AirIQ</h2>
-          </header>
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-4 pb-14 pt-10 sm:px-6 lg:px-8">
+          <section id="hero" className="relative overflow-hidden rounded-[32px] border border-white/14 bg-gradient-to-br from-slate-900/85 via-slate-900/65 to-sky-950/35 px-7 py-10 shadow-[0_30px_90px_rgba(2,6,23,0.55)] sm:px-10 sm:py-14">
+            <div className="absolute -left-28 -top-24 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl" />
+            <div className="absolute -bottom-28 right-10 h-64 w-64 rounded-full bg-emerald-400/16 blur-3xl" />
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {BIO_CARDS.map((card) => (
-              <article
-                key={card.title}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800"
-              >
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{card.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{card.text}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="world-sensors" className="space-y-4">
-          <header className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                Geomap with live sensors
+            <div className="relative max-w-4xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-200/85">
+                Radiant environmental intelligence
               </p>
-              <h2 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">Global monitoring surface</h2>
+              <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl">
+                See every room signal in one living atmospheric interface.
+              </h1>
+              <p className="mt-5 max-w-3xl text-base leading-7 text-slate-200/90">
+                AirIQ turns fragmented sensor telemetry into clear operational insight. From global network context to
+                room-level diagnostics, the platform highlights what matters and what to do next.
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onOpenSignIn}
+                  className="rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  onClick={onGoDashboard}
+                  className="rounded-lg border border-white/25 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Go to Dashboard
+                </button>
+              </div>
+
+              <ul className="mt-7 grid gap-2 text-sm text-slate-200 md:grid-cols-3">
+                {VALUE_POINTS.map((point) => (
+                  <li key={point} className="rounded-lg border border-white/12 bg-white/5 px-3 py-2">
+                    {point}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="max-w-md text-sm text-slate-600 dark:text-slate-300">
-              Hover for quick values, click a marker for full context, filter by status, and inspect world updates in
-              real time.
-            </p>
-          </header>
+          </section>
 
-          <LandingSensorMap
-            sensors={sensors}
-            selectedSensorId={selectedSensorId}
-            onSelectSensor={setSelectedSensorId}
-          />
-        </section>
-      </div>
+          <section id="about" className="space-y-4">
+            <header>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-200/80">Biography</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                A platform shaped for real-world air quality decisions.
+              </h2>
+            </header>
 
-      <footer id="footer" className="border-t border-slate-200 bg-white py-6 dark:border-slate-700 dark:bg-slate-800">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 text-sm text-slate-600 sm:px-6 lg:px-8 dark:text-slate-300">
-          <p>AirIQ public landing prototype</p>
-          <div className="flex items-center gap-4">
-            <a href="#home" className="transition hover:text-slate-900 dark:hover:text-slate-100">
-              Back to top
-            </a>
-            <SpaLink href="/dashboard" className="transition hover:text-slate-900 dark:hover:text-slate-100">
-              Dashboard
-            </SpaLink>
-          </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {ABOUT_CARDS.map((card) => (
+                <article
+                  key={card.title}
+                  className="rounded-2xl border border-white/12 bg-white/6 p-5 backdrop-blur-sm"
+                >
+                  <h3 className="text-lg font-semibold text-white">{card.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-200/90">{card.text}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section id="network" className="relative min-h-[520px] overflow-hidden rounded-[30px] border border-white/12 bg-slate-950/50">
+            <div className="absolute inset-0 bg-gradient-to-tr from-[#030711]/80 via-transparent to-[#0A1D39]/55" />
+            <div className="relative z-10 max-w-xl p-7 sm:p-10">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-200/80">World sensor map</p>
+              <h2 className="mt-3 text-3xl font-bold text-white sm:text-4xl">
+                Global atmospheric layer with live pulse distribution.
+              </h2>
+              <p className="mt-3 text-sm leading-7 text-slate-200/90">
+                This display-only world map acts as a visual layer for AirIQ. Pulsing sensor nodes reveal network
+                density and health intensity without distracting interactions or map controls.
+              </p>
+            </div>
+          </section>
         </div>
-      </footer>
+
+        <footer
+          id="footer"
+          className="border-t border-white/10 bg-[#040814]/75 py-6 backdrop-blur-sm"
+        >
+          <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 text-sm text-slate-300 sm:px-6 lg:px-8">
+            <p>AirIQ marketing prototype</p>
+            <div className="flex items-center gap-4">
+              <a href="#hero" className="transition hover:text-white">Back to top</a>
+              <button type="button" onClick={onGoDashboard} className="transition hover:text-white">
+                Dashboard
+              </button>
+            </div>
+          </div>
+        </footer>
+      </div>
     </main>
   );
 }
