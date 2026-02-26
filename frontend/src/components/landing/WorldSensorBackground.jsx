@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { geoNaturalEarth1, geoPath } from "d3-geo";
 import countriesGeoJsonRaw from "../maps/countries.geojson?raw";
-import { WORLD_SENSOR_POINTS } from "../../mock/sensors";
+import { generateLandSensors } from "../maps/generateLandSensors";
 
 const WIDTH = 1440;
 const HEIGHT = 720;
@@ -87,7 +87,8 @@ export default function WorldSensorBackground({ className = "", mode = "dark" })
       })
       .filter(Boolean);
 
-    const sensors = WORLD_SENSOR_POINTS.map((sensor, index) => {
+    const generatedSensors = generateLandSensors(projectedFeatures);
+    const sensors = generatedSensors.map((sensor, index) => {
       const point = projection([sensor.lng, sensor.lat]);
       if (!point) {
         return null;
