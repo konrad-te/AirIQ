@@ -143,20 +143,6 @@ export default function PublicLanding({
               ))}
             </div>
           </section>
-
-          <section id="network" className="relative min-h-[520px] overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/70 dark:border-white/12 dark:bg-slate-950/50">
-            <div className="absolute inset-0 bg-gradient-to-tr from-sky-50/78 via-transparent to-slate-100/68 dark:from-[#030711]/80 dark:to-[#0A1D39]/55" />
-            <div className="relative z-10 max-w-xl p-7 sm:p-10">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700/80 dark:text-sky-200/80">World sensor map</p>
-              <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl dark:text-white">
-                Global atmospheric layer with live pulse distribution.
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-700/95 dark:text-slate-200/90">
-                This display-only world map acts as a visual layer for AirIQ. Pulsing sensor nodes reveal network
-                density and health intensity without distracting interactions or map controls.
-              </p>
-            </div>
-          </section>
         </div>
 
         <footer
