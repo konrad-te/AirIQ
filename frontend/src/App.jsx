@@ -4,6 +4,7 @@ import SignInModal from "./components/auth/SignInModal";
 import SpaLink from "./components/common/SpaLink";
 import { useAuth } from "./context/AuthContext";
 import Dashboard from "./pages/Dashboard";
+import MapboxGlobe from "./pages/MapboxGlobe";
 import PublicLanding from "./pages/PublicLanding";
 import Room from "./pages/Room";
 
@@ -49,6 +50,12 @@ function NotFound() {
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             Dashboard
+          </SpaLink>
+          <SpaLink
+            href="/globe"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            Globe
           </SpaLink>
         </div>
       </section>
@@ -179,6 +186,8 @@ function App() {
         <Dashboard />
       </RequireAuth>
     );
+  } else if (pathname === "/globe") {
+    content = <MapboxGlobe />;
   } else if (roomId) {
     content = (
       <RequireAuth onUnauthenticated={handleUnauthenticated}>
