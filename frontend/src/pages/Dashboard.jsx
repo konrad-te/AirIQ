@@ -84,6 +84,12 @@ export default function Dashboard() {
             >
               Public page
             </SpaLink>
+            <SpaLink
+              href="/globe"
+              className="rounded-lg border border-slate-300 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-700"
+            >
+              Globe
+            </SpaLink>
             <button
               type="button"
               onClick={logout}

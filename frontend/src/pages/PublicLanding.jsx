@@ -1,4 +1,5 @@
 import ThemeToggleButton from "../components/common/ThemeToggleButton";
+import SpaLink from "../components/common/SpaLink";
 import WorldSensorBackground from "../components/landing/WorldSensorBackground";
 import useTheme from "../hooks/useTheme";
 
@@ -101,14 +102,20 @@ export default function PublicLanding({
                 >
                   Sign in
                 </button>
-                <button
-                  type="button"
-                  onClick={onGoDashboard}
-                  className="rounded-lg border border-slate-300 bg-white/75 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/25 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                >
-                  Go to Dashboard
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onGoDashboard}
+                className="rounded-lg border border-slate-300 bg-white/75 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/25 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+              >
+                Go to Dashboard
+              </button>
+              <SpaLink
+                href="/globe"
+                className="rounded-lg border border-slate-300 bg-white/75 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/25 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+              >
+                Open Globe
+              </SpaLink>
+            </div>
 
               <ul className="mt-7 grid gap-2 text-sm text-slate-700 md:grid-cols-3 dark:text-slate-200">
                 {VALUE_POINTS.map((point) => (
