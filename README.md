@@ -9,16 +9,17 @@ Project structure:
 
 ## Frontend
 
-Run from `AirIQ/`:
+Run from `AirIQ/frontend`:
 
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
 
-Vite is configured with `root: "frontend"` in `vite.config.js`, so the frontend entry file is:
+Frontend entry file:
 
-- `frontend/index.html`
+- `index.html`
 
 ## Backend
 
