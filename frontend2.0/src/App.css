@@ -1,0 +1,43 @@
+/* src/App.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.photo-page {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.hero-photo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.straight-divider {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 300px;  /* ← fixed pixels, never changes on resize */
+  background: #ffffff;
+}
+
+.curve-divider {
+  position: absolute;
+  bottom: 300px;  /* ← must match exactly */
+  left: 0;
+  width: 100%;
+}
+
+.curve-divider svg {
+  display: block;
+  width: 100%;
+  height: 80px;
+}
