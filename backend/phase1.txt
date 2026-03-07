@@ -1,0 +1,159 @@
+Phase 1:
+
+users
+ PK - id - BIGINT, primary key
+ KEY - email - VARCHAR(320), NOT NULL, UNIQUE
+ (empty) - password_hash - VARCHAR(255), NOT NULL
+ (empty) - display_name - VARCHAR(120), NULL
+ (empty) - is_active - BOOLEAN, NOT NULL, DEFAULT TRUE
+ (empty) - last_login_at - TIMESTAMPTZ, NULL
+ (empty) - created_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - updated_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+
+households
+ PK - id - BIGINT, primary key
+ KEY - slug - VARCHAR(180), NOT NULL, UNIQUE
+ KEY - owner_user_id - BIGINT, NOT NULL, FK -> users(id)
+ (empty) - name - VARCHAR(160), NOT NULL
+ (empty) - timezone - VARCHAR(64), NOT NULL, DEFAULT 'UTC'
+ (empty) - country_code - CHAR(2), NULL
+ (empty) - is_active - BOOLEAN, NOT NULL, DEFAULT TRUE
+ (empty) - created_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - updated_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+
+household_members
+ PK - id - BIGINT, primary key
+ KEY - household_id - BIGINT, NOT NULL, FK -> households(id)
+ KEY - user_id - BIGINT, NOT NULL, FK -> users(id)
+ KEY - (household_id, user_id) - UNIQUE composite key
+ (empty) - role - VARCHAR(24), NOT NULL, DEFAULT 'member', CHECK role IN ('owner','admin','member','viewer')
+ (empty) - is_active - BOOLEAN, NOT NULL, DEFAULT TRUE
+ (empty) - joined_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - invited_by_user_id - BIGINT, NULL, FK -> users(id)
+ (empty) - created_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - updated_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+
+user_preferences
+ PK - id - BIGINT, primary key
+ KEY - user_id - BIGINT, NOT NULL, UNIQUE, FK -> users(id)
+ (empty) - theme - VARCHAR(16), NOT NULL, DEFAULT 'light', CHECK theme IN ('light','dark')
+ (empty) - language_code - VARCHAR(10), NULL
+ (empty) - timezone - VARCHAR(64), NULL
+ (empty) - created_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - updated_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+
+data_providers
+ PK - id - BIGINT, primary key
+ KEY - provider_code - VARCHAR(32), NOT NULL, UNIQUE
+ (empty) - display_name - VARCHAR(80), NOT NULL
+ (empty) - base_url - TEXT, NOT NULL
+ (empty) - auth_type - VARCHAR(16), NOT NULL, DEFAULT 'none', CHECK auth_type IN ('none','api_key')
+ (empty) - is_active - BOOLEAN, NOT NULL, DEFAULT TRUE
+ (empty) - default_timeout_ms - INTEGER, NOT NULL, DEFAULT 10000
+ (empty) - created_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - updated_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+
+city_points
+ PK - id - BIGINT, primary key
+ KEY - (country_name, city_name) - UNIQUE composite key
+ (empty) - country_code - CHAR(2), NULL
+ (empty) - country_name - VARCHAR(120), NOT NULL
+ (empty) - city_name - VARCHAR(120), NOT NULL
+ (empty) - lat - NUMERIC(9,6), NOT NULL, CHECK lat BETWEEN -90 AND 90
+ (empty) - lon - NUMERIC(9,6), NOT NULL, CHECK lon BETWEEN -180 AND 180
+ (empty) - population - BIGINT, NULL, CHECK population >= 0
+ (empty) - is_capital - BOOLEAN, NOT NULL, DEFAULT FALSE
+ (empty) - is_active - BOOLEAN, NOT NULL, DEFAULT TRUE
+ (empty) - source_dataset - VARCHAR(64), NOT NULL, DEFAULT 'geonames_restcountries'
+ (empty) - created_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - updated_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+
+globe_aq_cache
+ PK - city_point_id - BIGINT, primary key, FK -> city_points(id) ON DELETE CASCADE
+ (empty) - pm25 - NUMERIC(8,2), NULL, CHECK pm25 >= 0
+ (empty) - pm10 - NUMERIC(8,2), NULL, CHECK pm10 >= 0
+ (empty) - us_aqi - INTEGER, NULL, CHECK us_aqi BETWEEN 0 AND 500
+ (empty) - eu_aqi - INTEGER, NULL, CHECK eu_aqi >= 0
+ (empty) - band - VARCHAR(16), NULL, CHECK band IN ('0-10','10-20','20-25','25-50','50-75','75+')
+ KEY - provider_id - BIGINT, NOT NULL, FK -> data_providers(id)
+ (empty) - observed_at - TIMESTAMPTZ, NULL
+ (empty) - fetched_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - stale - BOOLEAN, NOT NULL, DEFAULT FALSE
+ (empty) - payload_json - JSONB, NULL
+
+external_stations
+ PK - id - BIGINT, primary key
+ KEY - provider_id - BIGINT, NOT NULL, FK -> data_providers(id)
+ KEY - provider_station_id - VARCHAR(64), NOT NULL
+ KEY - (provider_id, provider_station_id) - UNIQUE composite key
+ (empty) - station_name - VARCHAR(200), NOT NULL
+ (empty) - country_code - CHAR(2), NULL
+ (empty) - city_name - VARCHAR(120), NULL
+ (empty) - lat - NUMERIC(9,6), NULL, CHECK lat BETWEEN -90 AND 90 when not null
+ (empty) - lon - NUMERIC(9,6), NULL, CHECK lon BETWEEN -180 AND 180 when not null
+ (empty) - timezone - VARCHAR(64), NULL
+ (empty) - is_mobile - BOOLEAN, NOT NULL, DEFAULT FALSE
+ (empty) - is_monitor - BOOLEAN, NOT NULL, DEFAULT TRUE
+ (empty) - first_seen_at - TIMESTAMPTZ, NULL
+ (empty) - last_seen_at - TIMESTAMPTZ, NULL
+ (empty) - metadata_json - JSONB, NULL
+ (empty) - created_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - updated_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+
+geocode_cache_entries
+ PK - id - BIGINT, primary key
+ KEY - provider_id - BIGINT, NOT NULL, FK -> data_providers(id)
+ KEY - query_hash - CHAR(16), NOT NULL
+ KEY - (provider_id, query_hash) - UNIQUE composite key
+ (empty) - query_text - TEXT, NOT NULL
+ (empty) - normalized_query - TEXT, NOT NULL
+ (empty) - lat - NUMERIC(9,6), NOT NULL, CHECK lat BETWEEN -90 AND 90
+ (empty) - lon - NUMERIC(9,6), NOT NULL, CHECK lon BETWEEN -180 AND 180
+ (empty) - display_name - TEXT, NULL
+ (empty) - external_place_id - VARCHAR(64), NULL
+ (empty) - cached_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - expires_at - TIMESTAMPTZ, NOT NULL
+ (empty) - last_used_at - TIMESTAMPTZ, NULL
+ (empty) - use_count - INTEGER, NOT NULL, DEFAULT 1
+ 
+location_station_cache
+ PK - id - BIGINT, primary key
+ KEY - provider_id - BIGINT, NOT NULL, FK -> data_providers(id)
+ KEY - coord_key - VARCHAR(32), NOT NULL
+ KEY - (provider_id, coord_key) - UNIQUE composite key
+ (empty) - lat_rounded - NUMERIC(8,3), NOT NULL
+ (empty) - lon_rounded - NUMERIC(8,3), NOT NULL
+ (empty) - external_station_id - BIGINT, NULL, FK -> external_stations(id)
+ (empty) - distance_km - NUMERIC(8,3), NULL, CHECK distance_km >= 0 when not null
+ (empty) - cached_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - expires_at - TIMESTAMPTZ, NOT NULL
+ (empty) - hit_count - INTEGER, NOT NULL, DEFAULT 0
+
+provider_cache_entries
+ PK - id - BIGINT, primary key
+ KEY - provider_id - BIGINT, NOT NULL, FK -> data_providers(id)
+ KEY - cache_key - VARCHAR(200), NOT NULL
+ KEY - (provider_id, cache_key) - UNIQUE composite key
+ (empty) - cache_kind - VARCHAR(32), NOT NULL, CHECK cache_kind IN ('aq_normalized','weather','station_lookup')
+ (empty) - method - VARCHAR(32), NULL, CHECK method IN ('point','nearest_station','model','batch_ingest') when not null
+ (empty) - coord_key - VARCHAR(32), NULL
+ (empty) - external_station_id - BIGINT, NULL, FK -> external_stations(id)
+ (empty) - variant_key - VARCHAR(80), NULL
+ (empty) - payload_json - JSONB, NOT NULL
+ (empty) - cached_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - expires_at - TIMESTAMPTZ, NOT NULL
+ (empty) - last_used_at - TIMESTAMPTZ, NULL
+ (empty) - hit_count - INTEGER, NOT NULL, DEFAULT 0
+
+ingest_runs
+ PK - id - BIGINT, primary key
+ KEY - provider_id - BIGINT, NOT NULL, FK -> data_providers(id)
+ (empty) - job_name - VARCHAR(64), NOT NULL, DEFAULT 'globe_ingest_hourly'
+ (empty) - triggered_by - VARCHAR(16), NOT NULL, DEFAULT 'scheduler'
+ (empty) - started_at - TIMESTAMPTZ, NOT NULL, DEFAULT now()
+ (empty) - finished_at - TIMESTAMPTZ, NULL
+ (empty) - status - VARCHAR(16), NOT NULL, CHECK status IN ('running','success','failed','partial')
+ (empty) - total_points - INTEGER, NOT NULL, DEFAULT 0
+ (empty) - success_count - INTEGER, NOT NULL, DEFAULT 0
+ (empty) - fail_count - INTEGER, NOT NULL, DEFAULT 0
+ (empty) - notes - TEXT, NULL

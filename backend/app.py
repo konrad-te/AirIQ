@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from database import DATABASE_URL, SessionLocal, get_db
 from init_db import init_db
-from models import CityPoint, GlobeAqCache
+from models import CityPoint, DataProvider, GlobeAqCache
 from services.city_seed import seed_city_points
 from services.globe_ingest import run_globe_ingest
 
@@ -34,6 +34,13 @@ def _to_iso(value: datetime | None) -> str | None:
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    db = SessionLocal()
+    try:
+        from services.bootstrap import ensure_data_providers
+
+        ensure_data_providers(db)
+    finally:
+        db.close()
 
     if not scheduler.running:
         scheduler.add_job(
@@ -69,8 +76,9 @@ def _run_scheduled_ingest() -> None:
 @app.get("/api/map/markers")
 def get_map_markers(db: Session = Depends(get_db)) -> dict:
     stmt = (
-        select(CityPoint, GlobeAqCache)
+        select(CityPoint, GlobeAqCache, DataProvider.provider_code)
         .outerjoin(GlobeAqCache, GlobeAqCache.city_point_id == CityPoint.id)
+        .outerjoin(DataProvider, DataProvider.id == GlobeAqCache.provider_id)
         .where(CityPoint.is_active.is_(True))
         .order_by(CityPoint.country_name.asc(), CityPoint.city_name.asc())
     )
@@ -78,7 +86,7 @@ def get_map_markers(db: Session = Depends(get_db)) -> dict:
     rows = db.execute(stmt).all()
     markers = []
 
-    for city, cache in rows:
+    for city, cache, provider_code in rows:
         markers.append(
             {
                 "city_point_id": city.id,
@@ -95,7 +103,7 @@ def get_map_markers(db: Session = Depends(get_db)) -> dict:
                     "us_aqi": cache.us_aqi if cache else None,
                     "eu_aqi": cache.eu_aqi if cache else None,
                     "band": cache.band if cache else None,
-                    "source": cache.source if cache else None,
+                    "source": provider_code if cache else None,
                     "observed_at": _to_iso(cache.observed_at) if cache else None,
                     "fetched_at": _to_iso(cache.fetched_at) if cache else None,
                     "stale": cache.stale if cache else None,

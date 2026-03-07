@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from models import CityPoint, GlobeAqCache, IngestRun
+from services.bootstrap import ensure_data_providers, get_provider_id
 
 
 OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -52,6 +53,24 @@ def _pm25_to_band(pm25: float | None) -> str | None:
     return "75+"
 
 
+def _to_nullable_int(value: Any, *, min_value: int | None = None, max_value: int | None = None) -> int | None:
+    if not isinstance(value, (int, float)):
+        return None
+
+    numeric = int(value)
+    if min_value is not None and numeric < min_value:
+        return min_value
+    if max_value is not None and numeric > max_value:
+        return max_value
+    return numeric
+
+
+def _to_nullable_float(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
 def _fetch_openmeteo_batch(points: list[CityPoint], timeout: int = 30) -> list[dict[str, Any]]:
     if not points:
         return []
@@ -71,7 +90,15 @@ def _fetch_openmeteo_batch(points: list[CityPoint], timeout: int = 30) -> list[d
 
 
 def run_globe_ingest(db: Session, batch_size: int = 40) -> IngestSummary:
+    provider_id = get_provider_id(db, "open-meteo")
+    if provider_id is None:
+        ensure_data_providers(db)
+        provider_id = get_provider_id(db, "open-meteo")
+        if provider_id is None:
+            raise RuntimeError("open-meteo provider is not configured.")
+
     run = IngestRun(
+        provider_id=provider_id,
         status="running",
         total_points=0,
         success_count=0,
@@ -100,15 +127,35 @@ def run_globe_ingest(db: Session, batch_size: int = 40) -> IngestSummary:
             except Exception:
                 for point in batch:
                     cache = db.get(GlobeAqCache, point.id)
-                    if cache is not None:
-                        cache.stale = True
-                        cache.fetched_at = datetime.now(timezone.utc)
+                    if cache is None:
+                        cache = GlobeAqCache(city_point_id=point.id, provider_id=provider_id)
+                        db.add(cache)
+                    else:
+                        cache.provider_id = provider_id
+                    cache.stale = True
+                    cache.fetched_at = datetime.now(timezone.utc)
                     fail += 1
                 db.commit()
                 continue
 
             for idx, point in enumerate(batch):
                 row = rows[idx] if idx < len(rows) else {}
+                current = row.get("current") or {}
+                if not isinstance(current, dict) or (
+                    current.get("pm2_5") is None and current.get("pm10") is None
+                ):
+                    cache = db.get(GlobeAqCache, point.id)
+                    if cache is None:
+                        cache = GlobeAqCache(city_point_id=point.id, provider_id=provider_id)
+                        db.add(cache)
+                    else:
+                        cache.provider_id = provider_id
+                    cache.stale = True
+                    cache.observed_at = _parse_iso_datetime(current.get("time"))
+                    cache.fetched_at = datetime.now(timezone.utc)
+                    fail += 1
+                    continue
+
                 current = row.get("current") or {}
                 pm25 = current.get("pm2_5")
                 pm10 = current.get("pm10")
@@ -118,15 +165,16 @@ def run_globe_ingest(db: Session, batch_size: int = 40) -> IngestSummary:
 
                 cache = db.get(GlobeAqCache, point.id)
                 if cache is None:
-                    cache = GlobeAqCache(city_point_id=point.id)
+                    cache = GlobeAqCache(city_point_id=point.id, provider_id=provider_id)
                     db.add(cache)
+                else:
+                    cache.provider_id = provider_id
 
-                cache.pm25 = float(pm25) if isinstance(pm25, (int, float)) else None
-                cache.pm10 = float(pm10) if isinstance(pm10, (int, float)) else None
-                cache.us_aqi = int(us_aqi) if isinstance(us_aqi, (int, float)) else None
-                cache.eu_aqi = int(eu_aqi) if isinstance(eu_aqi, (int, float)) else None
+                cache.pm25 = _to_nullable_float(pm25)
+                cache.pm10 = _to_nullable_float(pm10)
+                cache.us_aqi = _to_nullable_int(us_aqi, min_value=0, max_value=500)
+                cache.eu_aqi = _to_nullable_int(eu_aqi, min_value=0)
                 cache.band = _pm25_to_band(cache.pm25)
-                cache.source = "open-meteo"
                 cache.observed_at = observed_at
                 cache.fetched_at = datetime.now(timezone.utc)
                 cache.stale = False
@@ -135,7 +183,7 @@ def run_globe_ingest(db: Session, batch_size: int = 40) -> IngestSummary:
 
             db.commit()
 
-        run.status = "success"
+        run.status = "partial" if fail > 0 else "success"
         run.success_count = success
         run.fail_count = fail
         run.finished_at = datetime.now(timezone.utc)
