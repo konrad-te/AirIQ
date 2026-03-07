@@ -34,3 +34,4 @@ backend/__pycache__/
 # Cache (generated)
 data/cache/
 *.pyc
+.env

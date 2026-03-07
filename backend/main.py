@@ -2,20 +2,32 @@
 import json
 import math
 import os
+import re
 import time
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from dotenv import load_dotenv
+from sqlalchemy import delete, select
+
+from database import SessionLocal
+from models import (
+    DataProvider,
+    ExternalStation,
+    GeocodeCacheEntry,
+    LocationStationCache,
+    ProviderCacheEntry,
+)
 
 # ---------------------------
 # Config
 # ---------------------------
 load_dotenv()
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-cache_folder = str(PROJECT_ROOT / "data" / "cache")
+AIRLY_PROVIDER_CODE = "airly"
+OPENAQ_PROVIDER_CODE = "openaq"
+OPENMETEO_PROVIDER_CODE = "open-meteo"
+NOMINATIM_PROVIDER_CODE = "nominatim"
 
 AIRLY_KEY = os.getenv("airly_api")
 OPENAQ_KEY = os.getenv("open_aq")
@@ -32,10 +44,6 @@ TTL_STATION = 10 * 60  # 10 min for Airly/OpenAQ nearest station
 TTL_MODEL = 20 * 60  # 20 min for model-based AQ
 TTL_WEATHER = 30 * 60  # 30 min for weather enrichment
 INSTALLATION_INDEX_TTL = 7 * 24 * 3600  # 7 days
-
-CACHE_CLEANUP_ENABLED = True
-CACHE_MAX_FILES = 2000
-CACHE_MAX_AGE_SEC = 2 * 24 * 3600  # 2 days
 
 # Distances
 AIRLY_NEAREST_MAX_DISTANCE_KM = 5
@@ -73,99 +81,236 @@ UNITS = {
 # Cache helpers
 # ---------------------------
 
-
-def _ensure_cache_dir() -> None:
-    """Create cache folder if missing."""
-    os.makedirs(cache_folder, exist_ok=True)
+def _cache_path(cache_key: str) -> str:
+    return cache_key
 
 
-def _cache_read(path: str, max_age_seconds: int) -> Optional[dict]:
-    """Read cached JSON if file exists and is within TTL."""
-    if not os.path.exists(path):
-        return None
-    age = time.time() - os.path.getmtime(path)
-    if age >= max_age_seconds:
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _provider_id_for_code(session, provider_code: str) -> int | None:
+    row = session.execute(
+        select(DataProvider.id).where(DataProvider.provider_code == provider_code)
+    ).scalar_one_or_none()
+    return row
+
+
+def _cache_key(path: str) -> str:
+    return os.path.splitext(os.path.basename(path))[0]
+
+
+def _provider_code_for_cache_key(cache_key: str) -> str | None:
+    if cache_key.startswith("norm_airly_") or cache_key.startswith("airly_"):
+        return AIRLY_PROVIDER_CODE
+    if cache_key.startswith("norm_openaq_"):
+        return OPENAQ_PROVIDER_CODE
+    if cache_key.startswith("norm_openmeteo_") or cache_key.startswith("wx_openmeteo_"):
+        return OPENMETEO_PROVIDER_CODE
+    return None
+
+
+def _method_for_cache_key(cache_key: str) -> str | None:
+    if cache_key.startswith("norm_airly_point_"):
+        return "point"
+    if cache_key.startswith("norm_airly_station_") or cache_key.startswith("norm_airly_nearest_"):
+        return "nearest_station"
+    if cache_key.startswith("norm_openaq_nearest_"):
+        return "nearest_station"
+    if cache_key.startswith("norm_openmeteo_model_"):
+        return "model"
+    if cache_key.startswith("wx_openmeteo_"):
+        return "point"
+    return None
+
+
+def _coord_key(cache_key: str) -> str:
+    for prefix in (
+        "norm_airly_point_",
+        "norm_airly_station_",
+        "norm_airly_nearest_",
+        "norm_openaq_nearest_",
+        "norm_openmeteo_model_",
+        "wx_openmeteo_",
+    ):
+        if cache_key.startswith(prefix):
+            return cache_key[len(prefix) :]
+    return cache_key
+
+
+def _cache_kind(cache_key: str) -> str:
+    if cache_key.startswith("wx_openmeteo_"):
+        return "weather"
+    return "aq_normalized"
+
+
+def _ttl_from_payload(cache_key: str, data: dict | None = None) -> int:
+    if isinstance(data, dict):
+        cache_block = data.get("cache")
+        if isinstance(cache_block, dict):
+            ttl = cache_block.get("ttl_sec")
+            if isinstance(ttl, int) and ttl > 0:
+                return ttl
+
+    if cache_key.startswith("wx_openmeteo_"):
+        return TTL_WEATHER
+    if cache_key.startswith("norm_openmeteo_model_"):
+        return TTL_MODEL
+    if cache_key.startswith("norm_airly_point_"):
+        return TTL_CURRENT
+    if cache_key.startswith(("norm_airly_station_", "norm_airly_nearest_", "norm_openaq_nearest_")):
+        return TTL_STATION
+    return TTL_CURRENT
+
+
+def _extract_airly_station_id(cache_key: str) -> int | None:
+    m = re.match(r"norm_airly_station_(\\d+)_\\d+km", cache_key)
+    if not m:
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
+        return int(m.group(1))
+    except ValueError:
         return None
 
 
-def _cache_write(path: str, data: dict) -> None:
-    """Write JSON cache (UTF-8, pretty, preserve special chars)."""
-    _ensure_cache_dir()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+def _ensure_external_station(
+    session,
+    provider_id: int,
+    provider_station_id: int,
+    station_name: str | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+) -> int:
+    provider_station_key = str(provider_station_id)
+    existing = session.execute(
+        select(ExternalStation.id).where(
+            ExternalStation.provider_id == provider_id,
+            ExternalStation.provider_station_id == provider_station_key,
+        )
+    ).scalar_one_or_none()
+
+    if existing is not None:
+        return existing
+
+    row = ExternalStation(
+        provider_id=provider_id,
+        provider_station_id=provider_station_key,
+        station_name=station_name or f"Airly station {provider_station_id}",
+        lat=lat,
+        lon=lon,
+        is_mobile=False,
+        is_monitor=True,
+    )
+    session.add(row)
+    session.flush()
+    return row.id
 
 
-def _cache_path(name: str) -> str:
-    return os.path.join(cache_folder, name)
+def _parse_coord_key(coord_key: str) -> tuple[float | None, float | None]:
+    try:
+        lat_text, lon_text = coord_key.split("_", 1)
+        return float(lat_text), float(lon_text)
+    except (TypeError, ValueError):
+        return None, None
 
 
-def _cleanup_cache_dir(
-    max_files: int = CACHE_MAX_FILES,
-    max_age_sec: int = CACHE_MAX_AGE_SEC,
-) -> None:
-    """
-    Deletes old cache files to prevent disk spam.
-    - removes files older than max_age_sec
-    - then enforces max_files by deleting oldest remaining files
-    Keeps installation_index.json longer (unless too old).
-    """
-    if not CACHE_CLEANUP_ENABLED:
+def _cache_read(path: str, max_age_seconds: int | None = None) -> Optional[dict]:
+    key = _cache_key(path)
+    provider_code = _provider_code_for_cache_key(key)
+    if not provider_code:
+        return None
+
+    now = _now_utc()
+    with SessionLocal() as db:
+        provider_id = _provider_id_for_code(db, provider_code)
+        if provider_id is None:
+            return None
+
+        row = db.execute(
+            select(ProviderCacheEntry)
+            .where(ProviderCacheEntry.provider_id == provider_id)
+            .where(ProviderCacheEntry.cache_key == key)
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+
+        if row.expires_at is not None and row.expires_at <= now:
+            db.delete(row)
+            db.commit()
+            return None
+        if (
+            max_age_seconds is not None
+            and row.cached_at is not None
+            and row.cached_at <= now - timedelta(seconds=max_age_seconds)
+        ):
+            return None
+        row.hit_count = (row.hit_count or 0) + 1
+        row.last_used_at = now
+        db.commit()
+        return row.payload_json if isinstance(row.payload_json, dict) else None
+
+
+def _cache_write(path: str, data: dict, ttl_seconds: Optional[int] = None) -> None:
+    key = _cache_key(path)
+    provider_code = _provider_code_for_cache_key(key)
+    if not provider_code:
         return
 
-    _ensure_cache_dir()
-    now = time.time()
-    keep_names = {"installation_index.json"}
-
-    files: List[str] = []
-    for name in os.listdir(cache_folder):
-        path = os.path.join(cache_folder, name)
-        if os.path.isfile(path):
-            files.append(path)
-
-    # delete by age (except installation_index.json uses its own TTL)
-    for path in files:
-        name = os.path.basename(path)
-        age = now - os.path.getmtime(path)
-
-        if name in keep_names:
-            if age > INSTALLATION_INDEX_TTL:
-                try:
-                    os.remove(path)
-                except OSError:
-                    pass
-            continue
-
-        if age > max_age_sec:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
-    # refresh list
-    files = []
-    for name in os.listdir(cache_folder):
-        path = os.path.join(cache_folder, name)
-        if os.path.isfile(path):
-            files.append(path)
-
-    if len(files) <= max_files:
+    ttl = ttl_seconds if isinstance(ttl_seconds, int) and ttl_seconds > 0 else _ttl_from_payload(key, data)
+    if ttl <= 0:
         return
 
-    protected = [p for p in files if os.path.basename(p) in keep_names]
-    deletable = [p for p in files if os.path.basename(p) not in keep_names]
-    deletable.sort(key=os.path.getmtime)  # oldest first
+    now = _now_utc()
+    expires_at = now + timedelta(seconds=ttl)
+    method = _method_for_cache_key(key)
+    station_id = _extract_airly_station_id(key)
 
-    while len(deletable) + len(protected) > max_files and deletable:
-        p = deletable.pop(0)
-        try:
-            os.remove(p)
-        except OSError:
-            pass
+    with SessionLocal() as db:
+        provider_id = _provider_id_for_code(db, provider_code)
+        if provider_id is None:
+            return
+
+        external_station_id = None
+        if station_id is not None and provider_code == AIRLY_PROVIDER_CODE:
+            external_station_id = _ensure_external_station(
+                db=db,
+                provider_id=provider_id,
+                provider_station_id=station_id,
+                station_name=f"Airly station {station_id}",
+            )
+
+        existing = db.execute(
+            select(ProviderCacheEntry)
+            .where(ProviderCacheEntry.provider_id == provider_id)
+            .where(ProviderCacheEntry.cache_key == key)
+        ).scalar_one_or_none()
+        if existing is None:
+            db.add(
+                ProviderCacheEntry(
+                    provider_id=provider_id,
+                    cache_key=key,
+                    cache_kind=_cache_kind(key),
+                    method=method,
+                    coord_key=_coord_key(key),
+                    external_station_id=external_station_id,
+                    variant_key=None,
+                    payload_json=data,
+                    cached_at=now,
+                    expires_at=expires_at,
+                    hit_count=0,
+                )
+            )
+        else:
+            existing.cache_kind = _cache_kind(key)
+            existing.method = method
+            existing.coord_key = _coord_key(key)
+            existing.external_station_id = external_station_id
+            existing.payload_json = data
+            existing.cached_at = now
+            existing.expires_at = expires_at
+            existing.hit_count = 0
+            existing.last_used_at = None
+        db.commit()
 
 
 COORD_PRECISION = 3  # ~111m lat resolution
@@ -199,17 +344,98 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ---------------------------
 
 
-def _index_cache_path() -> str:
-    return _cache_path("installation_index.json")
-
-
 def _load_installation_index() -> dict:
-    data = _cache_read(_index_cache_path(), INSTALLATION_INDEX_TTL)
-    return data if isinstance(data, dict) else {}
+    now = _now_utc()
+    index: dict[str, int] = {}
+
+    with SessionLocal() as db:
+        provider_id = _provider_id_for_code(db, AIRLY_PROVIDER_CODE)
+        if provider_id is None:
+            return index
+
+        rows = db.execute(
+            select(LocationStationCache)
+            .where(LocationStationCache.provider_id == provider_id)
+            .where(LocationStationCache.expires_at > now)
+        ).scalars().all()
+
+        for row in rows:
+            if not row.coord_key or row.external_station_id is None:
+                continue
+
+            station = db.get(ExternalStation, row.external_station_id)
+            if station is None:
+                continue
+            try:
+                station_id = int(station.provider_station_id)
+            except (TypeError, ValueError):
+                continue
+            row.hit_count = (row.hit_count or 0) + 1
+            row.last_used_at = now
+            index[row.coord_key] = station_id
+
+        db.commit()
+
+    return index
 
 
 def _save_installation_index(index: dict) -> None:
-    _cache_write(_index_cache_path(), index)
+    now = _now_utc()
+    expires_at = now + timedelta(seconds=INSTALLATION_INDEX_TTL)
+    with SessionLocal() as db:
+        provider_id = _provider_id_for_code(db, AIRLY_PROVIDER_CODE)
+        if provider_id is None:
+            return
+
+        db.execute(
+            delete(LocationStationCache).where(
+                LocationStationCache.provider_id == provider_id,
+                LocationStationCache.expires_at <= now,
+            )
+        )
+
+        for coord_key, station_id in index.items():
+            if not isinstance(station_id, int) or not coord_key:
+                continue
+            lat, lon = _parse_coord_key(coord_key)
+            external_station_id = _ensure_external_station(
+                db=db,
+                provider_id=provider_id,
+                provider_station_id=station_id,
+                lat=lat,
+                lon=lon,
+            )
+
+            existing = db.execute(
+                select(LocationStationCache)
+                .where(LocationStationCache.provider_id == provider_id)
+                .where(LocationStationCache.coord_key == coord_key)
+            ).scalar_one_or_none()
+            if existing is None:
+                db.add(
+                    LocationStationCache(
+                        provider_id=provider_id,
+                        coord_key=coord_key,
+                        lat_rounded=float(lat) if lat is not None else 0.0,
+                        lon_rounded=float(lon) if lon is not None else 0.0,
+                        external_station_id=external_station_id,
+                        distance_km=None,
+                        cached_at=now,
+                        expires_at=expires_at,
+                        hit_count=1,
+                        last_used_at=now,
+                    )
+                )
+            else:
+                existing.lat_rounded = float(lat) if lat is not None else existing.lat_rounded
+                existing.lon_rounded = float(lon) if lon is not None else existing.lon_rounded
+                existing.external_station_id = external_station_id
+                existing.cached_at = now
+                existing.expires_at = expires_at
+                existing.last_used_at = now
+                existing.hit_count = (existing.hit_count or 0) + 1
+
+        db.commit()
 
 
 # ---------------------------
@@ -789,8 +1015,6 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
       4) Open-Meteo AQ model (always available)
     Then: weather enrichment (Open-Meteo weather) if temp/humidity/pressure missing.
     """
-    _ensure_cache_dir()
-    _cleanup_cache_dir()
     key = _index_key(lat, lon)
 
     # ---------- 1) Airly point ----------
@@ -963,6 +1187,9 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
 
 nominatim_cache_limit = 2592000  # 30 days
 
+def _geocode_cache_key(normalized_address: str) -> str:
+    return hashlib.sha256(normalized_address.encode("utf-8")).hexdigest()[:16]
+
 
 def _normalize_address(address: str) -> str:
     """Normalize address input so equivalent strings map to the same cache key."""
@@ -982,39 +1209,35 @@ def get_lat_lon_nominatim_cached(address: str) -> Optional[Tuple[float, float]]:
         print("Error: Address cannot be empty.")
         return None
 
-    os.makedirs(cache_folder, exist_ok=True)
-    cache_key = hashlib.sha256(normalized_address.encode("utf-8")).hexdigest()[:16]
-    cache_file = os.path.join(cache_folder, "nominatim_cache.json")
+    query_hash = _geocode_cache_key(normalized_address)
+    now = _now_utc()
 
-    cache_data: Dict[str, Any] = {}
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, "r", encoding="utf-8") as f:
-                cache_data = json.load(f)
-            if not isinstance(cache_data, dict):
-                cache_data = {}
-        except (json.JSONDecodeError, OSError):
-            print("Geocode cache file is empty/invalid. Rebuilding cache file.")
-            cache_data = {}
-    else:
-        print("No geocode cache file found. A new one will be created.")
+    with SessionLocal() as db:
+        provider_id = _provider_id_for_code(db, NOMINATIM_PROVIDER_CODE)
+        if provider_id is None:
+            print("Nominatim provider is not configured in data_providers.")
+            return None
 
-    cache_entries = cache_data["entries"] if isinstance(cache_data.get("entries"), dict) else cache_data
+        cached_entry = db.execute(
+            select(GeocodeCacheEntry).where(
+                GeocodeCacheEntry.provider_id == provider_id,
+                GeocodeCacheEntry.query_hash == query_hash,
+            )
+        ).scalar_one_or_none()
 
-    cached_entry = cache_entries.get(cache_key)
-    if isinstance(cached_entry, dict):
-        try:
-            cached_at = float(cached_entry.get("cached_at", 0))
-            if cached_at and (time.time() - cached_at) < nominatim_cache_limit:
-                lat = float(cached_entry["lat"])
-                lon = float(cached_entry["lon"])
+        if cached_entry is not None:
+            if cached_entry.expires_at is not None and cached_entry.expires_at > now:
+                cached_entry.use_count = (cached_entry.use_count or 0) + 1
+                cached_entry.last_used_at = now
+                db.commit()
                 print("Using cached Nominatim geocode data.")
-                return lat, lon
+                return float(cached_entry.lat), float(cached_entry.lon)
+
+            db.delete(cached_entry)
+            db.commit()
             print("Cached geocode entry is too old. Fetching fresh Nominatim data.")
-        except (KeyError, TypeError, ValueError):
-            print("Geocode cache entry is invalid. Fetching fresh Nominatim data.")
-    else:
-        print("No cached geocode entry found. Fetching from Nominatim.")
+        else:
+            print("No cached Nominatim entry found. Fetching from Nominatim.")
 
     nominatim_url = "https://nominatim.openstreetmap.org/search"
     user_agent = os.getenv(
@@ -1041,19 +1264,54 @@ def get_lat_lon_nominatim_cached(address: str) -> Optional[Tuple[float, float]]:
         first_result = results[0]
         lat = float(first_result["lat"])
         lon = float(first_result["lon"])
+        place_id = first_result.get("place_id")
+        place_id_text = str(place_id) if place_id is not None else None
 
-        cached_payload = {
-            "query": address,
-            "normalized_query": normalized_address,
-            "lat": lat,
-            "lon": lon,
-            "display_name": first_result.get("display_name"),
-            "place_id": first_result.get("place_id"),
-            "cached_at": time.time(),
-        }
-        cache_entries[cache_key] = cached_payload
-        with open(cache_file, "w", encoding="utf-8") as f:
-            json.dump({"entries": cache_entries}, f, indent=2, ensure_ascii=False)
+        with SessionLocal() as db:
+            provider_id = _provider_id_for_code(db, NOMINATIM_PROVIDER_CODE)
+            if provider_id is None:
+                return lat, lon
+
+            cached_entry = db.execute(
+                select(GeocodeCacheEntry).where(
+                    GeocodeCacheEntry.provider_id == provider_id,
+                    GeocodeCacheEntry.query_hash == query_hash,
+                )
+            ).scalar_one_or_none()
+
+            expires_at = now + timedelta(seconds=nominatim_cache_limit)
+            if cached_entry is None:
+                db.add(
+                    GeocodeCacheEntry(
+                        provider_id=provider_id,
+                        query_hash=query_hash,
+                        query_text=address,
+                        normalized_query=normalized_address,
+                        lat=lat,
+                        lon=lon,
+                        display_name=first_result.get("display_name"),
+                        external_place_id=place_id_text,
+                        cached_at=now,
+                        expires_at=expires_at,
+                        last_used_at=now,
+                        use_count=1,
+                    )
+                )
+            else:
+                cached_entry.query_text = address
+                cached_entry.normalized_query = normalized_address
+                cached_entry.lat = lat
+                cached_entry.lon = lon
+                cached_entry.display_name = first_result.get("display_name")
+                cached_entry.external_place_id = place_id_text
+                cached_entry.cached_at = now
+                cached_entry.expires_at = expires_at
+                cached_entry.last_used_at = now
+                cached_entry.use_count = (cached_entry.use_count or 0) + 1
+
+            db.commit()
+
+        print("Cached Nominatim geocode result in DB.")
 
         return lat, lon
 
