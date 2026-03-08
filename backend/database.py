@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 import os
-<<<<<<< HEAD
-from urllib.parse import quote_plus
-from typing import Generator
-=======
 from pathlib import Path
 from typing import Any, Generator
->>>>>>> database-implementation-2
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
@@ -21,31 +16,6 @@ if ENV_PATH.exists():
     load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
-<<<<<<< HEAD
-def get_database_url() -> str:
-    explicit = os.getenv("DATABASE_URL")
-    if explicit:
-        return explicit.strip()
-
-    host = os.getenv("DB_HOST")
-    db_name = os.getenv("DB_NAME") or os.getenv("DATABASE_NAME")
-    db_user = os.getenv("DB_USER") or os.getenv("DATABASE_USER")
-    db_password = os.getenv("DB_PASSWORD") or os.getenv("DATABASE_PASSWORD") or ""
-    db_port = os.getenv("DB_PORT", "5432")
-    sslmode = os.getenv("DB_SSLMODE", "require")
-
-    if host and db_name and db_user:
-        password = quote_plus(db_password)
-        return (
-            f"postgresql+psycopg://{db_user}:{password}"
-            f"@{host}:{db_port}/{db_name}?sslmode={sslmode}"
-        )
-
-    raise RuntimeError(
-        "DATABASE_URL is not set and DB_* vars are incomplete. Configure "
-        "a PostgreSQL URL (DATABASE_URL or DB_HOST/DB_NAME/DB_USER)."
-    )
-=======
 def _get_required_env(name: str) -> str:
     value = os.getenv(name)
 
@@ -60,7 +30,6 @@ def _get_required_env(name: str) -> str:
         raise RuntimeError(f"Environment variable {name} is empty")
 
     return value
->>>>>>> database-implementation-2
 
 
 def _get_int_env(name: str, default: int | None = None) -> int:

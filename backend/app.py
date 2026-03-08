@@ -12,9 +12,6 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
 from init_db import init_db
-<<<<<<< HEAD
-from models import CityPoint, DataProvider, GlobeAqCache
-=======
 from models import (
     CityPoint,
     DataProvider,
@@ -25,7 +22,6 @@ from models import (
     LocationStationCache,
     ProviderCacheEntry,
 )
->>>>>>> database-implementation-2
 from services.city_seed import seed_city_points
 from services.globe_ingest import run_globe_ingest
 
@@ -118,11 +114,7 @@ def _run_scheduled_ingest() -> None:
 @app.get("/api/map/markers")
 def get_map_markers(db: Session = Depends(get_db)) -> dict:
     stmt = (
-<<<<<<< HEAD
-        select(CityPoint, GlobeAqCache, DataProvider.provider_code)
-=======
         select(CityPoint, GlobeAqCache, DataProvider)
->>>>>>> database-implementation-2
         .outerjoin(GlobeAqCache, GlobeAqCache.city_point_id == CityPoint.id)
         .outerjoin(DataProvider, DataProvider.id == GlobeAqCache.provider_id)
         .where(CityPoint.is_active.is_(True))
@@ -132,11 +124,7 @@ def get_map_markers(db: Session = Depends(get_db)) -> dict:
     rows = db.execute(stmt).all()
     markers = []
 
-<<<<<<< HEAD
-    for city, cache, provider_code in rows:
-=======
     for city, cache, provider in rows:
->>>>>>> database-implementation-2
         markers.append(
             {
                 "city_point_id": city.id,
@@ -156,10 +144,6 @@ def get_map_markers(db: Session = Depends(get_db)) -> dict:
                     "us_aqi": cache.us_aqi if cache else None,
                     "eu_aqi": cache.eu_aqi if cache else None,
                     "band": cache.band if cache else None,
-<<<<<<< HEAD
-                    "source": provider_code if cache else None,
-=======
->>>>>>> database-implementation-2
                     "observed_at": _to_iso(cache.observed_at) if cache else None,
                     "fetched_at": _to_iso(cache.fetched_at) if cache else None,
                     "stale": cache.stale if cache else None,
