@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node / frontend
 node_modules
 dist
 dist-ssr
@@ -17,6 +18,7 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
@@ -25,13 +27,34 @@ dist-ssr
 
 # Python
 venv/
+.venv/
+env/
+ENV/
 __pycache__/
 *.py[cod]
+*.pyc
+*$py.class
 backend/.env
 backend/__pycache__/
 .env
+.env.*
+!.env.example
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Cache (generated)
 data/cache/
+<<<<<<< HEAD
 *.pyc
 .env
+=======
+backend/data/cache/
+backend/data/cache/*.json
+backend/data/cache/*.tmp
+
+# Backend logs
+backend/*.log
+>>>>>>> database-implementation-2

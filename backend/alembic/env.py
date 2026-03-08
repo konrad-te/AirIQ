@@ -1,34 +1,30 @@
 from __future__ import annotations
 
-import os
-import sys
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
-
-backend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if backend_root not in sys.path:
-    sys.path.insert(0, backend_root)
-
-from models import Base  # noqa: E402
+from database import DATABASE_URL_OBJECT
+from models import Base
 
 config = context.config
 
-if config.config_file_name:
+if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    """Run migrations without creating a live DB connection."""
     context.configure(
-        url=url,
+        url=DATABASE_URL_OBJECT.render_as_string(hide_password=False),
         target_metadata=target_metadata,
+        literal_binds=True,
         compare_type=True,
         compare_server_default=True,
+        dialect_opts={"paramstyle": "named"},
     )
 
     with context.begin_transaction():
@@ -36,11 +32,11 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    section = config.get_section(config.config_ini_section, {})
-    connectable = engine_from_config(
-        section,
-        prefix="sqlalchemy.",
+    """Run migrations using a real SQLAlchemy engine/connection."""
+    connectable = create_engine(
+        DATABASE_URL_OBJECT,
         poolclass=pool.NullPool,
+        future=True,
     )
 
     with connectable.connect() as connection:
@@ -59,4 +55,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
