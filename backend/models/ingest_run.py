@@ -25,18 +25,6 @@ class IngestRun(Base):
             name="ck_ingest_runs_status",
         ),
     )
-<<<<<<< HEAD
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
-    provider_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("data_providers.id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
-    job_name: Mapped[str] = mapped_column(String(64), nullable=False, server_default="globe_ingest_hourly")
-    triggered_by: Mapped[str] = mapped_column(String(16), nullable=False, server_default="scheduler")
-=======
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
 
@@ -58,7 +46,6 @@ class IngestRun(Base):
         server_default="scheduler",
     )
 
->>>>>>> database-implementation-2
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

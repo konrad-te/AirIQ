@@ -26,8 +26,4 @@ __all__ = [
     "ProviderCacheEntry",
     "User",
     "UserPreference",
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> database-implementation-2

@@ -8,13 +8,7 @@ import requests
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-<<<<<<< HEAD
-from models import CityPoint, GlobeAqCache, IngestRun
-from services.bootstrap import ensure_data_providers, get_provider_id
-
-=======
 from models import CityPoint, DataProvider, GlobeAqCache, IngestRun
->>>>>>> database-implementation-2
 
 OPENMETEO_PROVIDER_CODE = "open-meteo"
 OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -64,27 +58,6 @@ def _pm25_to_band(pm25: float | None) -> str | None:
     return "75+"
 
 
-<<<<<<< HEAD
-def _to_nullable_int(value: Any, *, min_value: int | None = None, max_value: int | None = None) -> int | None:
-    if not isinstance(value, (int, float)):
-        return None
-
-    numeric = int(value)
-    if min_value is not None and numeric < min_value:
-        return min_value
-    if max_value is not None and numeric > max_value:
-        return max_value
-    return numeric
-
-
-def _to_nullable_float(value: Any) -> float | None:
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
-
-
-def _fetch_openmeteo_batch(points: list[CityPoint], timeout: int = 30) -> list[dict[str, Any]]:
-=======
 def _safe_float(value: Any) -> float | None:
     numeric = float(value) if isinstance(value, (int, float)) else None
     if numeric is None:
@@ -137,7 +110,6 @@ def _fetch_openmeteo_batch(
     points: list[CityPoint],
     timeout_seconds: float,
 ) -> list[dict[str, Any]]:
->>>>>>> database-implementation-2
     if not points:
         return []
 
@@ -169,18 +141,6 @@ def _fetch_openmeteo_batch(
     return []
 
 
-<<<<<<< HEAD
-def run_globe_ingest(db: Session, batch_size: int = 40) -> IngestSummary:
-    provider_id = get_provider_id(db, "open-meteo")
-    if provider_id is None:
-        ensure_data_providers(db)
-        provider_id = get_provider_id(db, "open-meteo")
-        if provider_id is None:
-            raise RuntimeError("open-meteo provider is not configured.")
-
-    run = IngestRun(
-        provider_id=provider_id,
-=======
 def _get_or_create_cache(
     db: Session,
     city_point_id: int,
@@ -227,7 +187,6 @@ def run_globe_ingest(
     run = IngestRun(
         provider_id=provider.id,
         triggered_by=triggered_by,
->>>>>>> database-implementation-2
         status="running",
         total_points=0,
         success_count=0,
@@ -265,57 +224,6 @@ def run_globe_ingest(
                 )
             except requests.RequestException as exc:
                 for point in batch:
-<<<<<<< HEAD
-                    cache = db.get(GlobeAqCache, point.id)
-                    if cache is None:
-                        cache = GlobeAqCache(city_point_id=point.id, provider_id=provider_id)
-                        db.add(cache)
-                    else:
-                        cache.provider_id = provider_id
-                    cache.stale = True
-                    cache.fetched_at = datetime.now(timezone.utc)
-                    fail += 1
-                db.commit()
-                continue
-
-            for idx, point in enumerate(batch):
-                row = rows[idx] if idx < len(rows) else {}
-                current = row.get("current") or {}
-                if not isinstance(current, dict) or (
-                    current.get("pm2_5") is None and current.get("pm10") is None
-                ):
-                    cache = db.get(GlobeAqCache, point.id)
-                    if cache is None:
-                        cache = GlobeAqCache(city_point_id=point.id, provider_id=provider_id)
-                        db.add(cache)
-                    else:
-                        cache.provider_id = provider_id
-                    cache.stale = True
-                    cache.observed_at = _parse_iso_datetime(current.get("time"))
-                    cache.fetched_at = datetime.now(timezone.utc)
-                    fail += 1
-                    continue
-
-                current = row.get("current") or {}
-                pm25 = current.get("pm2_5")
-                pm10 = current.get("pm10")
-                us_aqi = current.get("us_aqi")
-                eu_aqi = current.get("european_aqi")
-                observed_at = _parse_iso_datetime(current.get("time"))
-
-                cache = db.get(GlobeAqCache, point.id)
-                if cache is None:
-                    cache = GlobeAqCache(city_point_id=point.id, provider_id=provider_id)
-                    db.add(cache)
-                else:
-                    cache.provider_id = provider_id
-
-                cache.pm25 = _to_nullable_float(pm25)
-                cache.pm10 = _to_nullable_float(pm10)
-                cache.us_aqi = _to_nullable_int(us_aqi, min_value=0, max_value=500)
-                cache.eu_aqi = _to_nullable_int(eu_aqi, min_value=0)
-                cache.band = _pm25_to_band(cache.pm25)
-=======
                     _mark_cache_failed(
                         db=db,
                         city_point_id=point.id,
@@ -355,7 +263,6 @@ def run_globe_ingest(
                 cache.us_aqi = us_aqi
                 cache.eu_aqi = eu_aqi
                 cache.band = _pm25_to_band(pm25)
->>>>>>> database-implementation-2
                 cache.observed_at = observed_at
                 cache.fetched_at = fetched_at
                 cache.payload_json = row if isinstance(row, dict) and row else None
@@ -381,22 +288,6 @@ def run_globe_ingest(
             run.fail_count = fail_count
             db.commit()
 
-<<<<<<< HEAD
-        run.status = "partial" if fail > 0 else "success"
-        run.success_count = success
-        run.fail_count = fail
-        run.finished_at = datetime.now(timezone.utc)
-        run.notes = "Open-Meteo globe ingest completed."
-        db.commit()
-    except Exception as exc:
-        run.status = "failed"
-        run.success_count = success
-        run.fail_count = max(fail, total - success)
-        run.finished_at = datetime.now(timezone.utc)
-        run.notes = f"Ingest aborted: {exc}"
-        db.commit()
-        raise
-=======
         accounted_for = success_count + fail_count
         if accounted_for != total_points:
             notes.append(
@@ -404,7 +295,6 @@ def run_globe_ingest(
                 f"success={success_count}, fail={fail_count}, accounted={accounted_for}."
             )
             fail_count = max(total_points - success_count, 0)
->>>>>>> database-implementation-2
 
         run.finished_at = _utc_now()
         run.success_count = success_count
