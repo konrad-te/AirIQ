@@ -1,0 +1,188 @@
+:root {
+  --line: rgba(255, 255, 255, 0.58);
+  --glass: rgba(236, 244, 255, 0.28);
+  --glass-strong: rgba(255, 255, 255, 0.4);
+  --shadow: 0 20px 70px rgba(17, 38, 75, 0.23);
+}
+
+.landing {
+  position: relative;
+  min-height: 100vh;
+  padding: 1.8rem clamp(1rem, 3vw, 3rem) 2.4rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  background-image: linear-gradient(180deg, rgba(232, 240, 255, 0.45) 0%, rgba(231, 241, 255, 0.15) 48%, rgba(218, 231, 247, 0.72) 100%),
+    url('https://cdn.pixabay.com/photo/2019/09/22/13/08/wind-turbines-4495093_1280.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+.atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.5), transparent 42%),
+    radial-gradient(circle at 80% 12%, rgba(167, 210, 255, 0.26), transparent 35%),
+    radial-gradient(circle at 50% 75%, rgba(201, 242, 216, 0.2), transparent 44%);
+}
+
+.top-bar,
+.hero-grid,
+.feature-row {
+  position: relative;
+  z-index: 1;
+}
+
+.top-bar {
+  display: grid;
+  grid-template-columns: 170px 1fr auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav-slots,
+.auth-slots,
+.feature-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.nav-slots {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.auth-slots {
+  justify-content: flex-end;
+}
+
+.hero-grid {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: minmax(300px, 1.1fr) minmax(280px, 0.9fr);
+  gap: clamp(1rem, 2.4vw, 2rem);
+  align-items: start;
+}
+
+.hero-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.hero-right {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.feature-row {
+  max-width: 1020px;
+}
+
+.placeholder {
+  border: 1.5px dashed var(--line);
+  border-radius: 16px;
+  background: var(--glass);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: var(--shadow);
+}
+
+.logo-slot {
+  height: 48px;
+  width: 160px;
+}
+
+.nav-slot {
+  width: 110px;
+  height: 40px;
+}
+
+.auth-slot {
+  width: 100px;
+  height: 44px;
+  border-radius: 999px;
+}
+
+.auth-slot.primary {
+  width: 136px;
+  background: var(--glass-strong);
+}
+
+.block-xl {
+  max-width: 600px;
+  width: min(100%, 600px);
+  height: clamp(88px, 11vw, 140px);
+}
+
+.block-md {
+  width: min(100%, 510px);
+  height: 66px;
+}
+
+.block-search {
+  width: min(100%, 660px);
+  height: 66px;
+  border-radius: 999px;
+}
+
+.block-meta {
+  width: min(100%, 520px);
+  height: 34px;
+  border-radius: 10px;
+}
+
+.info-card {
+  width: min(100%, 460px);
+  height: clamp(260px, 28vw, 420px);
+  border-radius: 22px;
+}
+
+.feature-card {
+  flex: 1;
+  min-width: 150px;
+  height: 95px;
+}
+
+@media (max-width: 1024px) {
+  .top-bar {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-right {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .landing {
+    gap: 1.2rem;
+    padding-bottom: 1.4rem;
+  }
+
+  .nav-slots,
+  .feature-row {
+    width: 100%;
+  }
+
+  .feature-row {
+    flex-direction: column;
+  }
+
+  .feature-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .info-card {
+    width: 100%;
+  }
+}
