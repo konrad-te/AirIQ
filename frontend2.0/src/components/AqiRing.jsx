@@ -5,10 +5,10 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
 
   const radius = 48
   const circumference = 2 * Math.PI * radius
-  const visibleCircumference = circumference * 0.75
+  const visibleCircumference = circumference * 0.8
   const progress = safeValue / maxValue
   const progressLength = visibleCircumference * progress
-  const baseOffset = circumference - visibleCircumference
+  const baseOffset = (circumference - visibleCircumference) / 2
 
   return (
     <div className="aqi-ring">
@@ -28,7 +28,7 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
           r={radius}
           strokeDasharray={`${visibleCircumference} ${circumference}`}
           strokeDashoffset={baseOffset}
-          transform="rotate(-135 70 70)"
+          transform="rotate(-90 70 70)"
         />
 
         <circle
@@ -38,7 +38,7 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
           r={radius}
           strokeDasharray={`${progressLength} ${circumference}`}
           strokeDashoffset={baseOffset}
-          transform="rotate(-135 70 70)"
+          transform="rotate(-90 70 70)"
         />
       </svg>
 

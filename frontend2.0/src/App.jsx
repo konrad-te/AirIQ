@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import heroBackground from './assets/123.png'
 import logoAiriq from './assets/logo-airiq.svg'
 import globeBanner from './assets/banner.png'
@@ -7,6 +8,7 @@ import alertsImage from './assets/alerts.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
 import PM25Chart from './components/PM25Chart'
+import PlanSelector from './components/PlanSelector'
 
 const mockData = {
   location: 'Zawiercie, Poland',
@@ -35,11 +37,18 @@ const mockData = {
 }
 
 function App() {
+  const [selectedDevice, setSelectedDevice] = useState(null)
+
   const handleOpenGlobe = () => {
     // TODO: connect to globe map view when ready.
   }
-  const handleOpenDevice = () => {
-    // TODO: connect to device-specific pages when ready.
+
+  const handleAddDevice = (deviceType) => {
+    setSelectedDevice(deviceType)
+    // TODO: replace with real navigation / add-device flow.
+    // For now this simply records which device the user picked.
+    // eslint-disable-next-line no-console
+    console.log('User chose device:', deviceType)
   }
 
   return (
@@ -49,7 +58,7 @@ function App() {
           <img src={logoAiriq} alt="AirIQ" className="brand-logo" />
         </div>
         <nav className="nav-links">
-          <button className="nav-link">Features</button>
+          <button className="nav-link nav-link--active">Features</button>
           <button className="nav-link">How it works</button>
           <button className="nav-link">Integrations</button>
           <button className="nav-link">Pricing</button>
@@ -63,38 +72,120 @@ function App() {
 
       <main className="layout-main">
         <section className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">Air quality guidance</p>
-            <h1>
-              Air quality guidance
-              <br />
-              for your <span>exact address.</span>
-            </h1>
-            <p className="hero-subtitle">
-              Real-time data &amp; actionable recommendations
-              <br />
-              for training, sleep &amp; ventilation.
-            </p>
+          <div className="hero-left">
+            <div className="hero-copy">
+              <p className="eyebrow">Air quality guidance</p>
+              <h1>
+                Air quality guidance
+                <br />
+                for your <span>exact address.</span>
+              </h1>
+              <p className="hero-subtitle">
+                Real-time data &amp; actionable recommendations
+                <br />
+                for training, sleep &amp; ventilation.
+              </p>
 
-            <div className="hero-search-card">
-              <div className="hero-search-input">
-                <span className="hero-search-placeholder">
-                  Enter an address (e.g. Zawiercie, Poland)
-                </span>
+              <div className="hero-search-card">
+                <div className="hero-search-input">
+                  <span className="hero-search-placeholder">
+                    Enter an address (e.g. Zawiercie, Poland)
+                  </span>
+                </div>
+                <button className="btn hero-search-btn">Check air now</button>
               </div>
-              <button className="btn hero-search-btn">Check air now</button>
+
+              <div className="hero-meta-row">
+                <button className="link-button">Use my location</button>
+                <span className="hero-meta-dot" />
+                <span className="hero-meta-label">Updated hourly</span>
+                <span className="hero-meta-dot" />
+                <span className="hero-meta-label">Sources: stations + models</span>
+              </div>
             </div>
 
-            <div className="hero-meta-row">
-              <button className="link-button">Use my location</button>
-              <span className="hero-meta-dot" />
-              <span className="hero-meta-label">Updated hourly</span>
-              <span className="hero-meta-dot" />
-              <span className="hero-meta-label">Sources: stations + models</span>
-            </div>
+            <section className="hero-strip">
+              <div className="hero-strip-item">
+                <p className="hero-strip-title">Actionable recommendations</p>
+                <p className="hero-strip-subtitle">What to do today</p>
+              </div>
+              <div className="hero-strip-item">
+                <p className="hero-strip-title">Local accuracy</p>
+                <p className="hero-strip-subtitle">Down to your street</p>
+              </div>
+              <div className="hero-strip-item">
+                <p className="hero-strip-title">Trends &amp; alerts</p>
+                <p className="hero-strip-subtitle">Plan your week</p>
+              </div>
+            </section>
+
+            <section className="devices-inline-section">
+              <div className="devices-inline-banner">
+                <button
+                  type="button"
+                  className={`devices-inline-item ${selectedDevice === 'sensor' ? 'devices-inline-item--active' : ''}`}
+                  onClick={() => handleAddDevice('sensor')}
+                >
+                  <span className="devices-inline-image-wrap" aria-hidden>
+                    <img src={sensorImage} alt="" className="devices-inline-image" />
+                  </span>
+                  <span className="devices-inline-copy">
+                    <span className="devices-inline-title">AirIQ Home</span>
+                    <span className="devices-inline-subtitle">Indoor sensor</span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`devices-inline-item ${selectedDevice === 'performance' ? 'devices-inline-item--active' : ''}`}
+                  onClick={() => handleAddDevice('performance')}
+                >
+                  <span className="devices-inline-image-wrap" aria-hidden>
+                    <img src={watchImage} alt="" className="devices-inline-image" />
+                  </span>
+                  <span className="devices-inline-copy">
+                    <span className="devices-inline-title">AirIQ Performance</span>
+                    <span className="devices-inline-subtitle">Garmin &amp; wearables</span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`devices-inline-item ${selectedDevice === 'alerts' ? 'devices-inline-item--active' : ''}`}
+                  onClick={() => handleAddDevice('alerts')}
+                >
+                  <span className="devices-inline-image-wrap" aria-hidden>
+                    <img src={alertsImage} alt="" className="devices-inline-image" />
+                  </span>
+                  <span className="devices-inline-copy">
+                    <span className="devices-inline-title">Smart alerts</span>
+                    <span className="devices-inline-subtitle">Email · App · Watch</span>
+                  </span>
+                </button>
+              </div>
+            </section>
+
+            <section className="globe-cta-section">
+              <button
+                type="button"
+                className="globe-cta"
+                onClick={handleOpenGlobe}
+                style={{ '--globe-banner-image': `url(${globeBanner})` }}
+              >
+                <div className="globe-cta-copy">
+                  <p className="globe-cta-title">Check global air quality</p>
+                  <p className="globe-cta-subtitle">Explore live airscore worldwide</p>
+                  <span className="globe-cta-action">
+                    Open globe
+                    <span aria-hidden>+</span>
+                  </span>
+                </div>
+              </button>
+            </section>
           </div>
 
-          <aside className="hero-panel">
+          <div className="hero-right">
+            <aside className="hero-panel">
             <div className="hero-panel-header">
               <div>
                 <p className="hero-panel-location">{mockData.location}</p>
@@ -155,81 +246,16 @@ function App() {
                 ))}
               </div>
             </div>
-          </aside>
-        </section>
+            </aside>
 
-        <section className="hero-strip">
-          <div className="hero-strip-item">
-            <p className="hero-strip-title">Actionable recommendations</p>
-            <p className="hero-strip-subtitle">What to do today</p>
+            <section className="stats-chart-section">
+              <PM25Chart nowValue={mockData.pm25Value} />
+            </section>
+
+            <section className="plan-selector-section">
+              <PlanSelector />
+            </section>
           </div>
-          <div className="hero-strip-item">
-            <p className="hero-strip-title">Local accuracy</p>
-            <p className="hero-strip-subtitle">Down to your street</p>
-          </div>
-          <div className="hero-strip-item">
-            <p className="hero-strip-title">Trends &amp; alerts</p>
-            <p className="hero-strip-subtitle">Plan your week</p>
-          </div>
-        </section>
-
-        <section className="globe-cta-section">
-          <button
-            type="button"
-            className="globe-cta"
-            onClick={handleOpenGlobe}
-            style={{ '--globe-banner-image': `url(${globeBanner})` }}
-          >
-            <div className="globe-cta-copy">
-              <p className="globe-cta-title">Check global air quality</p>
-              <p className="globe-cta-subtitle">Explore live airscore worldwide</p>
-              <span className="globe-cta-action">
-                Open globe
-                <span aria-hidden>+</span>
-              </span>
-            </div>
-          </button>
-        </section>
-
-        <section className="devices-section">
-          <div className="devices-card">
-            <h2 className="devices-title">Connect your devices</h2>
-            <div className="device-links">
-              <button type="button" className="device-link" onClick={handleOpenDevice}>
-                <span className="device-link-image-wrap" aria-hidden>
-                  <img src={sensorImage} alt="" className="device-link-image" />
-                </span>
-                <span className="device-link-copy">
-                  <span className="device-link-title">AiriQ Home</span>
-                  <span className="device-link-subtitle">Indoor sensor</span>
-                </span>
-              </button>
-
-              <button type="button" className="device-link" onClick={handleOpenDevice}>
-                <span className="device-link-image-wrap" aria-hidden>
-                  <img src={watchImage} alt="" className="device-link-image" />
-                </span>
-                <span className="device-link-copy">
-                  <span className="device-link-title">AiriQ Performance</span>
-                  <span className="device-link-subtitle">Garmin &amp; wearables</span>
-                </span>
-              </button>
-
-              <button type="button" className="device-link" onClick={handleOpenDevice}>
-                <span className="device-link-image-wrap" aria-hidden>
-                  <img src={alertsImage} alt="" className="device-link-image" />
-                </span>
-                <span className="device-link-copy">
-                  <span className="device-link-title">Smart alerts</span>
-                  <span className="device-link-subtitle">Email · App · Watch</span>
-                </span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="stats-chart-section">
-          <PM25Chart nowValue={mockData.pm25Value} />
         </section>
       </main>
     </div>
