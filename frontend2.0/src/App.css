@@ -819,8 +819,7 @@
   line-height: 1;
 }
 
-/* AQI ring (inside hero card) */
-
+/* AQI ring (inside hero card) — arc from 7:30 to 4:30 */
 .aqi-ring {
   position: relative;
   width: 150px;
@@ -841,18 +840,14 @@
 }
 
 .aqi-ring-track {
-  fill: none;
-  stroke: #e3eef8;
-  stroke-width: 9;
-  stroke-linecap: round;
+  fill: #e8eef6;
+  stroke: none;
 }
 
 .aqi-ring-progress {
-  fill: none;
-  stroke: url(#aqiGradient);
-  stroke-width: 9;
-  stroke-linecap: round;
-  transition: stroke-dasharray 500ms ease-out;
+  fill: url(#aqiGradient);
+  stroke: none;
+  transition: opacity 400ms ease-out;
 }
 
 .aqi-ring-content {
@@ -1105,47 +1100,52 @@
 /* Footer */
 .page-footer {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 2rem;
-  padding: 1.75rem 1.5rem;
-  margin-top: 2.5rem;
+  padding: 1.25rem 2rem 1.5rem;
+  margin-top: auto;
   flex-shrink: 0;
+  min-height: 4rem;
 }
 
 .footer-left {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.85rem;
+  max-width: 48%;
 }
 
 .footer-logo {
-  height: 32px;
+  height: 28px;
   width: auto;
   display: block;
   flex-shrink: 0;
+  opacity: 0.92;
 }
 
 .footer-tagline {
-  font-size: 0.95rem;
-  color: #475569;
+  font-size: 0.8rem;
+  color: #64748b;
   margin: 0;
-  line-height: 1.45;
-  max-width: 420px;
+  line-height: 1.4;
+  max-width: 320px;
+  letter-spacing: 0.01em;
 }
 
 .footer-right {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 0.9rem;
+  gap: 0.5rem;
+  font-size: 0.8rem;
 }
 
 .footer-link {
-  color: #475569;
+  color: #64748b;
   text-decoration: none;
   font-weight: 500;
-  transition: color 0.15s ease;
+  letter-spacing: 0.02em;
+  transition: color 0.18s ease;
 }
 
 .footer-link:hover {
@@ -1156,6 +1156,8 @@
   color: #94a3b8;
   user-select: none;
   font-weight: 300;
+  font-size: 0.65rem;
+  opacity: 0.8;
 }
 
 @media (max-width: 900px) {
