@@ -1,0 +1,291 @@
+/* Globe page layout */
+.globe-page {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0d1424 0%, #152238 50%, #0f1a2e 100%);
+}
+
+.globe-back-btn {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 10;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  color: #163153;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.globe-back-btn:hover {
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Error message */
+.globe-error {
+  position: absolute;
+  left: 12px;
+  top: 56px;
+  z-index: 10;
+  max-width: 520px;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  background: rgba(255, 236, 240, 0.95);
+  color: #9f1239;
+  backdrop-filter: blur(12px);
+  font-size: 0.9rem;
+  box-shadow: 0 8px 24px rgba(159, 18, 57, 0.15);
+}
+
+/* Right-hand panel — general data */
+.globe-panel {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 10;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(248, 252, 255, 0.94) 40%,
+    rgba(240, 248, 255, 0.92) 100%
+  );
+  box-shadow:
+    0 24px 48px rgba(17, 76, 143, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  backdrop-filter: blur(20px);
+  padding: 1.25rem 1.2rem 1.35rem;
+  color: #163458;
+}
+
+.globe-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(180, 211, 239, 0.5);
+}
+
+.globe-panel__title {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f3d6b;
+}
+
+.globe-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #0c5285;
+  background: linear-gradient(135deg, rgba(183, 247, 216, 0.95), rgba(181, 220, 255, 0.95));
+  border: 1px solid rgba(120, 190, 230, 0.6);
+  box-shadow: 0 2px 8px rgba(12, 82, 133, 0.12);
+}
+
+.globe-panel__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.globe-panel__tag {
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1a548a;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(180, 211, 239, 0.7);
+}
+
+.globe-panel__section {
+  border-radius: 14px;
+  border: 1px solid rgba(189, 214, 238, 0.6);
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.9), rgba(245, 251, 255, 0.85));
+  padding: 0.85rem 0.9rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 2px 12px rgba(17, 76, 143, 0.06);
+}
+
+.globe-panel__section:last-of-type {
+  margin-bottom: 0.9rem;
+}
+
+.globe-panel__section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #1b4775;
+}
+
+.globe-panel__section p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #36597d;
+}
+
+.globe-panel__section p + p {
+  margin-top: 0.4rem;
+}
+
+.globe-panel__legend {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.globe-panel__legend-item {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  border-radius: 10px;
+  padding: 0.35rem 0.5rem;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(194, 218, 240, 0.6);
+  transition: background 0.15s ease;
+}
+
+.globe-panel__legend-item:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.globe-panel__legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 1px 3px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.globe-panel__legend-label {
+  font-size: 0.8rem;
+  color: #234c77;
+  font-weight: 500;
+}
+
+.globe-panel__legend-meaning {
+  font-size: 0.75rem;
+  color: #4f6f93;
+  font-weight: 600;
+}
+
+/* Mapbox popup — city data */
+.globe-popup .mapboxgl-popup-content {
+  min-width: 220px;
+  max-width: 320px;
+  padding: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(248, 252, 255, 0.96) 100%
+  );
+  box-shadow:
+    0 20px 40px rgba(17, 76, 143, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.globe-popup .mapboxgl-popup-tip {
+  border-top-color: rgba(255, 255, 255, 0.95);
+}
+
+.globe-popup .mapboxgl-popup-close-button {
+  font-size: 20px;
+  padding: 6px 10px;
+  color: #4a6b8a;
+  opacity: 0.85;
+}
+
+.globe-popup .mapboxgl-popup-close-button:hover {
+  color: #163458;
+  opacity: 1;
+}
+
+/* Popup content structure */
+.globe-popup__inner {
+  padding: 1rem 1.1rem 1rem;
+}
+
+.globe-popup__city {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f3d6b;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(180, 211, 239, 0.6);
+  letter-spacing: -0.01em;
+}
+
+.globe-popup__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.28rem 0;
+  font-size: 0.82rem;
+}
+
+.globe-popup__row:not(:last-child) {
+  border-bottom: 1px solid rgba(194, 218, 240, 0.4);
+}
+
+.globe-popup__label {
+  color: #4f6f93;
+  font-weight: 500;
+}
+
+.globe-popup__value {
+  font-weight: 700;
+  color: #163458;
+  text-align: right;
+}
+
+.globe-popup__value--band {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.globe-popup__band-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.globe-popup__stale {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(244, 63, 94, 0.4);
+  font-size: 0.75rem;
+  color: #9f1239;
+  font-style: italic;
+}
