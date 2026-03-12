@@ -8,7 +8,7 @@ import requests
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models import CityPoint
+from backend.models import CityPoint
 
 
 RESTCOUNTRIES_URL = "https://restcountries.com/v3.1/all?fields=name,cca2,capital,capitalInfo"

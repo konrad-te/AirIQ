@@ -69,6 +69,15 @@ UNITS = {
     "wind_direction": "°",
 }
 
+EU_AQI_LABELS = {
+    1: "Very good",
+    2: "Good",
+    3: "Medium",
+    4: "Poor",
+    5: "Very poor",
+    6: "Extremely poor",
+}
+
 # ---------------------------
 # Cache helpers
 # ---------------------------
@@ -465,6 +474,7 @@ def fetch_openaq_latest_nearby(
             "distance_km": round(dist, 2),
             "location_name": loc.get("location") or loc.get("name"),
             "message": f"Used OpenAQ nearest station (~{dist:.1f} km).",
+            "user_message": f"Based on measurements from a nearby station {dist:.1f} km away.",
         }
 
         normalized = {
@@ -562,6 +572,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> Optional[Dict[str, An
         "provider": "open-meteo",
         "method": "model",
         "message": "Model-based estimate (not station-measured).",
+        "user_message": "Estimated from air quality models for your area.",
     }
 
     normalized = {
@@ -753,6 +764,63 @@ def enrich_with_weather_if_missing(lat: float, lon: float, norm: Dict[str, Any])
     return _finalize_normalized(norm)
 
 
+def _eu_aqi_level_pm25(value: Optional[float]) -> Optional[int]:
+    if value is None or value < 0:
+        return None
+    if value <= 10:
+        return 1
+    if value <= 20:
+        return 2
+    if value <= 25:
+        return 3
+    if value <= 50:
+        return 4
+    if value <= 75:
+        return 5
+    return 6
+
+
+def _eu_aqi_level_pm10(value: Optional[float]) -> Optional[int]:
+    if value is None or value < 0:
+        return None
+    if value <= 20:
+        return 1
+    if value <= 40:
+        return 2
+    if value <= 50:
+        return 3
+    if value <= 100:
+        return 4
+    if value <= 150:
+        return 5
+    return 6
+
+
+def _build_eu_aqi(current: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    pm25 = _to_float(current.get("pm25"))
+    pm10 = _to_float(current.get("pm10"))
+
+    candidates: List[Tuple[str, int]] = []
+    pm25_level = _eu_aqi_level_pm25(pm25)
+    pm10_level = _eu_aqi_level_pm10(pm10)
+
+    if pm25_level is not None:
+        candidates.append(("pm25", pm25_level))
+    if pm10_level is not None:
+        candidates.append(("pm10", pm10_level))
+
+    if not candidates:
+        return None
+
+    dominant_pollutant, value = max(candidates, key=lambda item: item[1])
+    return {
+        "scheme": "eu",
+        "value": value,
+        "label": EU_AQI_LABELS[value],
+        "dominant_pollutant": dominant_pollutant,
+    }
+
+
 def _finalize_normalized(norm: Dict[str, Any]) -> Dict[str, Any]:
     """Ensure stable meta units + add data completeness flags."""
     if not isinstance(norm, dict):
@@ -763,6 +831,7 @@ def _finalize_normalized(norm: Dict[str, Any]) -> Dict[str, Any]:
     meta["units"] = dict(UNITS)
 
     cur = norm.get("current") or {}
+    norm["aqi"] = _build_eu_aqi(cur)
     meta["data_completeness"] = {
         "has_pm": (cur.get("pm25") is not None) or (cur.get("pm10") is not None),
         "has_weather": any(
@@ -811,6 +880,7 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
         "provider": "airly" if AIRLY_KEY else "airly",
         "method": "point",
         "message": "Used interpolated point measurements (if available).",
+        "user_message": "Based on air quality data near your location.",
     }
     norm_point = normalize_airly(raw_point, point_source)
 
@@ -865,6 +935,11 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
                 "installation_id": inst_id2,
                 "distance_km": round(distance_km, 2) if distance_km is not None else None,
                 "message": msg,
+                "user_message": (
+                    f"Based on measurements from a nearby station {distance_km:.1f} km away."
+                    if distance_km is not None
+                    else "Based on measurements from a nearby station."
+                ),
             }
 
             norm_nearest = normalize_airly(raw_nearest, nearest_source)
@@ -951,6 +1026,7 @@ def get_air_quality_data(lat: float, lon: float) -> Dict[str, Any]:
                 f"No values from Airly (/point, /nearest {AIRLY_NEAREST_MAX_DISTANCE_KM}km), "
                 f"OpenAQ ({OPENAQ_MAX_DISTANCE_KM}km), or Open-Meteo."
             ),
+            "user_message": "Air quality data is currently unavailable for this location.",
         },
         "cache": {"created_at": datetime.now(timezone.utc).isoformat()},
     }

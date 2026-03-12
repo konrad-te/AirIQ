@@ -2,6 +2,10 @@ import React from 'react'
 
 const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
   const safeValue = Math.min(Math.max(value, 0), maxValue)
+  const displayLabel = String(label || '-')
+    .trim()
+    .split(/\s+/)
+    .join('\n')
 
   const cx = 70
   const cy = 70
@@ -65,9 +69,12 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
       <svg className="aqi-ring-svg" viewBox="0 0 140 140">
         <defs>
           <linearGradient id="aqiGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#5ad05a" />
-            <stop offset="60%" stopColor="#8ce271" />
-            <stop offset="100%" stopColor="#b9f38a" />
+            <stop offset="0%" stopColor="#3cad57" />
+            <stop offset="20%" stopColor="#8fcf42" />
+            <stop offset="40%" stopColor="#f0d400" />
+            <stop offset="60%" stopColor="#f8bd00" />
+            <stop offset="80%" stopColor="#ff9300" />
+            <stop offset="100%" stopColor="#eb1308" />
           </linearGradient>
         </defs>
 
@@ -77,8 +84,7 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
 
       <div className="aqi-ring-content">
         <span className="aqi-ring-title">AQI</span>
-        <span className="aqi-ring-value">{safeValue}</span>
-        <span className="aqi-ring-label">{label}</span>
+        <span className="aqi-ring-value aqi-ring-value--label">{displayLabel}</span>
       </div>
     </div>
   )
