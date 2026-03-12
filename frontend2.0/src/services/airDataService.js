@@ -23,3 +23,15 @@ export async function geocodeAddress(address) {
 
   return response.json()
 }
+
+export async function suggestAddresses(query, limit = 5) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/geocode/suggest?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`,
+  )
+
+  if (!response.ok) {
+    throw new Error(`Suggestion lookup failed with status ${response.status}`)
+  }
+
+  return response.json()
+}
