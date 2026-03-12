@@ -8,7 +8,7 @@ import requests
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models import CityPoint, GlobeAqCache, IngestRun
+from backend.models import CityPoint, GlobeAqCache, IngestRun
 
 
 OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"

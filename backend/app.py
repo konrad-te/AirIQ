@@ -1,30 +1,40 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from database import DATABASE_URL, SessionLocal, get_db
-from init_db import init_db
-from models import CityPoint, GlobeAqCache
-from services.city_seed import seed_city_points
-from services.globe_ingest import run_globe_ingest
+from backend.database import SessionLocal, get_db
+from backend.init_db import init_db
+from backend.models import CityPoint, GlobeAqCache
+from backend.services.city_seed import seed_city_points
+from backend.services.globe_ingest import run_globe_ingest
+from backend.main import get_air_quality_data, get_lat_lon_nominatim_cached
+
+
 
 
 app = FastAPI(title="AirIQ API")
 scheduler = BackgroundScheduler(timezone="UTC")
 
+cors_origins = os.getenv("CORS_ORIGINS") or "http://localhost:5173,http://127.0.0.1:5173"
+allowed_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 def _to_iso(value: datetime | None) -> str | None:
@@ -55,7 +65,29 @@ def on_shutdown() -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "database_url": DATABASE_URL}
+    return {"ok": True}
+
+
+@app.get("/api/air-quality")
+def get_air_quality(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+) -> dict:
+    try:
+        return get_air_quality_data(lat, lon)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Air quality fetch failed: {exc}")
+
+
+@app.get("/api/geocode")
+def geocode_address(address: str = Query(..., min_length=3)) -> dict:
+    coords = get_lat_lon_nominatim_cached(address)
+    if coords is None:
+        raise HTTPException(status_code=404, detail="Address not found.")
+
+    lat, lon = coords
+    return {"address": address, "lat": lat, "lon": lon}
+
 
 
 def _run_scheduled_ingest() -> None:

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from database import SessionLocal
-from init_db import init_db
-from services.city_seed import seed_city_points
+from backend.database import SessionLocal
+from backend.init_db import init_db
+from backend.services.city_seed import seed_city_points
+
 
 
 def run_seed(per_country: int = 4) -> None:

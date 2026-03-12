@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from database import SessionLocal
-from init_db import init_db
-from services.globe_ingest import run_globe_ingest
+from backend.database import SessionLocal
+from backend.init_db import init_db
+from backend.services.globe_ingest import run_globe_ingest
+
 
 
 def run_ingest() -> None:

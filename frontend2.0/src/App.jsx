@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import heroBackground from './assets/123.png'
 import logoAiriq from './assets/logo-airiq.svg'
 import globeBanner from './assets/banner.png'
+import ringBackground from './assets/ring-background.png'
 import sensorImage from './assets/sensor.png'
 import watchImage from './assets/watch.png'
 import alertsImage from './assets/alerts.png'
@@ -13,6 +14,7 @@ import AqiRing from './components/AqiRing'
 import PM25Chart from './components/PM25Chart'
 import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
+import { geocodeAddress, getAirQualityData } from './services/airDataService'
 
 const mockData = {
   location: 'Stockholm, Sweden',
@@ -28,13 +30,13 @@ const mockData = {
     {
       key: 'outdoor',
       title: 'Best time for outdoor activities',
-      value: '18:00 – 20:00',
+      value: '18:00 - 20:00',
       icon: runIcon,
     },
     {
       key: 'ventilation',
       title: 'Ventilation window',
-      value: '13:00 – 15:00',
+      value: '13:00 - 15:00',
       icon: windowIcon,
     },
     {
@@ -46,9 +48,39 @@ const mockData = {
   ],
 }
 
-function App() {
+function getPm25Level(value) {
+  if (value == null || value < 0) return null
+  if (value <= 10) return 1
+  if (value <= 20) return 2
+  if (value <= 25) return 3
+  if (value <= 50) return 4
+  if (value <= 75) return 5
+  return 6
+}
+
+function getPm10Level(value) {
+  if (value == null || value < 0) return null
+  if (value <= 20) return 1
+  if (value <= 40) return 2
+  if (value <= 50) return 3
+  if (value <= 100) return 4
+  if (value <= 150) return 5
+  return 6
+}
+
+function getAqiLevelClass(level) {
+  if (level == null) return ''
+  return `hero-panel-stat-right--level-${level}`
+}
+
+export default function App() {
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [route, setRoute] = useState(() => window.location.pathname)
+  const [searchAddress, setSearchAddress] = useState(mockData.location)
+  const [currentLocationLabel, setCurrentLocationLabel] = useState(mockData.location)
+  const [liveAirData, setLiveAirData] = useState(null)
+  const [liveAirError, setLiveAirError] = useState('')
+  const [isLoadingAirData, setIsLoadingAirData] = useState(false)
 
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
@@ -62,15 +94,121 @@ function App() {
 
   const handleAddDevice = (deviceType) => {
     setSelectedDevice(deviceType)
-    // TODO: replace with real navigation / add-device flow.
-    // For now this simply records which device the user picked.
     // eslint-disable-next-line no-console
     console.log('User chose device:', deviceType)
   }
 
+  const loadAirQualityForCoords = async (lat, lon, locationLabel) => {
+    setIsLoadingAirData(true)
+    setLiveAirError('')
+
+    try {
+      const data = await getAirQualityData(lat, lon)
+      setLiveAirData(data)
+      setCurrentLocationLabel(locationLabel)
+    } catch (error) {
+      setLiveAirError(error instanceof Error ? error.message : 'Failed to load live air data.')
+    } finally {
+      setIsLoadingAirData(false)
+    }
+  }
+
+  const handleSearchSubmit = async (event) => {
+    event.preventDefault()
+    const trimmedAddress = searchAddress.trim()
+    if (!trimmedAddress) {
+      setLiveAirError('Enter an address first.')
+      return
+    }
+
+    setIsLoadingAirData(true)
+    setLiveAirError('')
+
+    try {
+      const geocoded = await geocodeAddress(trimmedAddress)
+      const data = await getAirQualityData(geocoded.lat, geocoded.lon)
+      setLiveAirData(data)
+      setCurrentLocationLabel(geocoded.address)
+    } catch (error) {
+      setLiveAirError(error instanceof Error ? error.message : 'Failed to look up that address.')
+    } finally {
+      setIsLoadingAirData(false)
+    }
+  }
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLiveAirError('Geolocation is not supported in this browser.')
+      return
+    }
+
+    setIsLoadingAirData(true)
+    setLiveAirError('')
+
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        await loadAirQualityForCoords(coords.latitude, coords.longitude, 'Your location')
+      },
+      (error) => {
+        setIsLoadingAirData(false)
+        setLiveAirError(error.message || 'Unable to get your location.')
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
+    )
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitialAirData() {
+      try {
+        setIsLoadingAirData(true)
+        setLiveAirError('')
+        const geocoded = await geocodeAddress(mockData.location)
+        const data = await getAirQualityData(geocoded.lat, geocoded.lon)
+        if (!cancelled) {
+          setLiveAirData(data)
+          setCurrentLocationLabel(geocoded.address)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLiveAirError(error instanceof Error ? error.message : 'Failed to load live air data.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAirData(false)
+        }
+      }
+    }
+
+    loadInitialAirData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   if (route === '/globe') {
     return <MapboxGlobe onBack={handleBackToLanding} />
   }
+
+  const heroPm25 = liveAirData?.current?.pm25 ?? mockData.pm25Value
+  const heroPm10 = liveAirData?.current?.pm10 ?? mockData.pm10Value
+  const heroLocation = currentLocationLabel
+  const heroAqiValue = liveAirData?.aqi?.value ?? mockData.aqi
+  const heroAqiLabel = liveAirData?.aqi?.label ?? mockData.aqiLabel
+  const heroPm25Class = getAqiLevelClass(getPm25Level(heroPm25))
+  const heroPm10Class = getAqiLevelClass(getPm10Level(heroPm10))
+  const sourceProvider = liveAirData?.source?.provider
+  const sourceProviderLabel =
+    sourceProvider === 'open-meteo'
+      ? 'Open-Meteo'
+      : sourceProvider === 'openaq'
+        ? 'OpenAQ'
+        : sourceProvider === 'airly'
+          ? 'Airly'
+          : 'Unknown'
+  const liveSourceMessage = liveAirData?.source?.user_message || liveAirError
 
   return (
     <div className="page-root" style={{ backgroundImage: `url(${heroBackground})` }}>
@@ -107,23 +245,29 @@ function App() {
                 for training, sleep &amp; ventilation.
               </p>
 
-              <div className="hero-search-card">
+              <form className="hero-search-card" onSubmit={handleSearchSubmit}>
                 <div className="hero-search-input">
                   <span className="hero-search-icon" aria-hidden>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="11" cy="10" r="3" /></svg>
                   </span>
-                  <span className="hero-search-placeholder">
-                    Enter an address (e.g., Stockholm, Sweden)
-                  </span>
+                  <input
+                    type="text"
+                    value={searchAddress}
+                    onChange={(event) => setSearchAddress(event.target.value)}
+                    className="hero-search-field"
+                    placeholder="Enter an address (e.g., Stockholm, Sweden)"
+                  />
                 </div>
-                <button className="btn hero-search-btn">
-                  Check air now
+                <button type="submit" className="btn hero-search-btn" disabled={isLoadingAirData}>
+                  {isLoadingAirData ? 'Loading...' : 'Check air now'}
                   <span className="hero-search-btn-arrow" aria-hidden>→</span>
                 </button>
-              </div>
+              </form>
 
               <div className="hero-meta-row">
-                <button className="link-button">Use my location</button>
+                <button type="button" className="link-button" onClick={handleUseMyLocation}>
+                  Use my location
+                </button>
                 <span className="hero-meta-dot" />
                 <span className="hero-meta-label">Updated hourly</span>
                 <span className="hero-meta-dot" />
@@ -165,11 +309,11 @@ function App() {
                 </div>
                 <div className="daily-plan-card">
                   <span className="daily-plan-card-label">Training window</span>
-                  <span className="daily-plan-card-value">18:00 – 20:00</span>
+                  <span className="daily-plan-card-value">18:00 - 20:00</span>
                 </div>
                 <div className="daily-plan-card">
                   <span className="daily-plan-card-label">Ventilation</span>
-                  <span className="daily-plan-card-value">13:00 – 15:00</span>
+                  <span className="daily-plan-card-value">13:00 - 15:00</span>
                 </div>
               </div>
             </section>
@@ -221,83 +365,90 @@ function App() {
           </div>
 
           <div className="hero-right">
-            <aside className="hero-panel">
-            <div className="hero-panel-header">
-              <div className="hero-panel-header-left">
-                <span className="hero-panel-menu" aria-hidden>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
-                </span>
-                <p className="hero-panel-location">{mockData.location}</p>
+            <aside className="hero-panel" style={{ '--ring-panel-image': `url(${ringBackground})` }}>
+              <div className="hero-panel-header">
+                <div className="hero-panel-header-left">
+                  <span className="hero-panel-menu" aria-hidden>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                  </span>
+                  <p className="hero-panel-location">{heroLocation}</p>
+                </div>
+                <button type="button" className="hero-panel-today">
+                  {mockData.todayTag}
+                  <span className="hero-panel-today-arrow" aria-hidden>▼</span>
+                </button>
               </div>
-              <button type="button" className="hero-panel-today">
-                {mockData.todayTag}
-                <span className="hero-panel-today-arrow" aria-hidden>▼</span>
-              </button>
-            </div>
 
-            <div className="hero-panel-body">
-              <div className="hero-panel-main">
-                <AqiRing value={mockData.aqi} label={mockData.aqiLabel} />
+              <div className="hero-panel-body">
+                <div className="hero-panel-main">
+                  <AqiRing value={heroAqiValue} label={heroAqiLabel} maxValue={6} />
 
-                <div className="hero-panel-stats">
-                  <div className="hero-panel-stat">
-                    <div className="hero-panel-stat-left">
-                      <span className="hero-panel-stat-icon" aria-hidden>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>
-                      </span>
-                      <span className="hero-panel-stat-label">PM2.5</span>
+                  <div className="hero-panel-stats">
+                    <div className="hero-panel-stat">
+                      <div className="hero-panel-stat-left">
+                        <span className="hero-panel-stat-icon" aria-hidden>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>
+                        </span>
+                        <span className="hero-panel-stat-label">PM2.5</span>
+                      </div>
+                      <div className={`hero-panel-stat-right ${heroPm25Class}`}>
+                        <span className="hero-panel-stat-num">{heroPm25}</span>
+                        <span className="hero-panel-stat-unit">{mockData.pm25Unit}</span>
+                      </div>
                     </div>
-                    <div className="hero-panel-stat-right">
-                      <span className="hero-panel-stat-num">{mockData.pm25Value}</span>
-                      <span className="hero-panel-stat-unit">{mockData.pm25Unit}</span>
+                    <div className="hero-panel-stat">
+                      <div className="hero-panel-stat-left">
+                        <span className="hero-panel-stat-icon" aria-hidden>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+                        </span>
+                        <span className="hero-panel-stat-label">PM10</span>
+                      </div>
+                      <div className={`hero-panel-stat-right ${heroPm10Class}`}>
+                        <span className="hero-panel-stat-num">{heroPm10}</span>
+                        <span className="hero-panel-stat-unit">{mockData.pm10Unit}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="hero-panel-stat">
-                    <div className="hero-panel-stat-left">
-                      <span className="hero-panel-stat-icon" aria-hidden>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-                      </span>
-                      <span className="hero-panel-stat-label">PM10</span>
-                    </div>
-                    <div className="hero-panel-stat-right">
-                      <span className="hero-panel-stat-num">{mockData.pm10Value}</span>
-                      <span className="hero-panel-stat-unit">{mockData.pm10Unit}</span>
-                    </div>
-                  </div>
-                  <div className="hero-panel-stat">
-                    <div className="hero-panel-stat-left">
-                      <span className="hero-panel-stat-icon" aria-hidden>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20M5.64 5.64l12.72 12.72M18.36 5.64 5.64 18.36" /><path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8z" /></svg>
-                      </span>
-                      <span className="hero-panel-stat-label">Pollen</span>
-                    </div>
-                    <div className="hero-panel-stat-right hero-panel-stat-right--pollen">
-                      <span className="hero-panel-stat-dot hero-panel-stat-dot--medium" />
-                      <span className="hero-panel-stat-pollen">{mockData.pollen}</span>
+                    <div className="hero-panel-stat">
+                      <div className="hero-panel-stat-left">
+                        <span className="hero-panel-stat-icon" aria-hidden>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20M5.64 5.64l12.72 12.72M18.36 5.64 5.64 18.36" /><path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8z" /></svg>
+                        </span>
+                        <span className="hero-panel-stat-label">Pollen</span>
+                      </div>
+                      <div className="hero-panel-stat-right hero-panel-stat-right--pollen">
+                        <span className="hero-panel-stat-dot hero-panel-stat-dot--medium" />
+                        <span className="hero-panel-stat-pollen">{mockData.pollen}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="hero-panel-recs">
-                <p className="hero-panel-recs-title">Recommendations</p>
-                {mockData.recommendations.map((item) => (
-                  <div key={item.key} className="hero-rec-row">
-                    <span className="hero-rec-left">
-                      <span className="hero-rec-icon" aria-hidden>
-                        <img src={item.icon} alt="" />
-                      </span>
-                      <span className="hero-rec-title">{item.title}</span>
-                    </span>
-                    <span className="hero-rec-value">{item.value}</span>
+                {liveSourceMessage ? (
+                  <div className="hero-panel-source">
+                    <p className="hero-panel-source-title">Air Quality Source - {sourceProviderLabel}</p>
+                    <p className="hero-panel-source-copy">{liveSourceMessage}</p>
                   </div>
-                ))}
+                ) : null}
+
+                <div className="hero-panel-recs">
+                  <p className="hero-panel-recs-title">Recommendations</p>
+                  {mockData.recommendations.map((item) => (
+                    <div key={item.key} className="hero-rec-row">
+                      <span className="hero-rec-left">
+                        <span className="hero-rec-icon" aria-hidden>
+                          <img src={item.icon} alt="" />
+                        </span>
+                        <span className="hero-rec-title">{item.title}</span>
+                      </span>
+                      <span className="hero-rec-value">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
             </aside>
 
             <section className="stats-chart-section">
-              <PM25Chart nowValue={mockData.pm25Value} />
+              <PM25Chart nowValue={heroPm25} />
             </section>
 
             <section className="globe-cta-section globe-cta-section--right">
@@ -310,9 +461,7 @@ function App() {
                 <div className="globe-cta-copy">
                   <p className="globe-cta-title">Check global air quality</p>
                   <p className="globe-cta-subtitle">Explore live air everywhere worldwide</p>
-                  <span className="globe-cta-action">
-                    Open globe →
-                  </span>
+                  <span className="globe-cta-action">Open globe →</span>
                 </div>
               </button>
             </section>
@@ -327,7 +476,7 @@ function App() {
       <footer className="page-footer">
         <div className="footer-left">
           <img src={logoAiriq} alt="AirIQ" className="footer-logo" />
-          <p className="footer-tagline">Know what you&apos;re breathing - and what to do about it.</p>
+          <p className="footer-tagline">Know what you're breathing - and what to do about it.</p>
         </div>
         <div className="footer-right">
           <a href="#privacy" className="footer-link">Privacy</a>
@@ -340,5 +489,3 @@ function App() {
     </div>
   )
 }
-
-export default App
