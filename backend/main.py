@@ -1149,6 +1149,52 @@ def get_lat_lon_nominatim_cached(address: str) -> Optional[Tuple[float, float]]:
         return None
 
 
+def suggest_addresses_nominatim(address: str, limit: int = 5) -> List[Dict[str, Any]]:
+    normalized_address = _normalize_address(address)
+    if len(normalized_address) < 2:
+        return []
+
+    nominatim_url = "https://nominatim.openstreetmap.org/search"
+    user_agent = os.getenv(
+        "nominatim_user_agent",
+        "AirIQ-Learning-Project/1.0 (contact: student@example.com)",
+    )
+    nominatim_email = os.getenv("nominatim_email")
+    headers = {"User-Agent": user_agent}
+    params = {
+        "q": address,
+        "format": "jsonv2",
+        "limit": max(1, min(limit, 10)),
+        "addressdetails": 1,
+    }
+    if nominatim_email:
+        params["email"] = nominatim_email
+
+    try:
+        time.sleep(0.35)
+        response = requests.get(nominatim_url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
+        results = response.json()
+    except (requests.RequestException, ValueError):
+        return []
+
+    suggestions: List[Dict[str, Any]] = []
+    for item in results:
+        try:
+            suggestions.append(
+                {
+                    "label": item.get("display_name") or address,
+                    "lat": float(item["lat"]),
+                    "lon": float(item["lon"]),
+                    "place_id": item.get("place_id"),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    return suggestions
+
+
 # ---------------------------
 # Test run
 # ---------------------------

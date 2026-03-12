@@ -76,8 +76,8 @@ function formatPopupHtml(props) {
       <div class="globe-popup__row"><span class="globe-popup__label">PM band</span><span class="globe-popup__value globe-popup__value--band"><span class="globe-popup__band-dot" style="${bandDotStyle}"></span>${props.band ?? 'n/a'}</span></div>
       <div class="globe-popup__row"><span class="globe-popup__label">US AQI</span><span class="globe-popup__value">${props.usAqi ?? 'n/a'}</span></div>
       <div class="globe-popup__row"><span class="globe-popup__label">EU AQI</span><span class="globe-popup__value">${props.euAqi ?? 'n/a'}</span></div>
-      <div class="globe-popup__row"><span class="globe-popup__label">PM2.5</span><span class="globe-popup__value">${props.pm25 ?? 'n/a'} µg/m³</span></div>
-      <div class="globe-popup__row"><span class="globe-popup__label">PM10</span><span class="globe-popup__value">${props.pm10 ?? 'n/a'} µg/m³</span></div>
+      <div class="globe-popup__row"><span class="globe-popup__label">PM2.5</span><span class="globe-popup__value">${props.pm25 ?? 'n/a'} ug/m3</span></div>
+      <div class="globe-popup__row"><span class="globe-popup__label">PM10</span><span class="globe-popup__value">${props.pm10 ?? 'n/a'} ug/m3</span></div>
       ${staleNote}
     </div>
   `
@@ -282,7 +282,7 @@ export default function MapboxGlobe({ onBack }) {
     <main className="globe-page">
       <div style={{ position: 'absolute', left: 12, top: 12, zIndex: 10, display: 'flex', gap: 8 }}>
         <button type="button" onClick={onBack} className="globe-back-btn">
-          ← Landing
+          {'<- Landing'}
         </button>
       </div>
 
@@ -316,7 +316,7 @@ export default function MapboxGlobe({ onBack }) {
         <section className="globe-panel__section">
           <h3 className="globe-panel__section-title">How to read the values</h3>
           <p>
-            PM2.5/PM10 are micrograms per cubic meter (µg/m³). Lower is better. US AQI and EU AQI are air quality index scales;
+            PM2.5/PM10 are micrograms per cubic meter (ug/m3). Lower is better. US AQI and EU AQI are air quality index scales;
             lower values indicate cleaner air.
           </p>
         </section>

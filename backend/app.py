@@ -15,7 +15,11 @@ from backend.init_db import init_db
 from backend.models import CityPoint, GlobeAqCache
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
-from backend.main import get_air_quality_data, get_lat_lon_nominatim_cached
+from backend.main import (
+    get_air_quality_data,
+    get_lat_lon_nominatim_cached,
+    suggest_addresses_nominatim,
+)
 
 
 
@@ -87,6 +91,11 @@ def geocode_address(address: str = Query(..., min_length=3)) -> dict:
 
     lat, lon = coords
     return {"address": address, "lat": lat, "lon": lon}
+
+
+@app.get("/api/geocode/suggest")
+def geocode_suggest(q: str = Query(..., min_length=2), limit: int = Query(5, ge=1, le=10)) -> dict:
+    return {"results": suggest_addresses_nominatim(q, limit=limit)}
 
 
 

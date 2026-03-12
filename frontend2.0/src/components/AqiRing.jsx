@@ -1,17 +1,26 @@
 import React from 'react'
 
+const LEVEL_COLORS = {
+  1: '#3cad57',
+  2: '#8fcf42',
+  3: '#f0d400',
+  4: '#f8bd00',
+  5: '#ff9300',
+  6: '#eb1308',
+}
+
 const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
   const safeValue = Math.min(Math.max(value, 0), maxValue)
   const displayLabel = String(label || '-')
     .trim()
     .split(/\s+/)
     .join('\n')
+  const progressColor = LEVEL_COLORS[Math.max(1, Math.round(safeValue))] || LEVEL_COLORS[1]
 
   const cx = 70
   const cy = 70
   const radius = 48
 
-  // Arc from 7:30 (225°) to 16:30 (315°) the long way = 270°
   const startAngle = 225
   const endAngle = 315
   const totalArcDeg = 270
@@ -19,14 +28,12 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
   const progress = safeValue / maxValue
   const progressArcDeg = totalArcDeg * progress
 
-  // Build list of angles from 225 → 0 → 315 (long way)
   const step = 2
   const angles = []
   for (let a = startAngle; a >= 0; a -= step) angles.push(a)
   for (let a = 358; a >= endAngle; a -= step) angles.push(a)
   if (angles[angles.length - 1] !== endAngle) angles.push(endAngle)
 
-  // Thickness: thinnest at 12 o'clock (middle of arc), thick at 7:30 and 16:30
   const thickEnd = 6
   const thinMiddle = 2
   const thicknessAtArcIndex = (i) => {
@@ -67,19 +74,8 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
   return (
     <div className="aqi-ring">
       <svg className="aqi-ring-svg" viewBox="0 0 140 140">
-        <defs>
-          <linearGradient id="aqiGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#3cad57" />
-            <stop offset="20%" stopColor="#8fcf42" />
-            <stop offset="40%" stopColor="#f0d400" />
-            <stop offset="60%" stopColor="#f8bd00" />
-            <stop offset="80%" stopColor="#ff9300" />
-            <stop offset="100%" stopColor="#eb1308" />
-          </linearGradient>
-        </defs>
-
         <path className="aqi-ring-track" d={trackPath} />
-        <path className="aqi-ring-progress" d={progressPath} fill="url(#aqiGradient)" />
+        <path className="aqi-ring-progress" d={progressPath} fill={progressColor} />
       </svg>
 
       <div className="aqi-ring-content">

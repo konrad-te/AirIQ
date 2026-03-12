@@ -14,16 +14,16 @@ import AqiRing from './components/AqiRing'
 import PM25Chart from './components/PM25Chart'
 import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
-import { geocodeAddress, getAirQualityData } from './services/airDataService'
+import { geocodeAddress, getAirQualityData, suggestAddresses } from './services/airDataService'
 
 const mockData = {
   location: 'Stockholm, Sweden',
   aqi: 42,
   aqiLabel: 'Good',
   pm25Value: 18,
-  pm25Unit: 'µg/m³',
+  pm25Unit: 'ug/m3',
   pm10Value: 24,
-  pm10Unit: 'µg/m³',
+  pm10Unit: 'ug/m3',
   pollen: 'Medium',
   todayTag: 'Today',
   recommendations: [
@@ -81,6 +81,9 @@ export default function App() {
   const [liveAirData, setLiveAirData] = useState(null)
   const [liveAirError, setLiveAirError] = useState('')
   const [isLoadingAirData, setIsLoadingAirData] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
 
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
@@ -101,11 +104,13 @@ export default function App() {
   const loadAirQualityForCoords = async (lat, lon, locationLabel) => {
     setIsLoadingAirData(true)
     setLiveAirError('')
+    setStatusMessage(`Fetching air quality for ${locationLabel.toLowerCase()}...`)
 
     try {
       const data = await getAirQualityData(lat, lon)
       setLiveAirData(data)
       setCurrentLocationLabel(locationLabel)
+      setStatusMessage('')
     } catch (error) {
       setLiveAirError(error instanceof Error ? error.message : 'Failed to load live air data.')
     } finally {
@@ -123,12 +128,15 @@ export default function App() {
 
     setIsLoadingAirData(true)
     setLiveAirError('')
+    setStatusMessage(`Looking up ${trimmedAddress}...`)
+    setSuggestions([])
 
     try {
       const geocoded = await geocodeAddress(trimmedAddress)
       const data = await getAirQualityData(geocoded.lat, geocoded.lon)
       setLiveAirData(data)
       setCurrentLocationLabel(geocoded.address)
+      setStatusMessage('')
     } catch (error) {
       setLiveAirError(error instanceof Error ? error.message : 'Failed to look up that address.')
     } finally {
@@ -144,6 +152,8 @@ export default function App() {
 
     setIsLoadingAirData(true)
     setLiveAirError('')
+    setCurrentLocationLabel('Your location')
+    setStatusMessage('Getting your location...')
 
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
@@ -152,9 +162,16 @@ export default function App() {
       (error) => {
         setIsLoadingAirData(false)
         setLiveAirError(error.message || 'Unable to get your location.')
+        setStatusMessage('')
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     )
+  }
+
+  const handleSelectSuggestion = async (suggestion) => {
+    setSearchAddress(suggestion.label)
+    setSuggestions([])
+    await loadAirQualityForCoords(suggestion.lat, suggestion.lon, suggestion.label)
   }
 
   useEffect(() => {
@@ -164,11 +181,13 @@ export default function App() {
       try {
         setIsLoadingAirData(true)
         setLiveAirError('')
+        setStatusMessage(`Looking up ${mockData.location}...`)
         const geocoded = await geocodeAddress(mockData.location)
         const data = await getAirQualityData(geocoded.lat, geocoded.lon)
         if (!cancelled) {
           setLiveAirData(data)
           setCurrentLocationLabel(geocoded.address)
+          setStatusMessage('')
         }
       } catch (error) {
         if (!cancelled) {
@@ -188,6 +207,31 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const query = searchAddress.trim()
+    if (query.length < 2) {
+      setSuggestions([])
+      setIsLoadingSuggestions(false)
+      return undefined
+    }
+
+    const debounceId = window.setTimeout(async () => {
+      try {
+        setIsLoadingSuggestions(true)
+        const payload = await suggestAddresses(query, 5)
+        setSuggestions(Array.isArray(payload?.results) ? payload.results : [])
+      } catch {
+        setSuggestions([])
+      } finally {
+        setIsLoadingSuggestions(false)
+      }
+    }, 250)
+
+    return () => {
+      window.clearTimeout(debounceId)
+    }
+  }, [searchAddress])
+
   if (route === '/globe') {
     return <MapboxGlobe onBack={handleBackToLanding} />
   }
@@ -195,8 +239,8 @@ export default function App() {
   const heroPm25 = liveAirData?.current?.pm25 ?? mockData.pm25Value
   const heroPm10 = liveAirData?.current?.pm10 ?? mockData.pm10Value
   const heroLocation = currentLocationLabel
-  const heroAqiValue = liveAirData?.aqi?.value ?? mockData.aqi
-  const heroAqiLabel = liveAirData?.aqi?.label ?? mockData.aqiLabel
+  const heroAqiValue = liveAirData?.aqi?.value ?? 0
+  const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? 'Loading' : '-')
   const heroPm25Class = getAqiLevelClass(getPm25Level(heroPm25))
   const heroPm10Class = getAqiLevelClass(getPm10Level(heroPm10))
   const sourceProvider = liveAirData?.source?.provider
@@ -208,7 +252,7 @@ export default function App() {
         : sourceProvider === 'airly'
           ? 'Airly'
           : 'Unknown'
-  const liveSourceMessage = liveAirData?.source?.user_message || liveAirError
+  const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
 
   return (
     <div className="page-root" style={{ backgroundImage: `url(${heroBackground})` }}>
@@ -260,9 +304,27 @@ export default function App() {
                 </div>
                 <button type="submit" className="btn hero-search-btn" disabled={isLoadingAirData}>
                   {isLoadingAirData ? 'Loading...' : 'Check air now'}
-                  <span className="hero-search-btn-arrow" aria-hidden>→</span>
+                  <span className="hero-search-btn-arrow" aria-hidden>{'->'}</span>
                 </button>
               </form>
+              {(isLoadingSuggestions || suggestions.length > 0) && !isLoadingAirData ? (
+                <div className="hero-search-suggestions">
+                  {isLoadingSuggestions ? (
+                    <div className="hero-search-suggestion hero-search-suggestion--muted">Searching...</div>
+                  ) : (
+                    suggestions.map((suggestion) => (
+                      <button
+                        key={`${suggestion.place_id ?? suggestion.label}-${suggestion.lat}-${suggestion.lon}`}
+                        type="button"
+                        className="hero-search-suggestion"
+                        onClick={() => handleSelectSuggestion(suggestion)}
+                      >
+                        {suggestion.label}
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
 
               <div className="hero-meta-row">
                 <button type="button" className="link-button" onClick={handleUseMyLocation}>
@@ -357,7 +419,7 @@ export default function App() {
                   </span>
                   <span className="devices-inline-copy">
                     <span className="devices-inline-title">Smart alerts</span>
-                    <span className="devices-inline-subtitle">Email · App · Watch</span>
+                    <span className="devices-inline-subtitle">Email | App | Watch</span>
                   </span>
                 </button>
               </div>
@@ -375,7 +437,7 @@ export default function App() {
                 </div>
                 <button type="button" className="hero-panel-today">
                   {mockData.todayTag}
-                  <span className="hero-panel-today-arrow" aria-hidden>▼</span>
+                  <span className="hero-panel-today-arrow" aria-hidden>v</span>
                 </button>
               </div>
 
@@ -461,7 +523,7 @@ export default function App() {
                 <div className="globe-cta-copy">
                   <p className="globe-cta-title">Check global air quality</p>
                   <p className="globe-cta-subtitle">Explore live air everywhere worldwide</p>
-                  <span className="globe-cta-action">Open globe →</span>
+                  <span className="globe-cta-action">Open globe -&gt;</span>
                 </div>
               </button>
             </section>
@@ -480,9 +542,9 @@ export default function App() {
         </div>
         <div className="footer-right">
           <a href="#privacy" className="footer-link">Privacy</a>
-          <span className="footer-dot">·</span>
+          <span className="footer-dot">|</span>
           <a href="#sources" className="footer-link">Data sources</a>
-          <span className="footer-dot">·</span>
+          <span className="footer-dot">|</span>
           <a href="#help" className="footer-link">Help</a>
         </div>
       </footer>
