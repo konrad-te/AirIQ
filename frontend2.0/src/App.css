@@ -1007,29 +1007,40 @@
 }
 
 .pm25-chart-card {
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: 14px;
-  padding: 0.85rem 1rem 1rem;
+  background:
+    linear-gradient(180deg, rgba(246, 249, 253, 0.98), rgba(241, 245, 250, 0.96)),
+    rgba(255, 255, 255, 0.98);
+  border-radius: 1.25rem;
+  padding: 1rem 1rem 1.05rem;
   box-shadow:
     0 16px 36px rgba(40, 95, 170, 0.2),
-    0 0 0 1px rgba(215, 228, 245, 0.9);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(213, 226, 242, 0.8);
   width: 100%;
   min-width: 0;
+}
+
+.pm25-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
 .pm25-chart-tabs {
   display: flex;
   gap: 0.35rem;
-  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .pm25-chart-tab {
   border: none;
   background: none;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.8rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.95rem;
   font-weight: 500;
-  color: #64748b;
+  color: #64789a;
   cursor: pointer;
   border-radius: 999px;
   transition: background 0.2s, color 0.2s;
@@ -1039,30 +1050,101 @@
   color: #1a3152;
 }
 
+.pm25-chart-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .pm25-chart-tab--active {
-  background: linear-gradient(135deg, #0874f8, #02b4ff);
+  min-width: 4rem;
+  padding: 0.45rem 1rem;
+  background: linear-gradient(180deg, #45a6ff, #1f73df);
   color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.pm25-chart-status {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #66799a;
+}
+
+.pm25-chart-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #09a942;
+  box-shadow: 0 0 0 0.18rem rgba(9, 169, 66, 0.08);
+}
+
+.pm25-chart-status-live {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #173b69;
+}
+
+.pm25-chart-status-separator,
+.pm25-chart-status-copy {
+  font-size: 0.82rem;
+  color: #66799a;
+}
+
+.pm25-chart-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
 }
 
 .pm25-chart-label {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 500;
-  color: #1a3152;
-  margin-bottom: 0.5rem;
+  letter-spacing: -0.01em;
+  color: #173b69;
+}
+
+.pm25-chart-info {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  border: 1.5px solid #6d81a1;
+  color: #6d81a1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .pm25-chart-wrap {
   width: 100%;
-  height: 72px;
-  margin-bottom: 0.35rem;
+  height: 5.25rem;
+  margin-bottom: 0;
   position: relative;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #fff 0%, rgba(248, 250, 252, 0.98) 50%, rgba(241, 245, 249, 0.95) 100%);
+  overflow: hidden;
 }
 
-.pm25-chart-now--top {
+.pm25-chart-hitbox {
+  width: 90%;
+  height: 100%;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+  margin: 0 auto;
+}
+
+.pm25-chart-current-marker {
   position: absolute;
-  top: 0;
-  right: 0;
-  margin: 0;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .pm25-chart-svg {
@@ -1071,40 +1153,151 @@
   display: block;
 }
 
-.pm25-chart-footer {
+.pm25-chart-inspector {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-bottom: 0.8rem;
+  padding: 0.85rem 1rem 0.95rem;
+  border-radius: 0.85rem;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.pm25-chart-inspector-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.6rem;
   flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
-.pm25-chart-times {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  font-size: 0.7rem;
-  color: #94a3b8;
-}
-
-.pm25-chart-time {
-  flex: 1;
-  text-align: center;
-}
-
-.pm25-chart-now {
-  margin-left: auto;
-  font-size: 0.85rem;
-  color: #1a3152;
-}
-
-.pm25-chart-now-label {
-  margin-right: 0.25rem;
-}
-
-.pm25-chart-now-value {
+.pm25-chart-inspector-value {
+  font-size: 1.5rem;
   font-weight: 700;
-  color: #16a34a;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+}
+
+.pm25-chart-inspector-confidence {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.32rem 0.6rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  gap: 0.35rem;
+  text-transform: uppercase;
+}
+
+.pm25-chart-inspector-confidence--high {
+  background: rgba(131, 210, 158, 0.34);
+  color: #0ca33d;
+}
+
+.pm25-chart-inspector-confidence-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.pm25-chart-inspector-confidence--medium {
+  background: rgba(255, 213, 128, 0.28);
+  color: #b45309;
+}
+
+.pm25-chart-inspector-confidence--low {
+  background: rgba(117, 203, 188, 0.22);
+  color: #0f766e;
+}
+
+.pm25-chart-inspector-confidence--unknown {
+  background: rgba(100, 116, 139, 0.14);
+  color: #475569;
+}
+
+.pm25-chart-inspector-detail {
+  font-size: 0.73rem;
+  color: #64748b;
+}
+
+.pm25-chart-inspector-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  min-height: 1.5rem;
+}
+
+.pm25-chart-inspector-bottom {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.38rem;
+  flex-wrap: nowrap;
+}
+
+.pm25-chart-inspector-icon {
+  display: inline-flex;
+  color: #7285a4;
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0;
+}
+
+.pm25-chart-inspector-label {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #7285a4;
+}
+
+.pm25-chart-inspector-copy {
+  font-size: 0.72rem;
+  color: #526b91;
+}
+
+.pm25-chart-inspector-row--source {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pm25-chart-source-logo {
+  width: 1.85rem;
+  height: 1.85rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.pm25-chart-inspector-copy--source {
+  font-size: 0.76rem;
+  color: #2580ff;
+  font-weight: 500;
+}
+
+.pm25-chart-current-pill {
+  color: #4f6987;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pm25-chart-note {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #6f8299;
 }
 
 /* Choose your plan card */
@@ -1276,6 +1469,72 @@
 }
 
 @media (max-width: 900px) {
+  .pm25-chart-card {
+    padding: 1.35rem 1.25rem 1.2rem;
+    border-radius: 2rem;
+  }
+
+  .pm25-chart-tab {
+    font-size: 1.35rem;
+  }
+
+  .pm25-chart-tab--active {
+    min-width: auto;
+    padding: 0.7rem 1.4rem;
+  }
+
+  .pm25-chart-status {
+    gap: 0.45rem;
+  }
+
+  .pm25-chart-status-live,
+  .pm25-chart-status-separator,
+  .pm25-chart-status-copy {
+    font-size: 1rem;
+  }
+
+  .pm25-chart-label {
+    font-size: 2rem;
+  }
+
+  .pm25-chart-info {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.2rem;
+  }
+
+  .pm25-chart-inspector {
+    padding: 1.15rem 1.2rem 1.25rem;
+    gap: 0.7rem;
+  }
+
+  .pm25-chart-inspector-value {
+    font-size: 3rem;
+  }
+
+  .pm25-chart-inspector-confidence {
+    padding: 0.55rem 0.9rem;
+    font-size: 0.85rem;
+  }
+
+  .pm25-chart-inspector-bottom {
+    gap: 0.7rem;
+  }
+
+  .pm25-chart-inspector-label,
+  .pm25-chart-inspector-copy,
+  .pm25-chart-inspector-copy--source {
+    font-size: 0.92rem;
+  }
+
+  .pm25-chart-wrap {
+    height: 17rem;
+  }
+
+  .pm25-chart-current-pill {
+    font-size: 1.45rem;
+  }
+
   .globe-cta {
     padding: 0.95rem 0.95rem 0.9rem 1rem;
     min-height: 118px;
