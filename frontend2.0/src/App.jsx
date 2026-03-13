@@ -244,6 +244,7 @@ export default function App() {
   const heroPm25Class = getAqiLevelClass(getPm25Level(heroPm25))
   const heroPm10Class = getAqiLevelClass(getPm10Level(heroPm10))
   const sourceProvider = liveAirData?.source?.provider
+  const sourceMethod = liveAirData?.source?.method
   const sourceProviderLabel =
     sourceProvider === 'open-meteo'
       ? 'Open-Meteo'
@@ -252,6 +253,12 @@ export default function App() {
         : sourceProvider === 'airly'
           ? 'Airly'
           : 'Unknown'
+  const chartForecastLabel =
+    sourceMethod === 'model'
+      ? 'Model forecast'
+      : sourceProvider === 'airly'
+        ? 'Airly forecast'
+        : 'Forecast'
   const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
 
   return (
@@ -303,8 +310,7 @@ export default function App() {
                   />
                 </div>
                 <button type="submit" className="btn hero-search-btn" disabled={isLoadingAirData}>
-                  {isLoadingAirData ? 'Loading...' : 'Check air now'}
-                  <span className="hero-search-btn-arrow" aria-hidden>{'->'}</span>
+                  {isLoadingAirData ? 'Loading...' : 'Check Air'}
                 </button>
               </form>
               {(isLoadingSuggestions || suggestions.length > 0) && !isLoadingAirData ? (
@@ -510,7 +516,17 @@ export default function App() {
             </aside>
 
             <section className="stats-chart-section">
-              <PM25Chart nowValue={heroPm25} />
+              <PM25Chart
+                history={liveAirData?.history}
+                forecast={liveAirData?.forecast}
+                currentValue={heroPm25}
+                currentLabel="Now"
+                unit={mockData.pm25Unit}
+                measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
+                sourceProvider={sourceProvider}
+                sourceMethod={sourceMethod}
+                sourceDistanceKm={liveAirData?.source?.distance_km}
+              />
             </section>
 
             <section className="globe-cta-section globe-cta-section--right">
