@@ -6,6 +6,10 @@ from decimal import Decimal
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from database import SessionLocal, get_db
+from dependencies.authorization import (
+    get_household_membership,
+    require_household_role,
+)
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from init_db import init_db
@@ -15,11 +19,15 @@ from models import (
     ExternalStation,
     GeocodeCacheEntry,
     GlobeAqCache,
+    HouseholdMember,
     IngestRun,
     LocationStationCache,
     ProviderCacheEntry,
+    User,
 )
 from routers.auth import router as auth_router
+from routers.households import router as households_router
+from security import get_current_user
 from services.city_seed import seed_city_points
 from services.globe_ingest import run_globe_ingest
 from sqlalchemy import func, select
@@ -36,6 +44,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(households_router)
 
 
 def _to_iso(value: datetime | None) -> str | None:
@@ -288,4 +297,98 @@ def get_admin_debug_overview(db: Session = Depends(get_db)) -> dict:
             "location_station_cache": location_station_cache_count,
         },
         "latest_ingest_runs": latest_runs_payload,
+    }
+
+
+@app.get("/api/auth/protected-test")
+def protected_test(current_user: User = Depends(get_current_user)) -> dict:
+    return {
+        "ok": True,
+        "user_id": current_user.id,
+        "email": current_user.email,
+        "display_name": current_user.display_name,
+    }
+
+
+@app.get("/api/auth/households/{household_id}/membership-test")
+def membership_test(
+    membership: HouseholdMember = Depends(get_household_membership),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return {
+        "ok": True,
+        "user_id": current_user.id,
+        "household_id": membership.household_id,
+        "role": membership.role,
+        "is_active": membership.is_active,
+    }
+
+
+@app.get("/api/auth/households/{household_id}/admin-test")
+def household_admin_test(
+    membership: HouseholdMember = Depends(require_household_role("owner", "admin")),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return {
+        "ok": True,
+        "message": "You have owner/admin access.",
+        "user_id": current_user.id,
+        "household_id": membership.household_id,
+        "role": membership.role,
+    }
+
+
+@app.get("/api/auth/households/{household_id}/owner-test")
+def household_owner_test(
+    membership: HouseholdMember = Depends(require_household_role("owner")),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return {
+        "ok": True,
+        "message": "You have owner access.",
+        "user_id": current_user.id,
+        "household_id": membership.household_id,
+        "role": membership.role,
+    }
+
+
+@app.get("/api/households/{household_id}/dashboard-test")
+def get_household_dashboard_test(
+    membership: HouseholdMember = Depends(get_household_membership),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return {
+        "ok": True,
+        "message": "Read access granted for household dashboard.",
+        "user_id": current_user.id,
+        "household_id": membership.household_id,
+        "role": membership.role,
+    }
+
+
+@app.patch("/api/households/{household_id}/settings-test")
+def update_household_settings_test(
+    membership: HouseholdMember = Depends(require_household_role("owner", "admin")),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return {
+        "ok": True,
+        "message": "Settings update access granted.",
+        "user_id": current_user.id,
+        "household_id": membership.household_id,
+        "role": membership.role,
+    }
+
+
+@app.delete("/api/households/{household_id}/delete-test")
+def delete_household_test(
+    membership: HouseholdMember = Depends(require_household_role("owner")),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return {
+        "ok": True,
+        "message": "Delete access granted.",
+        "user_id": current_user.id,
+        "household_id": membership.household_id,
+        "role": membership.role,
     }
