@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from sqlalchemy import inspect, text
-
 from database import engine
+from sqlalchemy import inspect, text
 
 REQUIRED_TABLES = {
     "users",
+    "user_sessions",
     "households",
     "household_members",
     "user_preferences",
@@ -32,8 +32,7 @@ def init_db() -> None:
 
     if "alembic_version" not in existing_tables:
         raise RuntimeError(
-            "Database is not initialized with Alembic. "
-            "Missing table: alembic_version."
+            "Database is not initialized with Alembic. Missing table: alembic_version."
         )
 
     missing_tables = sorted(REQUIRED_TABLES - existing_tables)
@@ -49,9 +48,7 @@ def init_db() -> None:
         ).scalar_one_or_none()
 
     if not current_revision:
-        raise RuntimeError(
-            "alembic_version exists but no current revision was found."
-        )
+        raise RuntimeError("alembic_version exists but no current revision was found.")
 
 
 if __name__ == "__main__":
