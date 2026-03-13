@@ -5,12 +5,9 @@ from decimal import Decimal
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from database import SessionLocal, get_db
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
-
-from database import SessionLocal, get_db
 from init_db import init_db
 from models import (
     CityPoint,
@@ -22,8 +19,11 @@ from models import (
     LocationStationCache,
     ProviderCacheEntry,
 )
+from routers.auth import router as auth_router
 from services.city_seed import seed_city_points
 from services.globe_ingest import run_globe_ingest
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 app = FastAPI(title="AirIQ API")
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -34,6 +34,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
 
 
 def _to_iso(value: datetime | None) -> str | None:
@@ -184,9 +186,11 @@ def run_map_ingest(db: Session = Depends(get_db)) -> dict:
 
 @app.get("/api/admin/providers")
 def get_admin_providers(db: Session = Depends(get_db)) -> dict:
-    providers = db.execute(
-        select(DataProvider).order_by(DataProvider.provider_code.asc())
-    ).scalars().all()
+    providers = (
+        db.execute(select(DataProvider).order_by(DataProvider.provider_code.asc()))
+        .scalars()
+        .all()
+    )
 
     return {
         "count": len(providers),
@@ -238,10 +242,18 @@ def get_latest_ingest_runs(limit: int = 10, db: Session = Depends(get_db)) -> di
 def get_admin_debug_overview(db: Session = Depends(get_db)) -> dict:
     provider_count = db.execute(select(func.count(DataProvider.id))).scalar_one()
     city_point_count = db.execute(select(func.count(CityPoint.id))).scalar_one()
-    globe_cache_count = db.execute(select(func.count(GlobeAqCache.city_point_id))).scalar_one()
-    provider_cache_count = db.execute(select(func.count(ProviderCacheEntry.id))).scalar_one()
-    geocode_cache_count = db.execute(select(func.count(GeocodeCacheEntry.id))).scalar_one()
-    external_station_count = db.execute(select(func.count(ExternalStation.id))).scalar_one()
+    globe_cache_count = db.execute(
+        select(func.count(GlobeAqCache.city_point_id))
+    ).scalar_one()
+    provider_cache_count = db.execute(
+        select(func.count(ProviderCacheEntry.id))
+    ).scalar_one()
+    geocode_cache_count = db.execute(
+        select(func.count(GeocodeCacheEntry.id))
+    ).scalar_one()
+    external_station_count = db.execute(
+        select(func.count(ExternalStation.id))
+    ).scalar_one()
     location_station_cache_count = db.execute(
         select(func.count(LocationStationCache.id))
     ).scalar_one()
