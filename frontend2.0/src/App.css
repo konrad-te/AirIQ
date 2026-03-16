@@ -94,6 +94,16 @@
   gap: 0.75rem;
 }
 
+.nav-user-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1a3152;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .btn {
   border-radius: 999px;
   border: none;
