@@ -348,3 +348,66 @@ def remove_household_member(
         "role": target_membership.role,
         "is_active": target_membership.is_active,
     }
+
+
+@router.get("/{household_id}/summary")
+def get_household_summary(
+    household: Household = Depends(get_current_household),
+    membership: HouseholdMember = Depends(get_household_membership),
+    db: Session = Depends(get_db),
+) -> dict:
+    rows = db.execute(
+        select(HouseholdMember, User)
+        .join(User, User.id == HouseholdMember.user_id)
+        .where(
+            HouseholdMember.household_id == household.id,
+            HouseholdMember.is_active.is_(True),
+        )
+        .order_by(HouseholdMember.id.asc())
+    ).all()
+
+    members = []
+    for member_row, user in rows:
+        members.append(
+            {
+                "membership_id": member_row.id,
+                "user_id": user.id,
+                "email": user.email,
+                "display_name": user.display_name,
+                "role": member_row.role,
+                "joined_at": member_row.created_at,
+            }
+        )
+
+    role_counts = {
+        "owner": 0,
+        "admin": 0,
+        "member": 0,
+        "viewer": 0,
+    }
+
+    for member in members:
+        if member["role"] in role_counts:
+            role_counts[member["role"]] += 1
+
+    return {
+        "household": {
+            "id": household.id,
+            "name": household.name,
+            "slug": household.slug,
+            "timezone": household.timezone,
+            "country_code": household.country_code,
+            "owner_user_id": household.owner_user_id,
+            "created_at": household.created_at,
+            "updated_at": household.updated_at,
+        },
+        "current_user": {
+            "user_id": membership.user_id,
+            "role": membership.role,
+        },
+        "stats": {
+            "active_member_count": len(members),
+            "role_counts": role_counts,
+        },
+        "members": members,
+    }

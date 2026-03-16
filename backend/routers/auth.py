@@ -87,6 +87,7 @@ def register_user(
 
 @router.post("/token", response_model=TokenSchema)
 def login(
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db),
 ) -> TokenSchema:
@@ -121,7 +122,7 @@ def login(
     access_token = create_database_token(user_id=user.id, db=db)
 
     return {
-        "access_token": access_token.token,
+        "access_token": access_token,
         "token_type": "bearer",
     }
 
@@ -131,7 +132,7 @@ def logout(
     current_token: UserSession = Depends(get_current_token),
     db: Session = Depends(get_db),
 ) -> Response:
-    db.execute(delete(UserSession).where(UserSession.token == current_token.token))
+    current_token.revoked_at = datetime.now(UTC)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -141,3 +142,88 @@ def read_users_me(
     current_user: User = Depends(get_current_user),
 ) -> User:
     return current_user
+
+
+@router.get("/sessions")
+def list_my_sessions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    sessions = (
+        db.execute(
+            select(UserSession)
+            .where(UserSession.user_id == current_user.id)
+            .order_by(UserSession.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+
+    return {
+        "count": len(sessions),
+        "sessions": [
+            {
+                "id": s.id,
+                "created_at": s.created_at,
+                "expires_at": s.expires_at,
+                "last_used_at": s.last_used_at,
+                "revoked_at": s.revoked_at,
+                "user_agent": s.user_agent,
+                "ip_address": s.ip_address,
+                "is_active": s.revoked_at is None,
+            }
+            for s in sessions
+        ],
+    }
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    session = (
+        db.execute(
+            select(UserSession).where(
+                UserSession.id == session_id,
+                UserSession.user_id == current_user.id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session.revoked_at = datetime.now(UTC)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/sessions", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_other_sessions(
+    current_token: UserSession = Depends(get_current_token),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    now = datetime.now(UTC)
+
+    sessions = (
+        db.execute(
+            select(UserSession).where(
+                UserSession.user_id == current_user.id,
+                UserSession.id != current_token.id,
+                UserSession.revoked_at.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    for session in sessions:
+        session.revoked_at = now
+
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
