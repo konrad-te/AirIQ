@@ -11,9 +11,11 @@ import windowIcon from './assets/window.png'
 import moonIcon from './assets/moon.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
+import LoginModal from './components/LoginModal'
 import PM25Chart from './components/PM25Chart'
 import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
+import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAirQualityData, suggestAddresses } from './services/airDataService'
 
 const mockData = {
@@ -74,6 +76,8 @@ function getAqiLevelClass(level) {
 }
 
 export default function App() {
+  const { user, logout } = useAuth()
+  const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [route, setRoute] = useState(() => window.location.pathname)
   const [searchAddress, setSearchAddress] = useState(mockData.location)
@@ -275,8 +279,17 @@ export default function App() {
           <button className="nav-link">Roadmap</button>
         </nav>
         <div className="nav-actions">
-          <button className="btn btn-ghost">Log in</button>
-          <button className="btn btn-primary">Get started</button>
+          {user ? (
+            <>
+              <span className="nav-user-label">{user.display_name || user.email}</span>
+              <button className="btn btn-ghost" onClick={logout}>Log out</button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-ghost" onClick={() => setIsLoginOpen(true)}>Log in</button>
+              <button className="btn btn-primary" onClick={() => setIsLoginOpen(true)}>Get started</button>
+            </>
+          )}
         </div>
       </header>
 
@@ -564,6 +577,8 @@ export default function App() {
           <a href="#help" className="footer-link">Help</a>
         </div>
       </footer>
+
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
     </div>
   )
 }
