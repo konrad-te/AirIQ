@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 from datetime import UTC, datetime, timedelta
 from random import SystemRandom
@@ -45,41 +46,55 @@ def token_urlsafe(nbytes: int | None = None) -> str:
     return base64.urlsafe_b64encode(tok).rstrip(b"=").decode("ascii")
 
 
-def create_database_token(user_id: int, db: Session) -> UserSession:
-    randomized_token = token_urlsafe()
-    new_token = UserSession(
-        token=randomized_token,
+def create_database_token(
+    user_id: int,
+    db: Session,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
+) -> str:
+    raw_token = token_urlsafe()
+    expires_at = utc_now() + timedelta(minutes=get_access_token_expire_minutes())
+
+    session = UserSession(
         user_id=user_id,
+        token_hash=hash_token(raw_token),
+        expires_at=expires_at,
+        last_used_at=None,
+        revoked_at=None,
+        user_agent=user_agent,
+        ip_address=ip_address,
     )
-    db.add(new_token)
+    db.add(session)
     db.commit()
-    db.refresh(new_token)
-    return new_token
+    return raw_token
 
 
 def verify_token_access(token_str: str, db: Session) -> UserSession:
-    max_age = timedelta(minutes=get_access_token_expire_minutes())
-    cutoff = datetime.now(UTC) - max_age
+    token_hash = hash_token(token_str)
+    now = utc_now()
 
-    token = (
+    session = (
         db.execute(
             select(UserSession).where(
-                UserSession.token == token_str,
-                UserSession.created_at >= cutoff,
+                UserSession.token_hash == token_hash,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
             )
         )
         .scalars()
         .first()
     )
 
-    if not token:
+    if not session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalid or expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return token
+    session.last_used_at = now
+    db.commit()
+    return session
 
 
 def get_current_user(
@@ -122,3 +137,11 @@ def authenticate_user(
 ) -> None:
     verify_token_access(token_str=token, db=db)
     return
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
