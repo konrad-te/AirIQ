@@ -11,7 +11,7 @@ from dependencies.authorization import (
     get_household_membership,
     require_household_role,
 )
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from init_db import init_db
 from models import (
@@ -34,6 +34,12 @@ from services.globe_ingest import run_globe_ingest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.main import (
+    get_air_quality_data,
+    get_lat_lon_nominatim_cached,
+    suggest_addresses_nominatim,
+)
+
 app = FastAPI(title="AirIQ API")
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -43,7 +49,6 @@ cors_origins = (
 allowed_origins = [
     origin.strip() for origin in cors_origins.split(",") if origin.strip()
 ]
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,7 +118,10 @@ def on_shutdown() -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True}
+    return {
+        "ok": True,
+        "scheduler_running": scheduler.running,
+    }
 
 
 @app.get("/api/air-quality")
@@ -139,7 +147,8 @@ def geocode_address(address: str = Query(..., min_length=3)) -> dict:
 
 @app.get("/api/geocode/suggest")
 def geocode_suggest(
-    q: str = Query(..., min_length=2), limit: int = Query(5, ge=1, le=10)
+    q: str = Query(..., min_length=2),
+    limit: int = Query(5, ge=1, le=10),
 ) -> dict:
     return {"results": suggest_addresses_nominatim(q, limit=limit)}
 

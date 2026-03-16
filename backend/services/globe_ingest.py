@@ -5,15 +5,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
+from models import CityPoint, DataProvider, GlobeAqCache, IngestRun
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-<<<<<<< HEAD
-from backend.models import CityPoint, GlobeAqCache, IngestRun
-
-=======
-from models import CityPoint, DataProvider, GlobeAqCache, IngestRun
->>>>>>> authentication
 
 OPENMETEO_PROVIDER_CODE = "open-meteo"
 OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -99,7 +93,9 @@ def _normalize_eu_aqi(value: Any) -> int | None:
 
 def _get_openmeteo_provider(db: Session) -> DataProvider:
     provider = db.execute(
-        select(DataProvider).where(DataProvider.provider_code == OPENMETEO_PROVIDER_CODE)
+        select(DataProvider).where(
+            DataProvider.provider_code == OPENMETEO_PROVIDER_CODE
+        )
     ).scalar_one_or_none()
 
     if provider is None:
@@ -201,11 +197,15 @@ def run_globe_ingest(
     db.commit()
     db.refresh(run)
 
-    points = db.execute(
-        select(CityPoint)
-        .where(CityPoint.is_active.is_(True))
-        .order_by(CityPoint.id.asc())
-    ).scalars().all()
+    points = (
+        db.execute(
+            select(CityPoint)
+            .where(CityPoint.is_active.is_(True))
+            .order_by(CityPoint.id.asc())
+        )
+        .scalars()
+        .all()
+    )
 
     total_points = len(points)
     success_count = 0
