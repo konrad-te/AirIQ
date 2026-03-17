@@ -1119,32 +1119,41 @@
 }
 
 .pm25-chart-wrap {
-  width: 100%;
-  height: 5.25rem;
-  margin-bottom: 0;
-  position: relative;
-  border-radius: 1rem;
+  margin-left: -1rem;
+  width: calc(100% + 1rem);
+  height: calc(6.5rem + 1.05rem);
+  margin-bottom: -1.05rem;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 1rem 1rem 0;
   background: linear-gradient(180deg, #fff 0%, rgba(248, 250, 252, 0.98) 50%, rgba(241, 245, 249, 0.95) 100%);
   overflow: hidden;
 }
 
+.pm25-chart-now-strip {
+  flex: 0 0 auto;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.25rem;
+}
+
+.pm25-chart-svg-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
 .pm25-chart-hitbox {
-  width: 90%;
+  width: 100%;
   height: 100%;
   border: none;
   padding: 0;
   background: transparent;
   cursor: pointer;
   display: block;
-  margin: 0 auto;
-}
-
-.pm25-chart-current-marker {
-  position: absolute;
-  top: 0.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: none;
+  margin: 0;
 }
 
 .pm25-chart-svg {
@@ -1528,7 +1537,8 @@
   }
 
   .pm25-chart-wrap {
-    height: 17rem;
+    height: calc(17rem + 1.2rem);
+    margin-bottom: -1.2rem;
   }
 
   .pm25-chart-current-pill {

@@ -3,7 +3,7 @@ import sourceLogo from '../assets/source-logo.png'
 
 const CHART_WIDTH = 348
 const CHART_HEIGHT = 152
-const PAD = { left: 2, right: 2, top: 20, bottom: 16 }
+const PAD = { left: 0, right: 0, top: 8, bottom: 0 }
 const INNER_W = CHART_WIDTH - PAD.left - PAD.right
 const INNER_H = CHART_HEIGHT - PAD.top - PAD.bottom
 const HOUR_MS = 60 * 60 * 1000
@@ -188,9 +188,9 @@ function PM25Chart({
   const values = plottedPoints.map((point) => point.value)
   const maxY = values.length ? Math.max(...values) : (currentValue ?? 0)
   const minY = values.length ? Math.min(...values) : (currentValue ?? 0)
-  const padding = (maxY - minY) * 0.18 || 2
-  const scaleYMin = minY - padding
-  const scaleYMax = maxY + padding
+  const padding = (maxY - minY) * 0.12 || 2
+  const scaleYMin = 0
+  const scaleYMax = Math.max(maxY + padding, 1)
 
   const toX = (offset) => PAD.left + ((offset + 24) / 48) * INNER_W
   const toY = (value) => PAD.top + INNER_H - ((value - scaleYMin) / (scaleYMax - scaleYMin || 1)) * INNER_H
@@ -271,12 +271,16 @@ function PM25Chart({
       ) : null}
 
       <div className="pm25-chart-wrap">
-        <button type="button" className="pm25-chart-hitbox" onClick={handleChartClick} aria-label="Inspect PM2.5 by hour">
-          <svg
-            className="pm25-chart-svg"
-            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-            preserveAspectRatio="none"
-          >
+        <div className="pm25-chart-now-strip" aria-hidden>
+          <span className="pm25-chart-current-pill">{currentLabel}</span>
+        </div>
+        <div className="pm25-chart-svg-area">
+          <button type="button" className="pm25-chart-hitbox" onClick={handleChartClick} aria-label="Inspect PM2.5 by hour">
+            <svg
+              className="pm25-chart-svg"
+              viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+              preserveAspectRatio="none"
+            >
             <defs>
               <linearGradient id="pm25AreaFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#1183ff" stopOpacity="0.3" />
@@ -350,11 +354,8 @@ function PM25Chart({
                 />
               )
             })}
-          </svg>
-        </button>
-
-        <div className="pm25-chart-current-marker">
-          <span className="pm25-chart-current-pill">{currentLabel}</span>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
