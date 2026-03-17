@@ -1,0 +1,195 @@
+from __future__ import annotations
+
+import base64
+import hashlib
+import os
+from datetime import UTC, datetime, timedelta
+from random import SystemRandom
+from typing import Annotated
+
+from database import get_db
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from models import User, UserSession
+from pwdlib import PasswordHash
+from sqlalchemy import TextClause, select
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text as sql_text
+from sqlalchemy.orm import Session
+
+password_hash = PasswordHash.recommended()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+
+DEFAULT_ENTROPY = 32
+_sysrand = SystemRandom()
+
+
+def get_access_token_expire_minutes() -> int:
+    raw = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080").strip()
+    return int(raw)
+
+
+def hash_password(password: str) -> str:
+    return password_hash.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return password_hash.verify(plain_password, hashed_password)
+
+
+def token_bytes(nbytes: int | None = None) -> bytes:
+    if nbytes is None:
+        nbytes = DEFAULT_ENTROPY
+    return _sysrand.randbytes(nbytes)
+
+
+def token_urlsafe(nbytes: int | None = None) -> str:
+    tok = token_bytes(nbytes)
+    return base64.urlsafe_b64encode(tok).rstrip(b"=").decode("ascii")
+
+
+def hash_session_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def create_database_token(
+    user_id: int,
+    db: Session,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
+) -> str:
+    randomized_token = token_urlsafe()
+    now = datetime.now(UTC)
+    ttl = timedelta(minutes=get_access_token_expire_minutes())
+
+    new_token = UserSession(
+        token_hash=hash_session_token(randomized_token),
+        user_id=user_id,
+        user_agent=user_agent,
+        ip_address=ip_address,
+        created_at=now,
+        expires_at=now + ttl,
+        last_used_at=now,
+    )
+    db.add(new_token)
+    db.commit()
+    db.refresh(new_token)
+    return randomized_token
+
+
+def verify_token_access(token_str: str, db: Session) -> UserSession:
+    now = datetime.now(UTC)
+    hashed_token = hash_session_token(token_str)
+
+    token = (
+        db.execute(
+            select(UserSession).where(
+                UserSession.token_hash == hashed_token,
+                UserSession.expires_at >= now,
+                UserSession.revoked_at.is_(None),
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not token:
+        # Backward compatibility for legacy rows where raw token ended up in token_hash
+        token = (
+            db.execute(
+                select(UserSession).where(
+                    UserSession.token_hash == token_str,
+                    UserSession.expires_at >= now,
+                    UserSession.revoked_at.is_(None),
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+    if not token:
+        # Backward compatibility for deployments that only still have a legacy `token` column
+        legacy_token_id = _lookup_legacy_token_id(db=db, token_str=token_str, now=now)
+        token = db.get(UserSession, legacy_token_id) if legacy_token_id is not None else None
+        if token:
+            token.token_hash = hashed_token
+
+    if token:
+        token.last_used_at = now
+        db.commit()
+        db.refresh(token)
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalid or expired",
+            headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    return token
+
+
+def _lookup_legacy_token_id(db: Session, token_str: str, now: datetime) -> int | None:
+    stmt: TextClause = sql_text(
+        """
+        SELECT id
+        FROM user_sessions
+        WHERE token = :token
+          AND expires_at >= :now
+          AND revoked_at IS NULL
+        LIMIT 1
+        """
+    )
+
+    try:
+        result = db.execute(
+            stmt,
+            {
+                "token": token_str,
+                "now": now,
+            },
+        ).scalar_one_or_none()
+        return int(result) if result is not None else None
+    except SQLAlchemyError:
+        return None
+
+
+def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Session = Depends(get_db),
+) -> User:
+    token_row = verify_token_access(token_str=token, db=db)
+
+    user = (
+        db.execute(
+            select(User).where(
+                User.id == token_row.user_id,
+                User.is_active.is_(True),
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User inactive or missing",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user
+
+
+def get_current_token(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Session = Depends(get_db),
+) -> UserSession:
+    return verify_token_access(token_str=token, db=db)
+
+
+def authenticate_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Session = Depends(get_db),
+) -> None:
+    verify_token_access(token_str=token, db=db)
+    return

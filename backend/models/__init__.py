@@ -11,6 +11,7 @@ from .location_station_cache import LocationStationCache
 from .provider_cache_entry import ProviderCacheEntry
 from .user import User
 from .user_preference import UserPreference
+from .user_sessions import UserSession
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "ProviderCacheEntry",
     "User",
     "UserPreference",
+    "UserSession",
 ]

@@ -4,18 +4,16 @@ import hashlib
 import json
 import math
 import os
-import re
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from database import SessionLocal
 from models import DataProvider, GeocodeCacheEntry, ProviderCacheEntry
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 # ---------------------------
 # Configuration
@@ -35,9 +33,7 @@ NOMINATIM_USER_AGENT = (
 NOMINATIM_EMAIL = os.getenv("NOMINATIM_EMAIL") or os.getenv("nominatim_email")
 
 AIRLY_HEADERS = (
-    {"Accept": "application/json", "apikey": AIRLY_API_KEY}
-    if AIRLY_API_KEY
-    else {}
+    {"Accept": "application/json", "apikey": AIRLY_API_KEY} if AIRLY_API_KEY else {}
 )
 
 TTL_CURRENT = 10 * 60
@@ -69,6 +65,15 @@ UNITS = {
     "wind_direction": "°",
 }
 
+EU_AQI_LABELS = {
+    1: "Very good",
+    2: "Good",
+    3: "Medium",
+    4: "Poor",
+    5: "Very poor",
+    6: "Extremely poor",
+}
+
 # ---------------------------
 # Session helpers
 # ---------------------------
@@ -93,11 +98,16 @@ def _utc_now() -> datetime:
 
 
 def _to_float(value: Any) -> float | None:
-    return float(value) if isinstance(value, (int, float)) else None
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_iso_utc(value: str | None) -> datetime | None:
-    if not value:
+    if not value or not isinstance(value, str):
         return None
 
     try:
@@ -107,7 +117,7 @@ def _parse_iso_utc(value: str | None) -> datetime | None:
         dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        return dt
+        return dt.astimezone(timezone.utc)
     except ValueError:
         return None
 
@@ -128,11 +138,15 @@ def _time_to_key(value: str | None) -> str | None:
     dt = _parse_iso_utc(value)
     if not dt:
         return None
-    return dt.astimezone(timezone.utc).replace(
-        minute=0,
-        second=0,
-        microsecond=0,
-    ).strftime("%Y-%m-%dT%H:00Z")
+    return (
+        dt.astimezone(timezone.utc)
+        .replace(
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        .strftime("%Y-%m-%dT%H:00Z")
+    )
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -392,6 +406,162 @@ def _normalize_airly_timeseries(series: Any) -> list[dict[str, Any]]:
     return rows
 
 
+def _eu_aqi_level_pm25(value: float | None) -> int | None:
+    if value is None or value < 0:
+        return None
+    if value <= 10:
+        return 1
+    if value <= 20:
+        return 2
+    if value <= 25:
+        return 3
+    if value <= 50:
+        return 4
+    if value <= 75:
+        return 5
+    return 6
+
+
+def _eu_aqi_level_pm10(value: float | None) -> int | None:
+    if value is None or value < 0:
+        return None
+    if value <= 20:
+        return 1
+    if value <= 40:
+        return 2
+    if value <= 50:
+        return 3
+    if value <= 100:
+        return 4
+    if value <= 150:
+        return 5
+    return 6
+
+
+def _build_eu_aqi(current: dict[str, Any]) -> dict[str, Any] | None:
+    pm25 = _to_float(current.get("pm25"))
+    pm10 = _to_float(current.get("pm10"))
+
+    candidates: list[tuple[str, int]] = []
+    pm25_level = _eu_aqi_level_pm25(pm25)
+    pm10_level = _eu_aqi_level_pm10(pm10)
+
+    if pm25_level is not None:
+        candidates.append(("pm25", pm25_level))
+    if pm10_level is not None:
+        candidates.append(("pm10", pm10_level))
+
+    if not candidates:
+        return None
+
+    dominant_pollutant, value = max(candidates, key=lambda item: item[1])
+    return {
+        "scheme": "eu",
+        "value": value,
+        "label": EU_AQI_LABELS[value],
+        "dominant_pollutant": dominant_pollutant,
+    }
+
+
+def _build_provenance(
+    provider: str | None,
+    method: str | None,
+    *,
+    is_forecast: bool,
+    distance_km: float | None = None,
+    is_fallback: bool = False,
+) -> dict[str, Any]:
+    if provider == "open-meteo":
+        confidence = "low"
+        label = "Lower confidence"
+        detail = (
+            "Open-Meteo fallback."
+            if is_fallback
+            else (
+                "Open-Meteo model forecast for this area."
+                if is_forecast
+                else "Open-Meteo model estimate for this area."
+            )
+        )
+    elif provider == "openaq":
+        confidence = "medium"
+        label = "Medium confidence"
+        detail = (
+            f"OpenAQ nearby station {distance_km:.1f} km away."
+            if distance_km is not None
+            else "OpenAQ nearby station."
+        )
+    elif provider == "airly" and method == "nearest_station":
+        confidence = "high"
+        label = "High confidence"
+        detail = (
+            f"Airly forecast from station {distance_km:.1f} km away."
+            if is_forecast and distance_km is not None
+            else (
+                f"Airly nearby station {distance_km:.1f} km away."
+                if distance_km is not None
+                else ("Airly forecast." if is_forecast else "Airly nearby station.")
+            )
+        )
+    elif provider == "airly" and method == "point":
+        confidence = "high"
+        label = "High confidence"
+        detail = "Airly forecast." if is_forecast else "Airly local data."
+    else:
+        confidence = "unknown"
+        label = "Unknown confidence"
+        detail = "Source quality unavailable."
+
+    return {
+        "provider": provider,
+        "method": method,
+        "distance_km": round(distance_km, 2) if distance_km is not None else None,
+        "confidence": confidence,
+        "confidence_label": label,
+        "detail": detail,
+        "is_fallback": is_fallback,
+    }
+
+
+def _annotate_normalized_provenance(norm: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(norm, dict):
+        return norm
+
+    source = norm.get("source") or {}
+    provider = source.get("provider")
+    method = source.get("method")
+    distance_km = _to_float(source.get("distance_km"))
+
+    current = norm.get("current")
+    if isinstance(current, dict) and "provenance" not in current:
+        current["provenance"] = _build_provenance(
+            provider,
+            method,
+            is_forecast=False,
+            distance_km=distance_km,
+            is_fallback=False,
+        )
+
+    for series_name in ("history", "forecast"):
+        series = norm.get(series_name)
+        if not isinstance(series, list):
+            continue
+
+        for row in series:
+            if not isinstance(row, dict):
+                continue
+            if "provenance" not in row:
+                row["provenance"] = _build_provenance(
+                    provider,
+                    method,
+                    is_forecast=(series_name == "forecast"),
+                    distance_km=distance_km,
+                    is_fallback=False,
+                )
+
+    return norm
+
+
 def normalize_airly(raw: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
     current_section = raw.get("current") or {}
     values = _airly_values_to_dict(current_section.get("values"))
@@ -446,20 +616,81 @@ def _normalized_needs_weather(norm: dict[str, Any]) -> bool:
     )
 
 
+def _merge_series_with_model_fallback(
+    primary_series: Any,
+    model_series: Any,
+) -> tuple[list[dict[str, Any]], int]:
+    primary_list = primary_series if isinstance(primary_series, list) else []
+    model_list = model_series if isinstance(model_series, list) else []
+
+    by_key: dict[str, dict[str, Any]] = {}
+    fallback_count = 0
+
+    for row in primary_list:
+        if not isinstance(row, dict):
+            continue
+        key = _time_to_key(row.get("time"))
+        if not key:
+            continue
+        cloned = dict(row)
+        cloned["provenance"] = dict(row.get("provenance") or {})
+        by_key[key] = cloned
+
+    for model_row in model_list:
+        if not isinstance(model_row, dict):
+            continue
+        key = _time_to_key(model_row.get("time"))
+        if not key:
+            continue
+
+        primary_row = by_key.get(key)
+        if primary_row is None:
+            cloned = dict(model_row)
+            cloned["provenance"] = dict(model_row.get("provenance") or {})
+            by_key[key] = cloned
+            fallback_count += 1
+            continue
+
+        used_fallback = False
+        for pollutant in ("pm25", "pm10"):
+            if (
+                primary_row.get(pollutant) is None
+                and model_row.get(pollutant) is not None
+            ):
+                primary_row[pollutant] = model_row.get(pollutant)
+                used_fallback = True
+
+        if used_fallback:
+            primary_row["fallback_provenance"] = dict(model_row.get("provenance") or {})
+            fallback_count += 1
+
+    merged = list(by_key.values())
+    merged.sort(key=lambda row: row.get("time") or "")
+    return merged, fallback_count
+
+
 def _finalize_normalized(norm: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(norm, dict):
         return norm
+
+    _annotate_normalized_provenance(norm)
 
     meta = norm.get("meta") or {}
     current = norm.get("current") or {}
 
     meta["timezone"] = meta.get("timezone") or "UTC"
     meta["units"] = dict(UNITS)
+    norm["aqi"] = _build_eu_aqi(current)
     meta["data_completeness"] = {
         "has_pm": current.get("pm25") is not None or current.get("pm10") is not None,
         "has_weather": any(
             current.get(key) is not None
-            for key in ("temperature_c", "humidity_pct", "pressure_hpa", "wind_speed_ms")
+            for key in (
+                "temperature_c",
+                "humidity_pct",
+                "pressure_hpa",
+                "wind_speed_ms",
+            )
         ),
         "has_gases": any(
             current.get(key) is not None for key in ("no2", "co", "o3", "so2")
@@ -490,7 +721,9 @@ def fetch_airly_point(lat: float, lon: float) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def fetch_airly_nearest(lat: float, lon: float, max_distance_km: float) -> dict[str, Any]:
+def fetch_airly_nearest(
+    lat: float, lon: float, max_distance_km: float
+) -> dict[str, Any]:
     if not AIRLY_API_KEY:
         return {}
 
@@ -521,7 +754,9 @@ def fetch_openaq_latest_nearby(
         "sort": "distance",
     }
 
-    response = requests.get(OPENAQ_LATEST_URL, headers=headers, params=params, timeout=12)
+    response = requests.get(
+        OPENAQ_LATEST_URL, headers=headers, params=params, timeout=12
+    )
     if response.status_code == 401:
         raise RuntimeError(
             "OpenAQ unauthorized: check OPENAQ_API_KEY in .env (or old open_aq fallback)."
@@ -592,6 +827,7 @@ def fetch_openaq_latest_nearby(
                 "distance_km": round(distance_km, 2),
                 "location_name": location.get("location") or location.get("name"),
                 "message": f"Used OpenAQ nearest station (~{distance_km:.1f} km).",
+                "user_message": f"Based on measurements from a nearby station {distance_km:.1f} km away.",
             },
             "cache": {
                 "created_at": _utc_now().isoformat(),
@@ -694,6 +930,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> dict[str, Any] | None
             "provider": "open-meteo",
             "method": "model",
             "message": "Model-based estimate (not station-measured).",
+            "user_message": "Estimated from air quality models for your area.",
         },
         "cache": {
             "created_at": _utc_now().isoformat(),
@@ -787,6 +1024,53 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
     return weather
 
 
+def _get_openmeteo_model_cached(
+    db: Session,
+    lat: float,
+    lon: float,
+) -> dict[str, Any] | None:
+    coord_key = _coord_key(lat, lon)
+    openmeteo_variant = f"{OPENMETEO_PAST_HOURS}h_{OPENMETEO_FUTURE_HOURS}h"
+    openmeteo_cache_key = _build_provider_cache_key(
+        provider_code="open-meteo",
+        cache_kind="aq_normalized",
+        method="model",
+        coord_key=coord_key,
+        variant_key=openmeteo_variant,
+    )
+
+    cached_model = _read_provider_cache(
+        db=db,
+        provider_code="open-meteo",
+        cache_key=openmeteo_cache_key,
+    )
+    if cached_model and normalized_has_data(cached_model):
+        return cached_model
+
+    normalized_model = None
+    try:
+        normalized_model = fetch_openmeteo_air_quality(lat, lon)
+    except requests.RequestException as exc:
+        if DEBUG:
+            print(f"DEBUG: Open-Meteo AQ failed: {exc}")
+
+    if normalized_model and normalized_has_data(normalized_model):
+        _write_provider_cache(
+            db=db,
+            provider_code="open-meteo",
+            cache_key=openmeteo_cache_key,
+            cache_kind="aq_normalized",
+            method="model",
+            coord_key=coord_key,
+            variant_key=openmeteo_variant,
+            payload_json=normalized_model,
+            ttl_seconds=TTL_MODEL,
+        )
+        return normalized_model
+
+    return None
+
+
 # ---------------------------
 # Weather enrichment helpers
 # ---------------------------
@@ -812,11 +1096,19 @@ def _merge_weather_into_normalized(
 
     current_key = _time_to_key((norm.get("measurement_window") or {}).get("from"))
     if current_key is None:
-        current_key = _utc_now().astimezone(timezone.utc).replace(
-            minute=0,
-            second=0,
-            microsecond=0,
-        ).strftime("%Y-%m-%dT%H:00Z")
+        if isinstance(norm.get("history"), list) and norm["history"]:
+            current_key = _time_to_key(norm["history"][-1].get("time"))
+    if current_key is None:
+        current_key = (
+            _utc_now()
+            .astimezone(timezone.utc)
+            .replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            .strftime("%Y-%m-%dT%H:00Z")
+        )
 
     current = norm.get("current") or {}
     weather_current = weather_map.get(current_key)
@@ -925,6 +1217,84 @@ def enrich_with_weather_if_missing(
     return _finalize_normalized(normalized)
 
 
+def fill_missing_timeseries_with_model(
+    db: Session,
+    lat: float,
+    lon: float,
+    norm: dict[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(norm, dict):
+        return norm
+
+    source = norm.get("source") or {}
+    if source.get("provider") == "open-meteo":
+        return norm
+
+    model_norm = _get_openmeteo_model_cached(db, lat, lon)
+    if not model_norm:
+        return norm
+
+    _annotate_normalized_provenance(model_norm)
+    _annotate_normalized_provenance(norm)
+
+    history, history_fallback_count = _merge_series_with_model_fallback(
+        norm.get("history"),
+        model_norm.get("history"),
+    )
+    forecast, forecast_fallback_count = _merge_series_with_model_fallback(
+        norm.get("forecast"),
+        model_norm.get("forecast"),
+    )
+    norm["history"] = history
+    norm["forecast"] = forecast
+
+    current = norm.get("current") or {}
+    model_current = model_norm.get("current") or {}
+
+    if current.get("pm25") is None and model_current.get("pm25") is not None:
+        current["pm25"] = model_current.get("pm25")
+        current["fallback_provenance"] = dict(model_current.get("provenance") or {})
+    if current.get("pm10") is None and model_current.get("pm10") is not None:
+        current["pm10"] = model_current.get("pm10")
+        current["fallback_provenance"] = dict(model_current.get("provenance") or {})
+
+    norm["current"] = current
+
+    meta = norm.get("meta") or {}
+    meta["aq_fallback"] = {
+        "provider": "open-meteo",
+        "history_points": history_fallback_count,
+        "forecast_points": forecast_fallback_count,
+        "used": (history_fallback_count + forecast_fallback_count) > 0,
+    }
+    norm["meta"] = meta
+
+    source = norm.get("source") or {}
+    norm["source"] = source
+    if meta["aq_fallback"]["used"]:
+        base_message = (
+            source.get("user_message")
+            or source.get("message")
+            or "Based on air quality data for your location."
+        )
+        source["user_message"] = (
+            f"{base_message} Missing timeline hours were filled with lower-confidence "
+            "Open-Meteo model data."
+        )
+
+    return norm
+
+
+def prepare_normalized_response(
+    db: Session,
+    lat: float,
+    lon: float,
+    norm: dict[str, Any],
+) -> dict[str, Any]:
+    norm = fill_missing_timeseries_with_model(db, lat, lon, norm)
+    return enrich_with_weather_if_missing(db, lat, lon, norm)
+
+
 # ---------------------------
 # Public functions
 # ---------------------------
@@ -1002,6 +1372,51 @@ def get_lat_lon_nominatim_cached(address: str) -> tuple[float, float] | None:
             return None
 
 
+def suggest_addresses_nominatim(address: str, limit: int = 5) -> list[dict[str, Any]]:
+    normalized_address = _normalize_address(address)
+    if len(normalized_address) < 2:
+        return []
+
+    headers = {"User-Agent": NOMINATIM_USER_AGENT}
+    params = {
+        "q": address,
+        "format": "jsonv2",
+        "limit": max(1, min(limit, 10)),
+        "addressdetails": 1,
+    }
+    if NOMINATIM_EMAIL:
+        params["email"] = NOMINATIM_EMAIL
+
+    try:
+        time.sleep(0.35)
+        response = requests.get(
+            NOMINATIM_URL,
+            params=params,
+            headers=headers,
+            timeout=10,
+        )
+        response.raise_for_status()
+        results = response.json()
+    except (requests.RequestException, ValueError):
+        return []
+
+    suggestions: list[dict[str, Any]] = []
+    for item in results:
+        try:
+            suggestions.append(
+                {
+                    "label": item.get("display_name") or address,
+                    "lat": float(item["lat"]),
+                    "lon": float(item["lon"]),
+                    "place_id": item.get("place_id"),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    return suggestions
+
+
 def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
     coord_key = _coord_key(lat, lon)
 
@@ -1022,7 +1437,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 cache_key=airly_point_cache_key,
             )
             if cached_point and normalized_has_data(cached_point):
-                return enrich_with_weather_if_missing(db, lat, lon, cached_point)
+                return prepare_normalized_response(db, lat, lon, cached_point)
 
             try:
                 raw_point = fetch_airly_point(lat, lon)
@@ -1035,6 +1450,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 "provider": "airly",
                 "method": "point",
                 "message": "Used interpolated point measurements (if available).",
+                "user_message": "Based on air quality data near your location.",
             }
             normalized_point = normalize_airly(raw_point, point_source)
 
@@ -1050,7 +1466,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                     payload_json=normalized_point,
                     ttl_seconds=TTL_CURRENT,
                 )
-                return enrich_with_weather_if_missing(db, lat, lon, normalized_point)
+                return prepare_normalized_response(db, lat, lon, normalized_point)
 
             airly_nearest_variant = f"{AIRLY_NEAREST_MAX_DISTANCE_KM}km"
             airly_nearest_cache_key = _build_provider_cache_key(
@@ -1067,7 +1483,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 cache_key=airly_nearest_cache_key,
             )
             if cached_nearest and normalized_has_data(cached_nearest):
-                return enrich_with_weather_if_missing(db, lat, lon, cached_nearest)
+                return prepare_normalized_response(db, lat, lon, cached_nearest)
 
             raw_nearest: dict[str, Any] = {}
             try:
@@ -1108,8 +1524,15 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                     "method": "nearest_station",
                     "max_distance_km": AIRLY_NEAREST_MAX_DISTANCE_KM,
                     "installation_id": installation.get("id"),
-                    "distance_km": round(distance_km, 2) if distance_km is not None else None,
+                    "distance_km": round(distance_km, 2)
+                    if distance_km is not None
+                    else None,
                     "message": message,
+                    "user_message": (
+                        f"Based on measurements from a nearby station {distance_km:.1f} km away."
+                        if distance_km is not None
+                        else "Based on measurements from a nearby station."
+                    ),
                 }
 
                 normalized_nearest = normalize_airly(raw_nearest, nearest_source)
@@ -1125,7 +1548,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                         payload_json=normalized_nearest,
                         ttl_seconds=TTL_STATION,
                     )
-                    return enrich_with_weather_if_missing(db, lat, lon, normalized_nearest)
+                    return prepare_normalized_response(db, lat, lon, normalized_nearest)
 
         openaq_variant = f"{OPENAQ_MAX_DISTANCE_KM}km"
         openaq_station_lookup_key = _build_provider_cache_key(
@@ -1144,11 +1567,10 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
         if cached_station_lookup is not None:
             if cached_station_lookup.get("found") is True:
                 cached_normalized = cached_station_lookup.get("normalized")
-                if (
-                    isinstance(cached_normalized, dict)
-                    and normalized_has_data(cached_normalized)
+                if isinstance(cached_normalized, dict) and normalized_has_data(
+                    cached_normalized
                 ):
-                    return enrich_with_weather_if_missing(db, lat, lon, cached_normalized)
+                    return prepare_normalized_response(db, lat, lon, cached_normalized)
 
         normalized_openaq = None
         try:
@@ -1177,7 +1599,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 payload_json=station_payload,
                 ttl_seconds=TTL_STATION,
             )
-            return enrich_with_weather_if_missing(db, lat, lon, normalized_openaq)
+            return prepare_normalized_response(db, lat, lon, normalized_openaq)
 
         _write_provider_cache(
             db=db,
@@ -1194,43 +1616,9 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
             ttl_seconds=TTL_STATION,
         )
 
-        openmeteo_variant = f"{OPENMETEO_PAST_HOURS}h_{OPENMETEO_FUTURE_HOURS}h"
-        openmeteo_cache_key = _build_provider_cache_key(
-            provider_code="open-meteo",
-            cache_kind="aq_normalized",
-            method="model",
-            coord_key=coord_key,
-            variant_key=openmeteo_variant,
-        )
-
-        cached_model = _read_provider_cache(
-            db=db,
-            provider_code="open-meteo",
-            cache_key=openmeteo_cache_key,
-        )
-        if cached_model and normalized_has_data(cached_model):
-            return enrich_with_weather_if_missing(db, lat, lon, cached_model)
-
-        normalized_model = None
-        try:
-            normalized_model = fetch_openmeteo_air_quality(lat, lon)
-        except requests.RequestException as exc:
-            if DEBUG:
-                print(f"DEBUG: Open-Meteo AQ failed: {exc}")
-
+        normalized_model = _get_openmeteo_model_cached(db, lat, lon)
         if normalized_model and normalized_has_data(normalized_model):
-            _write_provider_cache(
-                db=db,
-                provider_code="open-meteo",
-                cache_key=openmeteo_cache_key,
-                cache_kind="aq_normalized",
-                method="model",
-                coord_key=coord_key,
-                variant_key=openmeteo_variant,
-                payload_json=normalized_model,
-                ttl_seconds=TTL_MODEL,
-            )
-            return enrich_with_weather_if_missing(db, lat, lon, normalized_model)
+            return prepare_normalized_response(db, lat, lon, normalized_model)
 
         empty = {
             "current": {
@@ -1263,6 +1651,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                     f"No values from Airly (/point, /nearest {AIRLY_NEAREST_MAX_DISTANCE_KM}km), "
                     f"OpenAQ ({OPENAQ_MAX_DISTANCE_KM}km), or Open-Meteo."
                 ),
+                "user_message": "Air quality data is currently unavailable for this location.",
             },
             "cache": {
                 "created_at": _utc_now().isoformat(),
