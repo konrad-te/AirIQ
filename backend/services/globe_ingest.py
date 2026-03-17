@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
-from models import CityPoint, DataProvider, GlobeAqCache, IngestRun
+from backend.models import CityPoint, DataProvider, GlobeAqCache, IngestRun
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from database import get_db
-from dependencies.authorization import (
+from backend.database import get_db
+from backend.dependencies.authorization import (
     get_current_household,
     get_household_membership,
     require_household_role,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
-from models import Household, HouseholdMember, User
+from backend.models import Household, HouseholdMember, User
 from pydantic import BaseModel, EmailStr, Field
-from security import get_current_user
+from backend.security import get_current_user
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

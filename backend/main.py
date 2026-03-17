@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
-from database import SessionLocal
-from models import DataProvider, GeocodeCacheEntry, ProviderCacheEntry
+from backend.database import SessionLocal
+from backend.models import DataProvider, GeocodeCacheEntry, ProviderCacheEntry
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
