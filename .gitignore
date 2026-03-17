@@ -24,6 +24,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+.claude
 
 # Python
 venv/
@@ -47,14 +48,11 @@ backend/__pycache__/
 
 # Cache (generated)
 data/cache/
-<<<<<<< HEAD
 *.pyc
 .env
-=======
 backend/data/cache/
 backend/data/cache/*.json
 backend/data/cache/*.tmp
 
 # Backend logs
 backend/*.log
->>>>>>> database-implementation-2

@@ -24,6 +24,7 @@ TABLES_TO_TRUNCATE: list[str] = [
     "user_preferences",
     "households",
     "users",
+    "user_sessions",
     "provider_cache_entries",
     "location_station_cache",
     "geocode_cache_entries",
