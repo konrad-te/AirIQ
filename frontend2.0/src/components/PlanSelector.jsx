@@ -6,7 +6,7 @@ const FEATURES = [
   'Wearables (beta)',
 ]
 
-function PlanSelector() {
+function PlanSelector({ onGetStarted }) {
   const [plan, setPlan] = useState('plus')
 
   return (
@@ -41,7 +41,7 @@ function PlanSelector() {
         ))}
       </ul>
 
-      <button type="button" className="plan-selector-cta">
+      <button type="button" className="plan-selector-cta" onClick={onGetStarted}>
         Get started
       </button>
     </div>

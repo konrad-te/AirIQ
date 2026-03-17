@@ -21,6 +21,23 @@ export async function logoutUser(token) {
   })
 }
 
+export async function registerUser(email, password, displayName) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/user/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      password,
+      display_name: displayName || null,
+    }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(data.detail || 'Registration failed.')
+  }
+  return data
+}
+
 export async function getCurrentUser(token) {
   const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
