@@ -12,6 +12,7 @@ import moonIcon from './assets/moon.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
 import LoginModal from './components/LoginModal'
+import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
 import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
@@ -78,6 +79,7 @@ function getAqiLevelClass(level) {
 export default function App() {
   const { user, logout } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [route, setRoute] = useState(() => window.location.pathname)
   const [searchAddress, setSearchAddress] = useState(mockData.location)
@@ -287,7 +289,7 @@ export default function App() {
           ) : (
             <>
               <button className="btn btn-ghost" onClick={() => setIsLoginOpen(true)}>Log in</button>
-              <button className="btn btn-primary" onClick={() => setIsLoginOpen(true)}>Get started</button>
+              <button className="btn btn-primary" onClick={() => setIsRegisterOpen(true)}>Get started</button>
             </>
           )}
         </div>
@@ -558,7 +560,7 @@ export default function App() {
             </section>
 
             <section className="plan-selector-section">
-              <PlanSelector />
+              <PlanSelector onGetStarted={() => setIsRegisterOpen(true)} />
             </section>
           </div>
         </section>
@@ -579,6 +581,7 @@ export default function App() {
       </footer>
 
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+      <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
     </div>
   )
 }

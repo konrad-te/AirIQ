@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import './LoginModal.css'
 
@@ -8,6 +9,15 @@ export default function LoginModal({ isOpen, onClose }) {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -37,7 +47,7 @@ export default function LoginModal({ isOpen, onClose }) {
     if (event.target === event.currentTarget) onClose()
   }
 
-  return (
+  return createPortal(
     <div className="login-modal-overlay" onClick={handleOverlayClick}>
       <div className="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
         <button type="button" className="login-modal-close" onClick={onClose} aria-label="Close">
@@ -90,6 +100,7 @@ export default function LoginModal({ isOpen, onClose }) {
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
