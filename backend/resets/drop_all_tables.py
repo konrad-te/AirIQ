@@ -6,11 +6,11 @@ from pathlib import Path
 
 from sqlalchemy import MetaData, inspect
 
-BACKEND_DIR = Path(__file__).resolve().parents[1]
-if str(BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(BACKEND_DIR))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from database import engine
+from backend.database import engine
 
 
 def drop_all_tables() -> None:

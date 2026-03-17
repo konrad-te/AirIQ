@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from database import engine
+from backend.database import engine
 from sqlalchemy import inspect, text
 
 REQUIRED_TABLES = {

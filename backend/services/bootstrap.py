@@ -5,7 +5,7 @@ from typing import Mapping
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models import DataProvider
+from backend.models import DataProvider
 
 
 _REQUIRED_PROVIDERS = [

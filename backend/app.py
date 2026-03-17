@@ -6,15 +6,15 @@ from decimal import Decimal
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from database import SessionLocal, get_db
-from dependencies.authorization import (
+from backend.database import SessionLocal, get_db
+from backend.dependencies.authorization import (
     get_household_membership,
     require_household_role,
 )
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from init_db import init_db
-from models import (
+from backend.init_db import init_db
+from backend.models import (
     CityPoint,
     DataProvider,
     ExternalStation,
@@ -26,11 +26,11 @@ from models import (
     ProviderCacheEntry,
     User,
 )
-from routers.auth import router as auth_router
-from routers.households import router as households_router
-from security import get_current_user
-from services.city_seed import seed_city_points
-from services.globe_ingest import run_globe_ingest
+from backend.routers.auth import router as auth_router
+from backend.routers.households import router as households_router
+from backend.security import get_current_user
+from backend.services.city_seed import seed_city_points
+from backend.services.globe_ingest import run_globe_ingest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -92,7 +92,7 @@ def on_startup() -> None:
     init_db()
     db = SessionLocal()
     try:
-        from services.bootstrap import ensure_data_providers
+        from backend.services.bootstrap import ensure_data_providers
 
         ensure_data_providers(db)
     finally:

@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 from random import SystemRandom
 from typing import Annotated
 
-from database import get_db
+from backend.database import get_db
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from models import User, UserSession
+from backend.models import User, UserSession
 from pwdlib import PasswordHash
 from sqlalchemy import TextClause, select
 from sqlalchemy.exc import SQLAlchemyError

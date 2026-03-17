@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
-from database import get_db
+from backend.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from models import Household, HouseholdMember, User, UserPreference, UserSession
-from schemas.auth import TokenSchema, UserOutSchema, UserRegisterSchema
-from security import (
+from backend.models import Household, HouseholdMember, User, UserPreference, UserSession
+from backend.schemas.auth import TokenSchema, UserOutSchema, UserRegisterSchema
+from backend.security import (
     create_database_token,
     get_current_token,
     get_current_user,

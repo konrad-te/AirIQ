@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Annotated
 
-from database import get_db
+from backend.database import get_db
 from fastapi import Depends, HTTPException, Path, status
-from models import Household, HouseholdMember, User
-from security import get_current_user
+from backend.models import Household, HouseholdMember, User
+from backend.security import get_current_user
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
