@@ -1,0 +1,248 @@
+.feedback-page {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #eef4fd 0%, #f7faff 60%, #e8f0fb 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.feedback-header {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(210, 225, 243, 0.7);
+  padding: 0 2rem;
+  height: 64px;
+  display: flex;
+  align-items: center;
+}
+
+.feedback-header-inner {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feedback-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4a5f7e;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.feedback-back:hover {
+  color: #1a3152;
+  background: rgba(210, 225, 243, 0.5);
+}
+
+.feedback-logo {
+  height: 28px;
+}
+
+/* Main content */
+.feedback-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem 4rem;
+}
+
+.feedback-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 600px;
+  box-shadow:
+    0 24px 56px rgba(40, 95, 170, 0.12),
+    0 0 0 1px rgba(215, 228, 245, 0.9);
+}
+
+/* Card header */
+.feedback-card-header {
+  margin-bottom: 2rem;
+}
+
+.feedback-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1a3152;
+  margin: 0 0 0.4rem;
+}
+
+.feedback-subtitle {
+  font-size: 0.95rem;
+  color: #4f6687;
+  margin: 0;
+}
+
+/* Form */
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.feedback-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a3152;
+}
+
+/* Category pills */
+.feedback-category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.feedback-category-pill {
+  border: 1.5px solid rgba(210, 225, 243, 0.9);
+  background: rgba(248, 251, 255, 0.9);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #4a5f7e;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.feedback-category-pill:hover {
+  border-color: #0f8cf4;
+  color: #0f8cf4;
+  background: rgba(15, 140, 244, 0.05);
+}
+
+.feedback-category-pill--active {
+  border-color: #0f8cf4;
+  background: rgba(15, 140, 244, 0.1);
+  color: #0a72cc;
+  font-weight: 600;
+}
+
+/* Textarea */
+.feedback-textarea {
+  width: 100%;
+  border: 1px solid rgba(210, 224, 244, 0.95);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  color: #1a3152;
+  background: rgba(248, 251, 255, 0.98);
+  outline: none;
+  resize: vertical;
+  min-height: 140px;
+  font-family: inherit;
+  line-height: 1.55;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  box-sizing: border-box;
+}
+
+.feedback-textarea::placeholder {
+  color: #8b9bb5;
+}
+
+.feedback-textarea:focus {
+  border-color: #0f8cf4;
+  box-shadow: 0 0 0 3px rgba(15, 140, 244, 0.12);
+}
+
+.feedback-textarea:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.feedback-char-count {
+  font-size: 0.78rem;
+  color: #8b9bb5;
+  text-align: right;
+}
+
+/* Error */
+.feedback-error {
+  font-size: 0.85rem;
+  color: #d63a2c;
+  background: rgba(214, 58, 44, 0.07);
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem;
+  margin: 0;
+}
+
+/* Submit */
+.feedback-submit {
+  width: 100%;
+  padding-block: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.feedback-submit:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+/* Confirmation */
+.feedback-confirmation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0;
+  gap: 1rem;
+}
+
+.feedback-confirmation-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(15, 140, 244, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f8cf4;
+  margin-bottom: 0.5rem;
+}
+
+.feedback-confirmation-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1a3152;
+  margin: 0;
+}
+
+.feedback-confirmation-body {
+  font-size: 0.95rem;
+  color: #4f6687;
+  max-width: 380px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.feedback-confirmation-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.feedback-btn {
+  min-width: 160px;
+}

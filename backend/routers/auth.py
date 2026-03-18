@@ -7,7 +7,15 @@ from backend.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from backend.models import Household, HouseholdMember, User, UserPreference, UserSession
-from backend.schemas.auth import TokenSchema, UserOutSchema, UserRegisterSchema
+from backend.schemas.auth import (
+    PasswordChangeSchema,
+    TokenSchema,
+    UserOutSchema,
+    UserPreferenceOutSchema,
+    UserPreferenceUpdateSchema,
+    UserRegisterSchema,
+    UserUpdateSchema,
+)
 from backend.security import (
     create_database_token,
     get_current_token,
@@ -146,6 +154,7 @@ def read_users_me(
 
 @router.get("/sessions")
 def list_my_sessions(
+    current_token: UserSession = Depends(get_current_token),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -171,6 +180,7 @@ def list_my_sessions(
                 "user_agent": s.user_agent,
                 "ip_address": s.ip_address,
                 "is_active": s.revoked_at is None,
+                "is_current": s.id == current_token.id,
             }
             for s in sessions
         ],
@@ -225,5 +235,115 @@ def revoke_other_sessions(
     for session in sessions:
         session.revoked_at = now
 
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── Account deletion ─────────────────────────────────────────────────────────
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    current_token: UserSession = Depends(get_current_token),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    now = datetime.now(UTC)
+    sessions = (
+        db.execute(
+            select(UserSession).where(
+                UserSession.user_id == current_user.id,
+                UserSession.revoked_at.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for session in sessions:
+        session.revoked_at = now
+
+    current_user.is_active = False
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── Profile ──────────────────────────────────────────────────────────────────
+
+@router.patch("/me", response_model=UserOutSchema)
+def update_profile(
+    update: UserUpdateSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if update.display_name is not None:
+        stripped = update.display_name.strip()
+        current_user.display_name = stripped if stripped else None
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+# ── Preferences ───────────────────────────────────────────────────────────────
+
+@router.get("/preferences", response_model=UserPreferenceOutSchema)
+def get_preferences(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserPreference:
+    pref = (
+        db.execute(select(UserPreference).where(UserPreference.user_id == current_user.id))
+        .scalars()
+        .first()
+    )
+    if not pref:
+        pref = UserPreference(user_id=current_user.id)
+        db.add(pref)
+        db.commit()
+        db.refresh(pref)
+    return pref
+
+
+@router.patch("/preferences", response_model=UserPreferenceOutSchema)
+def update_preferences(
+    update: UserPreferenceUpdateSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserPreference:
+    pref = (
+        db.execute(select(UserPreference).where(UserPreference.user_id == current_user.id))
+        .scalars()
+        .first()
+    )
+    if not pref:
+        pref = UserPreference(user_id=current_user.id)
+        db.add(pref)
+        db.flush()
+
+    set_fields = update.model_fields_set
+    if "theme" in set_fields and update.theme is not None:
+        pref.theme = update.theme
+    if "language_code" in set_fields:
+        pref.language_code = update.language_code
+    if "timezone" in set_fields:
+        pref.timezone = update.timezone
+
+    db.commit()
+    db.refresh(pref)
+    return pref
+
+
+# ── Password ──────────────────────────────────────────────────────────────────
+
+@router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    data: PasswordChangeSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+    current_user.password_hash = hash_password(data.new_password)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

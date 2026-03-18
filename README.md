@@ -23,9 +23,9 @@ Frontend entry file:
 
 ## Backend
 
-Run from `AirIQ/backend`:
+Run from `AirIQ/` (the project root, one level above `backend/`):
 
 ```bash
-pip install -r requirements.txt
-python main.py
+pip install -r backend/requirements.txt
+uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 ```
