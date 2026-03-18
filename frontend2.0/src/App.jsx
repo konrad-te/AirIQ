@@ -16,6 +16,7 @@ import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
 import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
+import NewLandingPage from './pages/NewLandingPage'
 import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAirQualityData, suggestAddresses } from './services/airDataService'
 
@@ -77,7 +78,7 @@ function getAqiLevelClass(level) {
 }
 
 export default function App() {
-  const { user, logout } = useAuth()
+  const { user, logout, isLoadingAuth } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
@@ -237,6 +238,14 @@ export default function App() {
       window.clearTimeout(debounceId)
     }
   }, [searchAddress])
+
+  if (isLoadingAuth) {
+    return null
+  }
+
+  if (!user) {
+    return <NewLandingPage />
+  }
 
   if (route === '/globe') {
     return <MapboxGlobe onBack={handleBackToLanding} />
