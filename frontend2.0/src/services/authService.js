@@ -1,5 +1,16 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
+function extractDetail(data, fallback) {
+  if (!data || !data.detail) return fallback
+  if (typeof data.detail === 'string') return data.detail
+  // Pydantic v2 validation errors: detail is an array of error objects
+  if (Array.isArray(data.detail) && data.detail.length > 0) {
+    const first = data.detail[0]
+    if (typeof first.msg === 'string') return first.msg
+  }
+  return fallback
+}
+
 export async function loginUser(email, password) {
   const body = new URLSearchParams({ username: email, password })
   const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
@@ -9,7 +20,7 @@ export async function loginUser(email, password) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(data.detail || 'Login failed.')
+    throw new Error(extractDetail(data, 'Login failed.'))
   }
   return data
 }
@@ -33,7 +44,7 @@ export async function registerUser(email, password, displayName) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(data.detail || 'Registration failed.')
+    throw new Error(extractDetail(data, 'Registration failed.'))
   }
   return data
 }
