@@ -17,6 +17,9 @@ import PM25Chart from './components/PM25Chart'
 import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
+import FeedbackPage from './pages/FeedbackPage'
+import SettingsPage from './pages/SettingsPage'
+import SecurityPage from './pages/SecurityPage'
 import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAirQualityData, suggestAddresses } from './services/airDataService'
 
@@ -81,6 +84,7 @@ export default function App() {
   const { user, logout, isLoadingAuth } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [route, setRoute] = useState(() => window.location.pathname)
   const [searchAddress, setSearchAddress] = useState(mockData.location)
@@ -95,6 +99,21 @@ export default function App() {
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
     setRoute('/globe')
+  }
+
+  const handleOpenFeedback = () => {
+    window.history.pushState({}, '', '/feedback')
+    setRoute('/feedback')
+  }
+
+  const handleOpenSettings = () => {
+    window.history.pushState({}, '', '/settings')
+    setRoute('/settings')
+  }
+
+  const handleOpenSecurity = () => {
+    window.history.pushState({}, '', '/security')
+    setRoute('/security')
   }
 
   const handleBackToLanding = () => {
@@ -251,6 +270,18 @@ export default function App() {
     return <MapboxGlobe onBack={handleBackToLanding} />
   }
 
+  if (route === '/feedback') {
+    return <FeedbackPage onBack={handleBackToLanding} />
+  }
+
+  if (route === '/settings') {
+    return <SettingsPage onBack={handleBackToLanding} />
+  }
+
+  if (route === '/security') {
+    return <SecurityPage onBack={handleBackToLanding} />
+  }
+
   const heroPm25 = liveAirData?.current?.pm25 ?? mockData.pm25Value
   const heroPm10 = liveAirData?.current?.pm10 ?? mockData.pm10Value
   const heroLocation = currentLocationLabel
@@ -292,8 +323,28 @@ export default function App() {
         <div className="nav-actions">
           {user ? (
             <>
-              <span className="nav-user-label">{user.display_name || user.email}</span>
-              <button className="btn btn-ghost" onClick={logout}>Log out</button>
+            <button className="btn btn-ghost" onClick={handleOpenFeedback}>Feedback</button>
+            <div className="user-menu">
+              <button
+                className="btn btn-ghost user-menu-trigger"
+                onClick={() => setIsUserMenuOpen((prev) => !prev)}
+              >
+                {user.display_name || user.email}
+                <svg className="user-menu-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {isUserMenuOpen && (
+                <>
+                  <div className="user-menu-backdrop" onClick={() => setIsUserMenuOpen(false)} />
+                  <div className="user-menu-dropdown">
+                    <button className="user-menu-item user-menu-item--disabled" disabled>Rooms</button>
+                    <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>Settings</button>
+                    <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSecurity() }}>Security</button>
+                    <div className="user-menu-divider" />
+                    <button className="user-menu-item user-menu-item--logout" onClick={() => { setIsUserMenuOpen(false); logout() }}>Log out</button>
+                  </div>
+                </>
+              )}
+            </div>
             </>
           ) : (
             <>

@@ -58,3 +58,76 @@ export async function getCurrentUser(token) {
   }
   return response.json()
 }
+
+export async function updateProfile(token, { display_name }) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ display_name }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to update profile.'))
+  return data
+}
+
+export async function getPreferences(token) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/preferences`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to load preferences.'))
+  return data
+}
+
+export async function updatePreferences(token, prefs) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/preferences`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(prefs),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to update preferences.'))
+  return data
+}
+
+export async function changePassword(token, { current_password, new_password }) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/password`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ current_password, new_password }),
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(extractDetail(data, 'Failed to change password.'))
+  }
+}
+
+export async function getSessions(token) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/sessions`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to load sessions.'))
+  return data
+}
+
+export async function revokeSession(token, sessionId) {
+  await fetch(`${API_BASE_URL}/api/auth/sessions/${sessionId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function deleteAccount(token) {
+  await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function revokeAllOtherSessions(token) {
+  await fetch(`${API_BASE_URL}/api/auth/sessions`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}

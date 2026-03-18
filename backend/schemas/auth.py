@@ -21,3 +21,30 @@ class UserOutSchema(BaseModel):
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserUpdateSchema(BaseModel):
+    display_name: str | None = Field(default=None, max_length=120)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserPreferenceOutSchema(BaseModel):
+    theme: str
+    language_code: str | None
+    timezone: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserPreferenceUpdateSchema(BaseModel):
+    theme: str | None = Field(default=None, pattern="^(light|dark)$")
+    language_code: str | None = None
+    timezone: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PasswordChangeSchema(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
