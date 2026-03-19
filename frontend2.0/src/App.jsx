@@ -18,6 +18,7 @@ import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
+import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
 import SecurityPage from './pages/SecurityPage'
 import { useAuth } from './context/AuthContext'
@@ -104,6 +105,11 @@ export default function App() {
   const handleOpenFeedback = () => {
     window.history.pushState({}, '', '/feedback')
     setRoute('/feedback')
+  }
+
+  const handleOpenAdmin = () => {
+    window.history.pushState({}, '', '/admin')
+    setRoute('/admin')
   }
 
   const handleOpenSettings = () => {
@@ -274,6 +280,10 @@ export default function App() {
     return <FeedbackPage onBack={handleBackToLanding} />
   }
 
+  if (route === '/admin') {
+    return <AdminPage onBack={handleBackToLanding} />
+  }
+
   if (route === '/settings') {
     return <SettingsPage onBack={handleBackToLanding} />
   }
@@ -323,6 +333,9 @@ export default function App() {
         <div className="nav-actions">
           {user ? (
             <>
+            {user.role === 'admin' && (
+              <button className="btn btn-ghost" onClick={handleOpenAdmin}>Admin</button>
+            )}
             <button className="btn btn-ghost" onClick={handleOpenFeedback}>Feedback</button>
             <div className="user-menu">
               <button

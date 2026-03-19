@@ -131,3 +131,12 @@ export async function revokeAllOtherSessions(token) {
     headers: { Authorization: `Bearer ${token}` },
   })
 }
+
+export async function getAdminStats(token) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to load admin stats.'))
+  return data
+}

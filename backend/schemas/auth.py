@@ -19,6 +19,7 @@ class UserOutSchema(BaseModel):
     email: EmailStr
     display_name: str | None
     is_active: bool
+    role: str
 
     model_config = ConfigDict(from_attributes=True)
 
