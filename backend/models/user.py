@@ -43,6 +43,12 @@ class User(Base):
         nullable=True,
     )
 
+    role: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=text("'user'"),
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

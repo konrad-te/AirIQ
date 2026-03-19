@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -25,6 +25,7 @@ from backend.models import (
     LocationStationCache,
     ProviderCacheEntry,
     User,
+    UserSession,
 )
 from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
@@ -233,6 +234,39 @@ def run_map_ingest(db: Session = Depends(get_db)) -> dict:
         "total_points": summary.total_points,
         "success_count": summary.success_count,
         "fail_count": summary.fail_count,
+    }
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
+@app.get("/api/admin/stats")
+def get_admin_stats(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    now = datetime.now(UTC)
+    online_threshold = now - timedelta(minutes=15)
+
+    total_users = db.execute(select(func.count(User.id))).scalar_one()
+
+    online_users = db.execute(
+        select(func.count(func.distinct(UserSession.user_id))).where(
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at >= now,
+            UserSession.last_used_at >= online_threshold,
+        )
+    ).scalar_one()
+
+    subscribers = 0  # Placeholder until subscription model is implemented
+
+    return {
+        "total_users": total_users,
+        "online_users": online_users,
+        "subscribers": subscribers,
     }
 
 
