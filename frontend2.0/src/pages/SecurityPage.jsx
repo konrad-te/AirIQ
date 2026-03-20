@@ -108,21 +108,35 @@ function ChangePasswordSection() {
 }
 
 // ── Delete Account ────────────────────────────────────────────────────────────
-function DeleteAccountSection() {
+// Steps: 'initial' → 'password' → 'confirm'
+function DeleteAccountSection({ onDeleted }) {
   const { token, logout } = useAuth()
-  const [confirmed, setConfirmed] = useState(false)
+  const [step, setStep] = useState('initial')
+  const [password, setPassword] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
-  const handleDelete = async () => {
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault()
+    if (!password) {
+      setError('Please enter your password to confirm.')
+      return
+    }
+    setError('')
+    setStep('confirm')
+  }
+
+  const handleFinalDelete = async () => {
     setDeleting(true)
     setError('')
     try {
-      await deleteAccount(token)
+      await deleteAccount(token, password)
       await logout()
-    } catch {
-      setError('Something went wrong. Please try again.')
+      onDeleted()
+    } catch (err) {
+      setError(err.message)
       setDeleting(false)
+      setStep('password')
     }
   }
 
@@ -130,40 +144,77 @@ function DeleteAccountSection() {
     <div className="security-section">
       <h2 className="security-section-title security-section-title--danger">Delete Account</h2>
       <p className="security-section-desc">
-        Permanently deactivates your account and signs you out of all devices.
-        This action cannot be undone.
+        Deactivates your account and signs you out of all devices.
+        Your data will be permanently removed after 30 days.
       </p>
 
-      {!confirmed ? (
+      {step === 'initial' && (
         <button
           type="button"
           className="btn security-delete-btn"
-          onClick={() => setConfirmed(true)}
+          onClick={() => setStep('password')}
         >
           Delete my account
         </button>
-      ) : (
+      )}
+
+      {step === 'password' && (
+        <form className="security-delete-confirm" onSubmit={handlePasswordSubmit}>
+          <p className="security-delete-warning">
+            Enter your password to continue.
+          </p>
+          <div className="security-field">
+            <label htmlFor="delete-password" className="security-label">Password</label>
+            <input
+              id="delete-password"
+              type="password"
+              className="security-input"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError('') }}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+            />
+          </div>
+          {error && <p className="security-error" role="alert">{error}</p>}
+          <div className="security-delete-actions">
+            <button type="submit" className="btn security-delete-btn" disabled={!password}>
+              Continue
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => { setStep('initial'); setPassword(''); setError('') }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === 'confirm' && (
         <div className="security-delete-confirm">
           <p className="security-delete-warning">
-            Are you sure? Your account will be permanently deactivated.
+            Are you sure? Your account will be deactivated and your data will be permanently
+            removed after 30 days. You can reactivate by registering with the same email
+            within that period.
           </p>
           {error && <p className="security-error" role="alert">{error}</p>}
           <div className="security-delete-actions">
             <button
               type="button"
               className="btn security-delete-btn"
-              onClick={handleDelete}
+              onClick={handleFinalDelete}
               disabled={deleting}
             >
-              {deleting ? 'Deleting…' : 'Yes, delete my account'}
+              {deleting ? 'Deleting…' : 'Yes, permanently delete'}
             </button>
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => { setConfirmed(false); setError('') }}
+              onClick={() => setStep('password')}
               disabled={deleting}
             >
-              Cancel
+              Go back
             </button>
           </div>
         </div>
@@ -173,13 +224,13 @@ function DeleteAccountSection() {
 }
 
 // ── Page shell ────────────────────────────────────────────────────────────────
-export default function SecurityPage({ onBack }) {
+export default function SecurityPage({ onBack, onAccountDeleted }) {
   const [activeSection, setActiveSection] = useState('password')
 
   const renderSection = () => {
     switch (activeSection) {
       case 'password': return <ChangePasswordSection />
-      case 'delete': return <DeleteAccountSection />
+      case 'delete': return <DeleteAccountSection onDeleted={onAccountDeleted} />
       default: return null
     }
   }
