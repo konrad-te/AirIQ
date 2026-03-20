@@ -47,6 +47,7 @@ const TIMEZONES = [
 function ProfileSection() {
   const { user, token, updateUser } = useAuth()
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
+  const [email, setEmail] = useState(user?.email ?? '')
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -57,7 +58,9 @@ function ProfileSection() {
     setError('')
     setSuccess(false)
     try {
-      const updated = await updateProfile(token, { display_name: displayName || null })
+      const payload = { display_name: displayName || null }
+      if (email !== user?.email) payload.email = email
+      const updated = await updateProfile(token, payload)
       updateUser(updated)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -75,7 +78,15 @@ function ProfileSection() {
       <form className="settings-form" onSubmit={handleSave}>
         <div className="settings-field">
           <label htmlFor="s-email" className="settings-label">Email</label>
-          <input id="s-email" className="settings-input settings-input--readonly" value={user?.email ?? ''} readOnly />
+          <input
+            id="s-email"
+            type="email"
+            className="settings-input"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(''); setSuccess(false) }}
+            placeholder="your@email.com"
+            disabled={saving}
+          />
         </div>
         <div className="settings-field">
           <label htmlFor="s-display-name" className="settings-label">Display name</label>
