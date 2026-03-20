@@ -17,6 +17,7 @@ REQUIRED_TABLES = {
     "location_station_cache",
     "provider_cache_entries",
     "ingest_runs",
+    "feedback",
 }
 
 

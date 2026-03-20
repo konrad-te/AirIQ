@@ -21,6 +21,8 @@ import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
 import SecurityPage from './pages/SecurityPage'
+import FarewellPage from './pages/FarewellPage'
+import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAirQualityData, suggestAddresses } from './services/airDataService'
 
@@ -125,6 +127,11 @@ export default function App() {
   const handleBackToLanding = () => {
     window.history.pushState({}, '', '/')
     setRoute('/')
+  }
+
+  const handleAccountDeleted = () => {
+    window.history.pushState({}, '', '/farewell')
+    setRoute('/farewell')
   }
 
   const handleAddDevice = (deviceType) => {
@@ -268,8 +275,16 @@ export default function App() {
     return null
   }
 
+  if (route === '/farewell') {
+    return <FarewellPage onClose={handleBackToLanding} />
+  }
+
   if (!user) {
-    return <NewLandingPage />
+    return <NewLandingPage onReactivated={() => { window.history.pushState({}, '', '/welcome-back'); setRoute('/welcome-back') }} />
+  }
+
+  if (route === '/welcome-back') {
+    return <WelcomeBackPage onGoToDashboard={handleBackToLanding} onGoToSettings={() => { window.history.pushState({}, '', '/settings'); setRoute('/settings') }} />
   }
 
   if (route === '/globe') {
@@ -289,7 +304,7 @@ export default function App() {
   }
 
   if (route === '/security') {
-    return <SecurityPage onBack={handleBackToLanding} />
+    return <SecurityPage onBack={handleBackToLanding} onAccountDeleted={handleAccountDeleted} />
   }
 
   const heroPm25 = liveAirData?.current?.pm25 ?? mockData.pm25Value

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { registerUser } from '../services/authService'
 import './RegisterModal.css'
 
-export default function RegisterModal({ isOpen, onClose }) {
+export default function RegisterModal({ isOpen, onClose, onReactivated }) {
   const { login } = useAuth()
   const mouseDownOnOverlay = useRef(false)
   const [displayName, setDisplayName] = useState('')
@@ -49,13 +49,16 @@ export default function RegisterModal({ isOpen, onClose }) {
     setError('')
 
     try {
-      await registerUser(email.trim(), password, displayName.trim())
+      const result = await registerUser(email.trim(), password, displayName.trim())
       await login(email.trim(), password)
       setDisplayName('')
       setEmail('')
       setPassword('')
       setConfirmPassword('')
       onClose()
+      if (result.reactivated && onReactivated) {
+        onReactivated()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.')
     } finally {

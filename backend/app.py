@@ -18,8 +18,10 @@ from backend.models import (
     CityPoint,
     DataProvider,
     ExternalStation,
+    Feedback,
     GeocodeCacheEntry,
     GlobeAqCache,
+    Household,
     HouseholdMember,
     IngestRun,
     LocationStationCache,
@@ -29,6 +31,7 @@ from backend.models import (
 )
 from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
+from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
@@ -108,6 +111,14 @@ def on_startup() -> None:
             max_instances=1,
             coalesce=True,
         )
+        scheduler.add_job(
+            _run_account_cleanup,
+            trigger=IntervalTrigger(hours=24),
+            id="account_cleanup_daily",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         scheduler.start()
 
 
@@ -162,6 +173,22 @@ def _run_scheduled_ingest() -> None:
             batch_size=40,
             triggered_by="scheduler",
         )
+    finally:
+        db.close()
+
+
+def _run_account_cleanup() -> None:
+    from backend.services.account_cleanup import cleanup_deactivated_accounts
+
+    db = SessionLocal()
+    try:
+        removed = cleanup_deactivated_accounts(db)
+        if removed:
+            import logging
+
+            logging.getLogger(__name__).info(
+                "Account cleanup: removed %d deactivated user(s)", removed
+            )
     finally:
         db.close()
 
@@ -250,7 +277,10 @@ def get_admin_stats(
 ) -> dict:
     now = datetime.now(UTC)
     online_threshold = now - timedelta(minutes=15)
+    seven_days_ago = now - timedelta(days=7)
+    thirty_days_ago = now - timedelta(days=30)
 
+    # ── User stats ────────────────────────────────────────────────────────
     total_users = db.execute(select(func.count(User.id))).scalar_one()
 
     online_users = db.execute(
@@ -263,10 +293,154 @@ def get_admin_stats(
 
     subscribers = 0  # Placeholder until subscription model is implemented
 
+    # ── Registration trend ────────────────────────────────────────────────
+    signups_7d = db.execute(
+        select(func.count(User.id)).where(User.created_at >= seven_days_ago)
+    ).scalar_one()
+
+    signups_30d = db.execute(
+        select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
+    ).scalar_one()
+
+    # ── Household stats ──────────────────────────────────────────────────
+    total_households = db.execute(select(func.count(Household.id))).scalar_one()
+
+    total_members = db.execute(
+        select(func.count(HouseholdMember.id)).where(HouseholdMember.is_active.is_(True))
+    ).scalar_one()
+
+    avg_members = round(total_members / total_households, 1) if total_households else 0
+
+    # ── Session stats ─────────────────────────────────────────────────────
+    active_sessions = db.execute(
+        select(func.count(UserSession.id)).where(
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at >= now,
+        )
+    ).scalar_one()
+
+    avg_sessions_per_user = (
+        round(active_sessions / total_users, 1) if total_users else 0
+    )
+
+    # ── Cache health ──────────────────────────────────────────────────────
+    provider_cache_active = db.execute(
+        select(func.count(ProviderCacheEntry.id)).where(
+            ProviderCacheEntry.expires_at >= now
+        )
+    ).scalar_one()
+    provider_cache_expired = db.execute(
+        select(func.count(ProviderCacheEntry.id)).where(
+            ProviderCacheEntry.expires_at < now
+        )
+    ).scalar_one()
+
+    geocode_cache_active = db.execute(
+        select(func.count(GeocodeCacheEntry.id)).where(
+            GeocodeCacheEntry.expires_at >= now
+        )
+    ).scalar_one()
+    geocode_cache_expired = db.execute(
+        select(func.count(GeocodeCacheEntry.id)).where(
+            GeocodeCacheEntry.expires_at < now
+        )
+    ).scalar_one()
+
+    location_cache_active = db.execute(
+        select(func.count(LocationStationCache.id)).where(
+            LocationStationCache.expires_at >= now
+        )
+    ).scalar_one()
+    location_cache_expired = db.execute(
+        select(func.count(LocationStationCache.id)).where(
+            LocationStationCache.expires_at < now
+        )
+    ).scalar_one()
+
+    # ── AQ coverage ───────────────────────────────────────────────────────
+    total_city_points = db.execute(
+        select(func.count(CityPoint.id)).where(CityPoint.is_active.is_(True))
+    ).scalar_one()
+
+    globe_fresh = db.execute(
+        select(func.count(GlobeAqCache.city_point_id)).where(
+            GlobeAqCache.stale.is_(False)
+        )
+    ).scalar_one()
+
+    globe_stale = db.execute(
+        select(func.count(GlobeAqCache.city_point_id)).where(
+            GlobeAqCache.stale.is_(True)
+        )
+    ).scalar_one()
+
+    # ── Data providers ────────────────────────────────────────────────────
+    providers = (
+        db.execute(select(DataProvider).order_by(DataProvider.provider_code.asc()))
+        .scalars()
+        .all()
+    )
+
+    # ── Latest ingest runs ────────────────────────────────────────────────
+    ingest_rows = db.execute(
+        select(IngestRun, DataProvider)
+        .join(DataProvider, DataProvider.id == IngestRun.provider_id)
+        .order_by(IngestRun.id.desc())
+        .limit(10)
+    ).all()
+
+    # ── System overview ───────────────────────────────────────────────────
+    external_station_count = db.execute(
+        select(func.count(ExternalStation.id))
+    ).scalar_one()
+
     return {
         "total_users": total_users,
         "online_users": online_users,
         "subscribers": subscribers,
+        "registration_trend": {
+            "signups_7d": signups_7d,
+            "signups_30d": signups_30d,
+        },
+        "households": {
+            "total": total_households,
+            "avg_members": avg_members,
+        },
+        "sessions": {
+            "active": active_sessions,
+            "avg_per_user": avg_sessions_per_user,
+        },
+        "cache_health": {
+            "provider": {"active": provider_cache_active, "expired": provider_cache_expired},
+            "geocode": {"active": geocode_cache_active, "expired": geocode_cache_expired},
+            "location": {"active": location_cache_active, "expired": location_cache_expired},
+        },
+        "aq_coverage": {
+            "total_cities": total_city_points,
+            "fresh": globe_fresh,
+            "stale": globe_stale,
+        },
+        "providers": [
+            {
+                "provider_code": p.provider_code,
+                "display_name": p.display_name,
+                "is_active": p.is_active,
+                "auth_type": p.auth_type,
+            }
+            for p in providers
+        ],
+        "latest_ingest_runs": [
+            {
+                **_serialize_ingest_run(run),
+                "provider_code": provider.provider_code,
+                "provider_name": provider.display_name,
+            }
+            for run, provider in ingest_rows
+        ],
+        "system": {
+            "scheduler_running": scheduler.running,
+            "external_stations": external_station_count,
+        },
     }
 
 
@@ -375,6 +549,83 @@ def get_admin_debug_overview(db: Session = Depends(get_db)) -> dict:
         },
         "latest_ingest_runs": latest_runs_payload,
     }
+
+
+# ── Feedback ──────────────────────────────────────────────────────────────────
+
+
+@app.post("/api/feedback", status_code=201)
+def submit_feedback(
+    body: FeedbackCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    fb = Feedback(
+        user_id=current_user.id,
+        category=body.category,
+        message=body.message,
+    )
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+    return {"id": fb.id}
+
+
+@app.get("/api/admin/feedback")
+def get_admin_feedback(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    rows = (
+        db.execute(
+            select(Feedback, User)
+            .outerjoin(User, User.id == Feedback.user_id)
+            .order_by(Feedback.created_at.desc())
+        )
+        .all()
+    )
+    items = [
+        FeedbackOutSchema(
+            id=fb.id,
+            user_id=fb.user_id,
+            user_email=user.email if user else "Deleted user",
+            user_display_name=user.display_name if user else "Deleted user",
+            category=fb.category,
+            message=fb.message,
+            is_read=fb.is_read,
+            created_at=fb.created_at,
+        ).model_dump(mode="json")
+        for fb, user in rows
+    ]
+    unread = sum(1 for i in items if not i["is_read"])
+    return {"count": len(items), "unread": unread, "items": items}
+
+
+@app.patch("/api/admin/feedback/{feedback_id}")
+def mark_feedback_read(
+    feedback_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    fb = db.get(Feedback, feedback_id)
+    if not fb:
+        raise HTTPException(status_code=404, detail="Feedback not found.")
+    fb.is_read = True
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/admin/feedback/{feedback_id}", status_code=204)
+def delete_feedback(
+    feedback_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    fb = db.get(Feedback, feedback_id)
+    if not fb:
+        raise HTTPException(status_code=404, detail="Feedback not found.")
+    db.delete(fb)
+    db.commit()
 
 
 @app.get("/api/auth/protected-test")

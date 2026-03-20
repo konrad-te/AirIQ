@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import logoAiriq from '../assets/logo-airiq.svg'
 import { useAuth } from '../context/AuthContext'
+import { submitFeedback } from '../services/authService'
 import './FeedbackPage.css'
 
 const CATEGORIES = [
@@ -13,7 +14,7 @@ const CATEGORIES = [
 ]
 
 export default function FeedbackPage({ onBack }) {
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const [category, setCategory] = useState('')
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -35,8 +36,7 @@ export default function FeedbackPage({ onBack }) {
     setIsSubmitting(true)
 
     try {
-      // TODO: POST /api/feedback with { category, message, user_id: user.id }
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      await submitFeedback(token, { category, message: message.trim() })
       setSubmitted(true)
     } catch {
       setError('Something went wrong. Please try again.')

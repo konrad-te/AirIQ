@@ -5,7 +5,7 @@ import LoginModal from '../components/LoginModal'
 import RegisterModal from '../components/RegisterModal'
 import './NewLandingPage.css'
 
-export default function NewLandingPage() {
+export default function NewLandingPage({ onReactivated }) {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
 
@@ -20,7 +20,7 @@ export default function NewLandingPage() {
       </header>
 
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
-      <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
+      <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onReactivated={onReactivated} />
     </div>
   )
 }

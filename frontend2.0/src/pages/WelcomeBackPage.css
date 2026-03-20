@@ -1,0 +1,99 @@
+.wb-page {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #eef4fd 0%, #f7faff 60%, #e8f0fb 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.wb-header {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(210, 225, 243, 0.7);
+  padding: 0 2rem;
+  height: 64px;
+  display: flex;
+  align-items: center;
+}
+
+.wb-header-inner {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wb-logo {
+  height: 28px;
+}
+
+.wb-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.wb-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 3rem 2.5rem;
+  width: 100%;
+  max-width: 500px;
+  box-shadow:
+    0 24px 56px rgba(40, 95, 170, 0.12),
+    0 0 0 1px rgba(215, 228, 245, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+}
+
+.wb-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #22c55e;
+  margin-bottom: 0.5rem;
+}
+
+.wb-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a3152;
+  margin: 0;
+}
+
+.wb-body {
+  font-size: 0.95rem;
+  color: #4f6687;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 400px;
+}
+
+.wb-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 260px;
+  margin-top: 0.5rem;
+}
+
+.wb-btn {
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .wb-card {
+    padding: 2rem 1.5rem;
+  }
+}

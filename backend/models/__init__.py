@@ -2,6 +2,7 @@ from .base import Base
 from .city_point import CityPoint
 from .data_provider import DataProvider
 from .external_station import ExternalStation
+from .feedback import Feedback
 from .geocode_cache_entry import GeocodeCacheEntry
 from .globe_aq_cache import GlobeAqCache
 from .household import Household
@@ -18,6 +19,7 @@ __all__ = [
     "CityPoint",
     "DataProvider",
     "ExternalStation",
+    "Feedback",
     "GeocodeCacheEntry",
     "GlobeAqCache",
     "Household",

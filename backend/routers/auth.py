@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from backend.models import Household, HouseholdMember, User, UserPreference, UserSession
 from backend.schemas.auth import (
+    DeleteAccountSchema,
     PasswordChangeSchema,
     TokenSchema,
     UserOutSchema,
@@ -44,18 +45,44 @@ def build_default_household_slug(user: User) -> str:
     return f"{safe}-{user.id}"
 
 
-@router.post(
-    "/user/create", response_model=UserOutSchema, status_code=status.HTTP_201_CREATED
-)
+@router.post("/user/create", status_code=status.HTTP_201_CREATED)
 def register_user(
     user: UserRegisterSchema,
     db: Session = Depends(get_db),
-) -> User:
+) -> dict:
+    normalised_email = user.email.strip().lower()
     hashed_password = hash_password(user.password)
+
+    # Check for deactivated account eligible for reactivation
+    existing = (
+        db.execute(select(User).where(User.email == normalised_email))
+        .scalars()
+        .first()
+    )
+
+    if existing and not existing.is_active:
+        existing.is_active = True
+        existing.password_hash = hashed_password
+        existing.deactivated_at = None
+        if user.display_name:
+            existing.display_name = user.display_name.strip()
+        db.commit()
+        db.refresh(existing)
+        return {
+            **UserOutSchema.model_validate(existing).model_dump(),
+            "reactivated": True,
+            "welcome_message": f"Welcome back{', ' + existing.display_name if existing.display_name else ''}!",
+        }
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User already exists",
+        )
 
     try:
         new_user = User(
-            email=user.email.strip().lower(),
+            email=normalised_email,
             display_name=user.display_name.strip() if user.display_name else None,
             password_hash=hashed_password,
         )
@@ -243,10 +270,17 @@ def revoke_other_sessions(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_account(
+    data: DeleteAccountSchema,
     current_token: UserSession = Depends(get_current_token),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    if not verify_password(data.password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect password.",
+        )
+
     now = datetime.now(UTC)
     sessions = (
         db.execute(
@@ -262,6 +296,7 @@ def delete_account(
         session.revoked_at = now
 
     current_user.is_active = False
+    current_user.deactivated_at = now
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
