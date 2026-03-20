@@ -7,10 +7,12 @@ from .geocode_cache_entry import GeocodeCacheEntry
 from .globe_aq_cache import GlobeAqCache
 from .household import Household
 from .household_member import HouseholdMember
+from .indoor_sensor_reading import IndoorSensorReading
 from .ingest_run import IngestRun
 from .location_station_cache import LocationStationCache
 from .provider_cache_entry import ProviderCacheEntry
 from .user import User
+from .user_qingping_integration import UserQingpingIntegration
 from .user_preference import UserPreference
 from .user_sessions import UserSession
 
@@ -24,10 +26,12 @@ __all__ = [
     "GlobeAqCache",
     "Household",
     "HouseholdMember",
+    "IndoorSensorReading",
     "IngestRun",
     "LocationStationCache",
     "ProviderCacheEntry",
     "User",
+    "UserQingpingIntegration",
     "UserPreference",
     "UserSession",
 ]

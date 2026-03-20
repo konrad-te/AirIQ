@@ -32,6 +32,7 @@ from backend.models import (
 from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
+from backend.routers.integrations import router as integrations_router
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
@@ -43,6 +44,7 @@ from backend.main import (
     get_lat_lon_nominatim_cached,
     suggest_addresses_nominatim,
 )
+from backend.routers.integrations import get_qingping_latest_reading
 
 app = FastAPI(title="AirIQ API")
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -63,6 +65,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(households_router)
+app.include_router(integrations_router)
 
 
 def _to_iso(value: datetime | None) -> str | None:
@@ -91,6 +94,27 @@ def _serialize_ingest_run(run: IngestRun) -> dict:
     }
 
 
+def _bootstrap_globe_data() -> None:
+    db = SessionLocal()
+    try:
+        city_point_count = db.execute(select(func.count(CityPoint.id))).scalar_one()
+        if city_point_count == 0:
+            seed_city_points(db, per_country=4)
+            city_point_count = db.execute(select(func.count(CityPoint.id))).scalar_one()
+
+        globe_cache_count = db.execute(
+            select(func.count(GlobeAqCache.city_point_id))
+        ).scalar_one()
+        if city_point_count > 0 and globe_cache_count == 0:
+            run_globe_ingest(
+                db=db,
+                batch_size=40,
+                triggered_by="startup",
+            )
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
@@ -101,6 +125,8 @@ def on_startup() -> None:
         ensure_data_providers(db)
     finally:
         db.close()
+
+    _bootstrap_globe_data()
 
     if not scheduler.running:
         scheduler.add_job(
@@ -163,6 +189,14 @@ def geocode_suggest(
     limit: int = Query(5, ge=1, le=10),
 ) -> dict:
     return {"results": suggest_addresses_nominatim(q, limit=limit)}
+
+
+@app.get("/api/sensor/home/latest")
+def get_home_sensor_latest(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return get_qingping_latest_reading(current_user=current_user, db=db).model_dump()
 
 
 def _run_scheduled_ingest() -> None:

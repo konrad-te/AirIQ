@@ -19,6 +19,22 @@ export default function NewLandingPage({ onReactivated }) {
         </div>
       </header>
 
+      <section className="new-landing-hero">
+        <h1 className="new-landing-headline">
+          See how air quality impacts{' '}
+          <span className="new-landing-headline--accent">your sleep and performance.</span>
+        </h1>
+        <p className="new-landing-subtext">
+          Track outdoor pollution, monitor your indoor air, and connect your sleep data from Garmin.
+          AirIQ analyzes everything together to give you personalized recommendations for better sleep
+          and smarter training.
+        </p>
+        <div className="new-landing-cta">
+          <button className="new-landing-btn new-landing-btn--primary new-landing-btn--cta" onClick={() => setIsRegisterOpen(true)}>Get started</button>
+          <button className="new-landing-btn new-landing-btn--ghost new-landing-btn--cta" onClick={() => setIsLoginOpen(true)}>Log in to access all features</button>
+        </div>
+      </section>
+
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onReactivated={onReactivated} />
     </div>
