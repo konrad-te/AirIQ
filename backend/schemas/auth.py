@@ -26,6 +26,7 @@ class UserOutSchema(BaseModel):
 
 class UserUpdateSchema(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
+    email: EmailStr | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

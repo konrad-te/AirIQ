@@ -59,11 +59,13 @@ export async function getCurrentUser(token) {
   return response.json()
 }
 
-export async function updateProfile(token, { display_name }) {
+export async function updateProfile(token, { display_name, email }) {
+  const body = { display_name }
+  if (email !== undefined) body.email = email
   const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ display_name }),
+    body: JSON.stringify(body),
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(extractDetail(data, 'Failed to update profile.'))

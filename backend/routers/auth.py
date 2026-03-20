@@ -277,6 +277,20 @@ def update_profile(
     if update.display_name is not None:
         stripped = update.display_name.strip()
         current_user.display_name = stripped if stripped else None
+    if update.email is not None:
+        normalised = update.email.strip().lower()
+        if normalised == current_user.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New email must be different from the current email.",
+            )
+        existing = db.execute(select(User).where(User.email == normalised)).scalars().first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That email is already in use.",
+            )
+        current_user.email = normalised
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -343,6 +357,11 @@ def change_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect.",
+        )
+    if verify_password(data.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from the current password.",
         )
     current_user.password_hash = hash_password(data.new_password)
     db.commit()
