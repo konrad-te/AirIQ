@@ -11,6 +11,7 @@ import windowIcon from './assets/window.png'
 import moonIcon from './assets/moon.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
+import DeviceSetupModal from './components/DeviceSetupModal'
 import LoginModal from './components/LoginModal'
 import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
@@ -24,7 +25,8 @@ import SecurityPage from './pages/SecurityPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
-import { geocodeAddress, getAirQualityData, suggestAddresses } from './services/airDataService'
+import { geocodeAddress, getAirQualityData, getIndoorSensorData, suggestAddresses } from './services/airDataService'
+import { getQingpingIntegrationStatus } from './services/integrationService'
 
 const mockData = {
   location: 'Stockholm, Sweden',
@@ -84,10 +86,11 @@ function getAqiLevelClass(level) {
 }
 
 export default function App() {
-  const { user, logout, isLoadingAuth } = useAuth()
+  const { user, token, logout, isLoadingAuth } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isDeviceSetupOpen, setIsDeviceSetupOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [route, setRoute] = useState(() => window.location.pathname)
   const [searchAddress, setSearchAddress] = useState(mockData.location)
@@ -98,6 +101,9 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [sensorStatus, setSensorStatus] = useState(null)
+  const [sensorReading, setSensorReading] = useState(null)
+  const [sensorError, setSensorError] = useState('')
 
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
@@ -136,6 +142,9 @@ export default function App() {
 
   const handleAddDevice = (deviceType) => {
     setSelectedDevice(deviceType)
+    if (deviceType === 'sensor') {
+      setIsDeviceSetupOpen(true)
+    }
     // eslint-disable-next-line no-console
     console.log('User chose device:', deviceType)
   }
@@ -214,6 +223,10 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!user) {
+      return undefined
+    }
+
     let cancelled = false
 
     async function loadInitialAirData() {
@@ -244,9 +257,15 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
+    if (!user) {
+      setSuggestions([])
+      setIsLoadingSuggestions(false)
+      return undefined
+    }
+
     const query = searchAddress.trim()
     if (query.length < 2) {
       setSuggestions([])
@@ -269,7 +288,51 @@ export default function App() {
     return () => {
       window.clearTimeout(debounceId)
     }
-  }, [searchAddress])
+  }, [searchAddress, user])
+
+  useEffect(() => {
+    if (!token) {
+      setSensorStatus(null)
+      setSensorReading(null)
+      setSensorError('')
+      return undefined
+    }
+
+    let cancelled = false
+
+    const loadIndoorData = async () => {
+      try {
+        const status = await getQingpingIntegrationStatus(token)
+        if (cancelled) return
+
+        setSensorStatus(status)
+
+        if (!status?.is_connected || !status?.selected_device_id) {
+          setSensorReading(null)
+          setSensorError('')
+          return
+        }
+
+        const latest = await getIndoorSensorData(token)
+        if (!cancelled) {
+          setSensorReading(latest)
+          setSensorError('')
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSensorError(error instanceof Error ? error.message : 'Failed to load indoor sensor data.')
+        }
+      }
+    }
+
+    loadIndoorData()
+    const intervalId = window.setInterval(loadIndoorData, 60000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [token])
 
   if (isLoadingAuth) {
     return null
@@ -331,6 +394,10 @@ export default function App() {
         ? 'Airly forecast'
         : 'Forecast'
   const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
+  const hasConnectedIndoorSensor = Boolean(sensorStatus?.is_connected && sensorStatus?.selected_device_id)
+  const indoorUpdatedLabel = sensorReading?.updated_at
+    ? new Date(sensorReading.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'No reading yet'
 
   return (
     <div className="page-root" style={{ backgroundImage: `url(${heroBackground})` }}>
@@ -446,30 +513,6 @@ export default function App() {
               </div>
             </div>
 
-            <section className="hero-strip">
-              <div className="hero-strip-item">
-                <span className="hero-strip-icon" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></svg>
-                </span>
-                <p className="hero-strip-title">Actionable recommendations</p>
-                <p className="hero-strip-subtitle">What to do today</p>
-              </div>
-              <div className="hero-strip-item">
-                <span className="hero-strip-icon" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-                </span>
-                <p className="hero-strip-title">Local accuracy</p>
-                <p className="hero-strip-subtitle">Down to your street</p>
-              </div>
-              <div className="hero-strip-item">
-                <span className="hero-strip-icon" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
-                </span>
-                <p className="hero-strip-title">Trends &amp; alerts</p>
-                <p className="hero-strip-subtitle">Plan your week</p>
-              </div>
-            </section>
-
             <section className="daily-plan-section">
               <h2 className="section-title">Your Daily Air Plan</h2>
               <div className="daily-plan-cards">
@@ -531,6 +574,69 @@ export default function App() {
                     <span className="devices-inline-subtitle">Email | App | Watch</span>
                   </span>
                 </button>
+              </div>
+              <div className="indoor-sensor-summary">
+                <div className="indoor-sensor-summary__header">
+                  <div>
+                    <p className="indoor-sensor-summary__eyebrow">AirIQ Home</p>
+                    <h3 className="indoor-sensor-summary__title">
+                      {hasConnectedIndoorSensor ? sensorStatus?.selected_device_name || 'Qingping connected' : 'No indoor sensor connected yet'}
+                    </h3>
+                  </div>
+                  <span className={`indoor-sensor-summary__badge ${hasConnectedIndoorSensor ? 'indoor-sensor-summary__badge--live' : ''}`}>
+                    {hasConnectedIndoorSensor ? 'Live sync' : 'Setup needed'}
+                  </span>
+                </div>
+
+                <p className="indoor-sensor-summary__copy">
+                  {hasConnectedIndoorSensor
+                    ? `Latest reading from ${sensorStatus?.selected_product_name || 'your Qingping sensor'} is available in AirIQ.`
+                    : 'Connect your Qingping sensor once, choose the device, and AirIQ will keep syncing the latest indoor readings for you.'}
+                </p>
+
+                {sensorError ? (
+                  <p className="indoor-sensor-summary__error">{sensorError}</p>
+                ) : null}
+
+                <div className="indoor-sensor-summary__grid">
+                  <div className="indoor-sensor-summary__stat">
+                    <span className="indoor-sensor-summary__label">Temperature</span>
+                    <span className="indoor-sensor-summary__value">{sensorReading?.temperature_c ?? '--'}<span className="indoor-sensor-summary__unit">C</span></span>
+                  </div>
+                  <div className="indoor-sensor-summary__stat">
+                    <span className="indoor-sensor-summary__label">Humidity</span>
+                    <span className="indoor-sensor-summary__value">{sensorReading?.humidity_pct ?? '--'}<span className="indoor-sensor-summary__unit">%</span></span>
+                  </div>
+                  <div className="indoor-sensor-summary__stat">
+                    <span className="indoor-sensor-summary__label">PM2.5</span>
+                    <span className="indoor-sensor-summary__value">{sensorReading?.pm2_5_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
+                  </div>
+                  <div className="indoor-sensor-summary__stat">
+                    <span className="indoor-sensor-summary__label">CO2</span>
+                    <span className="indoor-sensor-summary__value">{sensorReading?.co2_ppm ?? '--'}<span className="indoor-sensor-summary__unit">ppm</span></span>
+                  </div>
+                  <div className="indoor-sensor-summary__stat">
+                    <span className="indoor-sensor-summary__label">PM10</span>
+                    <span className="indoor-sensor-summary__value">{sensorReading?.pm10_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
+                  </div>
+                </div>
+
+                <div className="indoor-sensor-summary__footer">
+                  <span>{sensorStatus?.selected_serial_number || sensorStatus?.selected_wifi_mac || 'Select a Qingping sensor in setup'}</span>
+                  <span className="indoor-sensor-summary__footer-right">
+                    <span className="indoor-sensor-summary__battery-chip">
+                      <span className="indoor-sensor-summary__battery-icon" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="7" width="18" height="10" rx="2" ry="2" />
+                          <line x1="22" y1="11" x2="22" y2="13" />
+                          <path d="M6 11h7" />
+                        </svg>
+                      </span>
+                      <span>Battery {sensorReading?.battery_pct ?? '--'}%</span>
+                    </span>
+                    <span>Updated: {indoorUpdatedLabel}</span>
+                  </span>
+                </div>
               </div>
             </section>
           </div>
@@ -668,6 +774,24 @@ export default function App() {
         </div>
       </footer>
 
+      <DeviceSetupModal
+        isOpen={isDeviceSetupOpen}
+        onClose={() => setIsDeviceSetupOpen(false)}
+        onConnected={async () => {
+          if (!token) return
+          try {
+            const [status, reading] = await Promise.all([
+              getQingpingIntegrationStatus(token),
+              getIndoorSensorData(token).catch(() => null),
+            ])
+            setSensorStatus(status)
+            setSensorReading(reading)
+            setSensorError('')
+          } catch (error) {
+            setSensorError(error instanceof Error ? error.message : 'Failed to refresh indoor sensor.')
+          }
+        }}
+      />
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
     </div>

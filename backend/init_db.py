@@ -9,6 +9,8 @@ REQUIRED_TABLES = {
     "households",
     "household_members",
     "user_preferences",
+    "user_qingping_integrations",
+    "indoor_sensor_readings",
     "data_providers",
     "city_points",
     "globe_aq_cache",

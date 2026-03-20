@@ -1,8 +1,11 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+
 .new-landing-root {
   min-height: 100vh;
   background-size: cover;
-  background-position: center;
+  background-position: center top;
   background-repeat: no-repeat;
+  background-color: #dbe8ff;
   display: flex;
   flex-direction: column;
 }
@@ -33,7 +36,7 @@
   font-size: 0.9rem;
   cursor: pointer;
   font-weight: 500;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+  font-family: 'DM Sans', system-ui, sans-serif;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -50,4 +53,108 @@
   background: linear-gradient(135deg, #0874f8, #02b4ff);
   color: #ffffff;
   box-shadow: 0 14px 26px rgba(13, 89, 192, 0.5);
+}
+
+.new-landing-cta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 0.8rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(223, 234, 249, 0.95);
+  box-shadow: 0 14px 40px rgba(113, 144, 198, 0.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  width: fit-content;
+}
+
+.new-landing-btn--cta {
+  min-height: 58px;
+  padding: 0.9rem 2rem;
+  font-size: 1.02rem;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.new-landing-btn--cta:first-child {
+  padding-inline: 2.2rem;
+}
+
+.new-landing-btn--cta:last-child {
+  background: transparent;
+  color: #3c5883;
+  border: none;
+  box-shadow: none;
+  padding-inline: 1.9rem 2.1rem;
+}
+
+.new-landing-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 4.75rem clamp(1.5rem, 5vw, 4rem) 0;
+  gap: 1.35rem;
+  max-width: 920px;
+}
+
+.new-landing-headline {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: clamp(2.7rem, 5.4vw, 4.55rem);
+  font-weight: 700;
+  line-height: 1.12;
+  color: #22345d;
+  letter-spacing: -0.04em;
+  max-width: 860px;
+  margin: 0;
+}
+
+.new-landing-headline--accent {
+  color: #2c8df2;
+}
+
+.new-landing-subtext {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: clamp(1.08rem, 1.75vw, 1.42rem);
+  font-weight: 400;
+  color: #425779;
+  line-height: 1.55;
+  max-width: 760px;
+  margin: 0;
+}
+
+@media (min-width: 1280px) and (min-aspect-ratio: 16/9) {
+  .new-landing-root {
+    background-size: 100vw 100vh;
+  }
+}
+
+@media (max-width: 1279px), (max-aspect-ratio: 16/9) {
+  .new-landing-root {
+    background-size: contain;
+    background-position: center top;
+  }
+}
+
+@media (max-width: 720px) {
+  .new-landing-hero {
+    align-items: center;
+    text-align: center;
+    padding-top: 3.5rem;
+  }
+
+  .new-landing-cta {
+    flex-direction: column;
+    width: min(100%, 420px);
+    border-radius: 28px;
+  }
+
+  .new-landing-btn--cta,
+  .new-landing-btn--cta:first-child,
+  .new-landing-btn--cta:last-child {
+    width: 100%;
+    padding-inline: 1.5rem;
+  }
 }

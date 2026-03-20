@@ -1,0 +1,282 @@
+.device-setup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 25, 50, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.device-setup-modal {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  border-radius: 24px;
+  padding: 2rem;
+  background:
+    radial-gradient(circle at top right, rgba(191, 231, 255, 0.5), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 251, 255, 0.96));
+  box-shadow:
+    0 32px 64px rgba(40, 95, 170, 0.32),
+    0 0 0 1px rgba(215, 228, 245, 0.9);
+}
+
+.device-setup-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #8497b0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.device-setup-close:hover {
+  color: #1a3152;
+  background: rgba(226, 232, 240, 0.7);
+}
+
+.device-setup-eyebrow {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0284c7;
+  margin-bottom: 0.7rem;
+}
+
+.device-setup-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1a3152;
+  margin: 0 0 0.45rem;
+}
+
+.device-setup-subtitle {
+  font-size: 0.95rem;
+  color: #4f6687;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.device-setup-brand-card {
+  margin-top: 1.4rem;
+  padding: 1.15rem 1.2rem;
+  border-radius: 18px;
+  background: rgba(240, 248, 255, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(210, 224, 244, 0.95);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.device-setup-brand-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0284c7;
+  margin-bottom: 0.3rem;
+}
+
+.device-setup-brand-title {
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #1a3152;
+  margin: 0 0 0.2rem;
+}
+
+.device-setup-brand-copy {
+  font-size: 0.9rem;
+  color: #4f6687;
+  margin: 0;
+}
+
+.device-setup-brand-badge {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 0.42rem 0.7rem;
+  background: rgba(2, 132, 199, 0.12);
+  color: #0369a1;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.device-setup-checklist {
+  margin-top: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.device-setup-checklist-item {
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  background: rgba(248, 251, 255, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(219, 231, 245, 0.95);
+  color: #36506f;
+  font-size: 0.92rem;
+}
+
+.device-setup-form {
+  margin-top: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.device-setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.device-setup-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a3152;
+}
+
+.device-setup-input {
+  width: 100%;
+  border: 1px solid rgba(210, 224, 244, 0.95);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.95rem;
+  color: #1a3152;
+  background: rgba(248, 251, 255, 0.98);
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.device-setup-input:focus {
+  border-color: #0f8cf4;
+  box-shadow: 0 0 0 3px rgba(15, 140, 244, 0.12);
+}
+
+.device-setup-input:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.device-setup-error {
+  font-size: 0.85rem;
+  color: #d63a2c;
+  background: rgba(214, 58, 44, 0.07);
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem;
+  margin: 0;
+}
+
+.device-setup-success-card {
+  margin-top: 1.4rem;
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+  background: rgba(240, 253, 244, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(187, 247, 208, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.device-setup-success-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #1f3e2f;
+  font-size: 0.92rem;
+}
+
+.device-setup-success-label {
+  color: #4b6a57;
+  font-weight: 700;
+}
+
+.device-setup-device-list {
+  margin-top: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.device-setup-device-item {
+  border: none;
+  width: 100%;
+  text-align: left;
+  border-radius: 16px;
+  padding: 0.95rem 1rem;
+  background: rgba(248, 251, 255, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(214, 227, 244, 0.92);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  transition: box-shadow 0.16s ease, transform 0.12s ease, background 0.16s ease;
+}
+
+.device-setup-device-item:hover {
+  transform: translateY(-1px);
+  background: rgba(242, 249, 255, 0.98);
+}
+
+.device-setup-device-item--active {
+  background: rgba(235, 245, 255, 0.98);
+  box-shadow:
+    inset 0 0 0 2px rgba(15, 140, 244, 0.5),
+    0 10px 24px rgba(15, 140, 244, 0.1);
+}
+
+.device-setup-device-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a3152;
+}
+
+.device-setup-device-meta {
+  font-size: 0.85rem;
+  color: #5d728f;
+}
+
+.device-setup-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .device-setup-modal {
+    padding: 1.4rem 1.2rem;
+    border-radius: 20px;
+  }
+
+  .device-setup-title {
+    font-size: 1.45rem;
+  }
+
+  .device-setup-brand-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .device-setup-actions {
+    justify-content: stretch;
+  }
+
+  .device-setup-actions .btn {
+    width: 100%;
+  }
+}

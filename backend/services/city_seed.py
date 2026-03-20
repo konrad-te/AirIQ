@@ -2,11 +2,19 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
+import sys
 from typing import Any
 
 import requests
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+# Allow direct execution via `python city_seed.py` from `backend/services`.
+if __package__ in (None, ""):
+    project_root = Path(__file__).resolve().parents[2]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
 from backend.models import CityPoint
 
@@ -224,3 +232,30 @@ def seed_city_points(db: Session, per_country: int = 4) -> SeedResult:
         updated=updated,
         deactivated=deactivated,
     )
+
+
+def run_seed(per_country: int = 4) -> SeedResult:
+    from backend.database import SessionLocal
+    from backend.init_db import init_db
+
+    init_db()
+
+    db = SessionLocal()
+    try:
+        result = seed_city_points(db=db, per_country=per_country)
+        print(
+            "City seed complete:",
+            {
+                "total_input_points": result.total_input_points,
+                "inserted": result.inserted,
+                "updated": result.updated,
+                "deactivated": result.deactivated,
+            },
+        )
+        return result
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    run_seed(per_country=4)
