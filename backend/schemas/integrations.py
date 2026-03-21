@@ -61,6 +61,7 @@ class QingpingLatestReadingResponseSchema(BaseModel):
     product_name: str | None = None
     serial_number: str | None = None
     wifi_mac: str | None = None
+    synced_at: datetime | None = None
     updated_at: datetime | None = None
     temperature_c: float | None = None
     humidity_pct: float | None = None

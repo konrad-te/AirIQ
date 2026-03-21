@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import heroBackground from './assets/123.png'
 import logoAiriq from './assets/logo-airiq.svg'
-import globeBanner from './assets/banner.png'
-import ringBackground from './assets/ring-background.png'
 import sensorImage from './assets/sensor.png'
 import watchImage from './assets/watch.png'
 import alertsImage from './assets/alerts.png'
@@ -15,7 +13,6 @@ import DeviceSetupModal from './components/DeviceSetupModal'
 import LoginModal from './components/LoginModal'
 import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
-import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -60,6 +57,9 @@ const mockData = {
   ],
 }
 
+const POLISH_LOCALE = 'pl-PL'
+const POLISH_TIMEZONE = 'Europe/Warsaw'
+
 function getPm25Level(value) {
   if (value == null || value < 0) return null
   if (value <= 10) return 1
@@ -80,10 +80,6 @@ function getPm10Level(value) {
   return 6
 }
 
-function getAqiLevelClass(level) {
-  if (level == null) return ''
-  return `hero-panel-stat-right--level-${level}`
-}
 
 export default function App() {
   const { user, token, logout, isLoadingAuth } = useAuth()
@@ -101,6 +97,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [confirmedSearchAddress, setConfirmedSearchAddress] = useState('')
   const [sensorStatus, setSensorStatus] = useState(null)
   const [sensorReading, setSensorReading] = useState(null)
   const [sensorError, setSensorError] = useState('')
@@ -128,6 +125,16 @@ export default function App() {
   const handleOpenSecurity = () => {
     window.history.pushState({}, '', '/security')
     setRoute('/security')
+  }
+
+  const handleOpenRooms = () => {
+    window.history.pushState({}, '', '/rooms')
+    setRoute('/rooms')
+  }
+
+  const handleOpenSubscription = () => {
+    window.history.pushState({}, '', '/subscription')
+    setRoute('/subscription')
   }
 
   const handleBackToLanding = () => {
@@ -178,6 +185,8 @@ export default function App() {
     setLiveAirError('')
     setStatusMessage(`Looking up ${trimmedAddress}...`)
     setSuggestions([])
+    setIsLoadingSuggestions(false)
+    setConfirmedSearchAddress(trimmedAddress)
 
     try {
       const geocoded = await geocodeAddress(trimmedAddress)
@@ -219,6 +228,8 @@ export default function App() {
   const handleSelectSuggestion = async (suggestion) => {
     setSearchAddress(suggestion.label)
     setSuggestions([])
+    setIsLoadingSuggestions(false)
+    setConfirmedSearchAddress(suggestion.label)
     await loadAirQualityForCoords(suggestion.lat, suggestion.lon, suggestion.label)
   }
 
@@ -268,6 +279,12 @@ export default function App() {
 
     const query = searchAddress.trim()
     if (query.length < 2) {
+      setSuggestions([])
+      setIsLoadingSuggestions(false)
+      return undefined
+    }
+
+    if (query === confirmedSearchAddress.trim()) {
       setSuggestions([])
       setIsLoadingSuggestions(false)
       return undefined
@@ -370,34 +387,56 @@ export default function App() {
     return <SecurityPage onBack={handleBackToLanding} onAccountDeleted={handleAccountDeleted} />
   }
 
+  if (route === '/rooms') {
+    return (
+      <div className="placeholder-page">
+        <button className="btn btn-ghost" onClick={handleBackToLanding}>← Back</button>
+        <h1>Rooms</h1>
+        <p>Coming soon.</p>
+      </div>
+    )
+  }
+
+  if (route === '/subscription') {
+    return (
+      <div className="placeholder-page">
+        <button className="btn btn-ghost" onClick={handleBackToLanding}>← Back</button>
+        <h1>My Plan</h1>
+        <p>Coming soon.</p>
+      </div>
+    )
+  }
+
+  const userInitials = (() => {
+    const source = user?.display_name || user?.email || ''
+    return source.charAt(0).toUpperCase() || '?'
+  })()
+
   const heroPm25 = liveAirData?.current?.pm25 ?? mockData.pm25Value
   const heroPm10 = liveAirData?.current?.pm10 ?? mockData.pm10Value
   const heroLocation = currentLocationLabel
   const heroAqiValue = liveAirData?.aqi?.value ?? 0
   const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? 'Loading' : '-')
-  const heroPm25Class = getAqiLevelClass(getPm25Level(heroPm25))
-  const heroPm10Class = getAqiLevelClass(getPm10Level(heroPm10))
+  const pm25Level = getPm25Level(heroPm25)
+  const pm10Level = getPm10Level(heroPm10)
   const sourceProvider = liveAirData?.source?.provider
   const sourceMethod = liveAirData?.source?.method
-  const sourceProviderLabel =
-    sourceProvider === 'open-meteo'
-      ? 'Open-Meteo'
-      : sourceProvider === 'openaq'
-        ? 'OpenAQ'
-        : sourceProvider === 'airly'
-          ? 'Airly'
-          : 'Unknown'
-  const chartForecastLabel =
-    sourceMethod === 'model'
-      ? 'Model forecast'
-      : sourceProvider === 'airly'
-        ? 'Airly forecast'
-        : 'Forecast'
   const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
   const hasConnectedIndoorSensor = Boolean(sensorStatus?.is_connected && sensorStatus?.selected_device_id)
-  const indoorUpdatedLabel = sensorReading?.updated_at
-    ? new Date(sensorReading.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const batteryPercentage = typeof sensorReading?.battery_pct === 'number' ? sensorReading.battery_pct : null
+  const batteryToneClass = batteryPercentage != null && batteryPercentage < 20
+    ? 'indoor-sensor-summary__battery-chip--low'
+    : 'indoor-sensor-summary__battery-chip--healthy'
+  const indoorUpdatedLabel = sensorReading?.synced_at || sensorReading?.updated_at
+    ? new Intl.DateTimeFormat(POLISH_LOCALE, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: POLISH_TIMEZONE,
+      timeZoneName: 'short',
+    }).format(new Date(sensorReading?.synced_at || sensorReading?.updated_at))
     : 'No reading yet'
+  const indoorUpdatedPrefix = sensorReading?.synced_at ? 'Synced' : 'Updated'
 
   return (
     <div className="page-root" style={{ backgroundImage: `url(${heroBackground})` }}>
@@ -406,40 +445,69 @@ export default function App() {
           <img src={logoAiriq} alt="AirIQ" className="brand-logo" />
         </div>
         <nav className="nav-links">
-          <button className="nav-link nav-link--active">Features</button>
-          <button className="nav-link">How it works</button>
-          <button className="nav-link">Integrations</button>
-          <button className="nav-link">Pricing</button>
-          <button className="nav-link">Roadmap</button>
+          <button
+            className={`nav-link${route === '/' ? ' nav-link--active' : ''}`}
+            onClick={handleBackToLanding}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`nav-link${route === '/rooms' ? ' nav-link--active' : ''}`}
+            onClick={handleOpenRooms}
+          >
+            Rooms
+          </button>
+          <button
+            className={`nav-link${route === '/globe' ? ' nav-link--active' : ''}`}
+            onClick={handleOpenGlobe}
+          >
+            Global Air Quality
+          </button>
+          <button
+            className={`nav-link${route === '/subscription' ? ' nav-link--active' : ''}`}
+            onClick={handleOpenSubscription}
+          >
+            My Plan
+          </button>
+          <button
+            className={`nav-link${route === '/feedback' ? ' nav-link--active' : ''}`}
+            onClick={handleOpenFeedback}
+          >
+            Feedback
+          </button>
         </nav>
         <div className="nav-actions">
           {user ? (
             <>
-            {user.role === 'admin' && (
-              <button className="btn btn-ghost" onClick={handleOpenAdmin}>Admin</button>
-            )}
-            <button className="btn btn-ghost" onClick={handleOpenFeedback}>Feedback</button>
-            <div className="user-menu">
-              <button
-                className="btn btn-ghost user-menu-trigger"
-                onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              >
-                {user.display_name || user.email}
-                <svg className="user-menu-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-              {isUserMenuOpen && (
-                <>
-                  <div className="user-menu-backdrop" onClick={() => setIsUserMenuOpen(false)} />
-                  <div className="user-menu-dropdown">
-                    <button className="user-menu-item user-menu-item--disabled" disabled>Rooms</button>
-                    <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>Settings</button>
-                    <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSecurity() }}>Security</button>
-                    <div className="user-menu-divider" />
-                    <button className="user-menu-item user-menu-item--logout" onClick={() => { setIsUserMenuOpen(false); logout() }}>Log out</button>
-                  </div>
-                </>
+              {user.role === 'admin' && (
+                <button className="btn btn-ghost" onClick={handleOpenAdmin}>Admin</button>
               )}
-            </div>
+              <button className="nav-bell" aria-label="Notifications">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+              </button>
+              <div className="user-menu">
+                <button
+                  className="nav-avatar"
+                  onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                  aria-label="Open user menu"
+                >
+                  {userInitials}
+                </button>
+                {isUserMenuOpen && (
+                  <>
+                    <div className="user-menu-backdrop" onClick={() => setIsUserMenuOpen(false)} />
+                    <div className="user-menu-dropdown">
+                      <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>Settings</button>
+                      <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSecurity() }}>Security</button>
+                      <div className="user-menu-divider" />
+                      <button className="user-menu-item user-menu-item--logout" onClick={() => { setIsUserMenuOpen(false); logout() }}>Log out</button>
+                    </div>
+                  </>
+                )}
+              </div>
             </>
           ) : (
             <>
@@ -450,314 +518,273 @@ export default function App() {
         </div>
       </header>
 
-      <main className="layout-main">
-        <section className="hero">
-          <div className="hero-left">
-            <div className="hero-copy">
-              <p className="eyebrow">Air quality guidance</p>
-              <h1>
-                Air quality guidance
-                <br />
-                for your <span>exact address.</span>
-              </h1>
-              <p className="hero-subtitle">
-                Real-time data &amp; actionable recommendations
-                <br />
-                for training, sleep &amp; ventilation.
-              </p>
+      <main className="dashboard">
 
-              <form className="hero-search-card" onSubmit={handleSearchSubmit}>
-                <div className="hero-search-input">
-                  <span className="hero-search-icon" aria-hidden>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="11" cy="10" r="3" /></svg>
-                  </span>
-                  <input
-                    type="text"
-                    value={searchAddress}
-                    onChange={(event) => setSearchAddress(event.target.value)}
-                    className="hero-search-field"
-                    placeholder="Enter an address (e.g., Stockholm, Sweden)"
-                  />
-                </div>
-                <button type="submit" className="btn hero-search-btn" disabled={isLoadingAirData}>
-                  {isLoadingAirData ? 'Loading...' : 'Check Air'}
-                </button>
-              </form>
-              {(isLoadingSuggestions || suggestions.length > 0) && !isLoadingAirData ? (
-                <div className="hero-search-suggestions">
-                  {isLoadingSuggestions ? (
-                    <div className="hero-search-suggestion hero-search-suggestion--muted">Searching...</div>
-                  ) : (
-                    suggestions.map((suggestion) => (
-                      <button
-                        key={`${suggestion.place_id ?? suggestion.label}-${suggestion.lat}-${suggestion.lon}`}
-                        type="button"
-                        className="hero-search-suggestion"
-                        onClick={() => handleSelectSuggestion(suggestion)}
-                      >
-                        {suggestion.label}
-                      </button>
-                    ))
-                  )}
-                </div>
-              ) : null}
-
-              <div className="hero-meta-row">
-                <button type="button" className="link-button" onClick={handleUseMyLocation}>
-                  Use my location
-                </button>
-                <span className="hero-meta-dot" />
-                <span className="hero-meta-label">Updated hourly</span>
-                <span className="hero-meta-dot" />
-                <span className="hero-meta-label">Sources: stations + models</span>
+        {/* ── Search bar ── */}
+        <div className="dash-search-row">
+          <div className="dash-search-form-wrap">
+            <form className="dash-search-form" onSubmit={handleSearchSubmit}>
+              <span className="dash-search-icon" aria-hidden>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                value={searchAddress}
+                onChange={(event) => {
+                  const nextValue = event.target.value
+                  setSearchAddress(nextValue)
+                  if (nextValue.trim() !== confirmedSearchAddress.trim()) {
+                    setConfirmedSearchAddress('')
+                  }
+                }}
+                className="dash-search-field"
+                placeholder="Enter an address (e.g., Stockholm, Sweden)"
+              />
+              <button type="submit" className="dash-search-btn" disabled={isLoadingAirData}>
+                {isLoadingAirData ? 'Loading…' : 'Check Air'}
+              </button>
+            </form>
+            {(isLoadingSuggestions || suggestions.length > 0) && !isLoadingAirData ? (
+              <div className="dash-search-suggestions">
+                {isLoadingSuggestions ? (
+                  <div className="dash-search-suggestion dash-search-suggestion--muted">Searching…</div>
+                ) : (
+                  suggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.place_id ?? suggestion.label}-${suggestion.lat}-${suggestion.lon}`}
+                      type="button"
+                      className="dash-search-suggestion"
+                      onClick={() => handleSelectSuggestion(suggestion)}
+                    >
+                      {suggestion.label}
+                    </button>
+                  ))
+                )}
               </div>
+            ) : null}
+          </div>
+          <div className="dash-search-meta">
+            <button type="button" className="link-button" onClick={handleUseMyLocation}>Use my location</button>
+            <span className="dash-meta-sep" />
+            <span className="dash-meta-label">Updated hourly</span>
+            <span className="dash-meta-sep" />
+            <span className="dash-meta-label">Sources: stations + models</span>
+          </div>
+        </div>
+
+        {/* ── Metric cards ── */}
+        <div className="dash-metrics">
+
+          {/* AQI */}
+          <div className="dash-card dash-card--aqi">
+            <p className="dash-aqi-loc">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+              </svg>
+              {heroLocation}
+            </p>
+            <div className="dash-aqi-ring-wrap">
+              <AqiRing value={heroAqiValue} label={heroAqiLabel} maxValue={6} />
             </div>
+            <div className="dash-aqi-text">
+              <p className="dash-aqi-quality-label">{heroAqiLabel}</p>
+              <p className="dash-aqi-quality-sub">Air Quality Index · {heroAqiValue}/6</p>
+            </div>
+            {liveSourceMessage && (
+              <p className="dash-aqi-source-msg">{liveSourceMessage}</p>
+            )}
+          </div>
 
-            <section className="daily-plan-section">
-              <h2 className="section-title">Your Daily Air Plan</h2>
-              <div className="daily-plan-cards">
-                <div className="daily-plan-card">
-                  <span className="daily-plan-card-label">Outdoor score</span>
-                  <span className="daily-plan-card-value daily-plan-card-value--good">Good</span>
-                  <div className="daily-plan-bar daily-plan-bar--good" />
-                </div>
-                <div className="daily-plan-card">
-                  <span className="daily-plan-card-label">Training window</span>
-                  <span className="daily-plan-card-value">18:00 - 20:00</span>
-                </div>
-                <div className="daily-plan-card">
-                  <span className="daily-plan-card-label">Ventilation</span>
-                  <span className="daily-plan-card-value">13:00 - 15:00</span>
-                </div>
+          {/* PM2.5 */}
+          <div className="dash-card dash-card--metric">
+            <div className="dash-metric-label-row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+              </svg>
+              PM2.5
+            </div>
+            <div className="dash-metric-value">{heroPm25}</div>
+            <div className="dash-metric-unit">µg/m³</div>
+            {pm25Level && (
+              <div className={`dash-metric-level dash-level-${pm25Level}`}>
+                {['', 'Good', 'Fair', 'Moderate', 'Poor', 'Very Poor', 'Hazardous'][pm25Level]}
               </div>
-            </section>
+            )}
+          </div>
 
-            <section className="connect-devices-section">
-              <h2 className="section-title">Connect your devices</h2>
-              <div className="devices-inline-banner">
-                <button
-                  type="button"
-                  className={`devices-inline-item ${selectedDevice === 'sensor' ? 'devices-inline-item--active' : ''}`}
-                  onClick={() => handleAddDevice('sensor')}
-                >
-                  <span className="devices-inline-image-wrap" aria-hidden>
-                    <img src={sensorImage} alt="" className="devices-inline-image" />
-                  </span>
-                  <span className="devices-inline-copy">
-                    <span className="devices-inline-title">AirIQ Home</span>
-                    <span className="devices-inline-subtitle">Indoor sensor</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`devices-inline-item ${selectedDevice === 'performance' ? 'devices-inline-item--active' : ''}`}
-                  onClick={() => handleAddDevice('performance')}
-                >
-                  <span className="devices-inline-image-wrap" aria-hidden>
-                    <img src={watchImage} alt="" className="devices-inline-image" />
-                  </span>
-                  <span className="devices-inline-copy">
-                    <span className="devices-inline-title">AirIQ Performance</span>
-                    <span className="devices-inline-subtitle">Garmin &amp; wearables</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`devices-inline-item ${selectedDevice === 'alerts' ? 'devices-inline-item--active' : ''}`}
-                  onClick={() => handleAddDevice('alerts')}
-                >
-                  <span className="devices-inline-image-wrap" aria-hidden>
-                    <img src={alertsImage} alt="" className="devices-inline-image" />
-                  </span>
-                  <span className="devices-inline-copy">
-                    <span className="devices-inline-title">Smart alerts</span>
-                    <span className="devices-inline-subtitle">Email | App | Watch</span>
-                  </span>
-                </button>
+          {/* PM10 */}
+          <div className="dash-card dash-card--metric">
+            <div className="dash-metric-label-row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              PM10
+            </div>
+            <div className="dash-metric-value">{heroPm10}</div>
+            <div className="dash-metric-unit">µg/m³</div>
+            {pm10Level && (
+              <div className={`dash-metric-level dash-level-${pm10Level}`}>
+                {['', 'Good', 'Fair', 'Moderate', 'Poor', 'Very Poor', 'Hazardous'][pm10Level]}
               </div>
-              <div className="indoor-sensor-summary">
-                <div className="indoor-sensor-summary__header">
-                  <div>
-                    <p className="indoor-sensor-summary__eyebrow">AirIQ Home</p>
-                    <h3 className="indoor-sensor-summary__title">
-                      {hasConnectedIndoorSensor ? sensorStatus?.selected_device_name || 'Qingping connected' : 'No indoor sensor connected yet'}
-                    </h3>
-                  </div>
+            )}
+          </div>
+
+          {/* Pollen */}
+          <div className="dash-card dash-card--metric">
+            <div className="dash-metric-label-row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+              </svg>
+              Pollen
+            </div>
+            <div className="dash-metric-pollen">{mockData.pollen}</div>
+            <div className="dash-pollen-dot dash-pollen-dot--medium" />
+          </div>
+
+        </div>
+
+        {/* ── PM2.5 Trend chart ── */}
+        <div className="dash-chart-row">
+          <PM25Chart
+            history={liveAirData?.history}
+            forecast={liveAirData?.forecast}
+            currentValue={heroPm25}
+            currentLabel="Now"
+            unit={mockData.pm25Unit}
+            measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
+            sourceProvider={sourceProvider}
+            sourceMethod={sourceMethod}
+            sourceDistanceKm={liveAirData?.source?.distance_km}
+          />
+        </div>
+
+        {/* ── Bottom row ── */}
+        <div className="dash-bottom">
+
+          {/* Recommendations */}
+          <div className="dash-card">
+            <p className="dash-section-heading">Today's recommendations</p>
+            {mockData.recommendations.map((item) => (
+              <div key={item.key} className="dash-rec-row">
+                <span className="dash-rec-icon" aria-hidden>
+                  <img src={item.icon} alt="" />
+                </span>
+                <span className="dash-rec-title">{item.title}</span>
+                <span className="dash-rec-value">{item.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Indoor sensor / devices */}
+          <div className="dash-card">
+            <p className="dash-section-heading">Indoor Air</p>
+            <div className="devices-inline-banner">
+              <button
+                type="button"
+                className={`devices-inline-item ${selectedDevice === 'sensor' ? 'devices-inline-item--active' : ''}`}
+                onClick={() => handleAddDevice('sensor')}
+              >
+                <span className="devices-inline-image-wrap" aria-hidden>
+                  <img src={sensorImage} alt="" className="devices-inline-image" />
+                </span>
+                <span className="devices-inline-copy">
+                  <span className="devices-inline-title">AirIQ Home</span>
+                  <span className="devices-inline-subtitle">Indoor sensor</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`devices-inline-item ${selectedDevice === 'performance' ? 'devices-inline-item--active' : ''}`}
+                onClick={() => handleAddDevice('performance')}
+              >
+                <span className="devices-inline-image-wrap" aria-hidden>
+                  <img src={watchImage} alt="" className="devices-inline-image" />
+                </span>
+                <span className="devices-inline-copy">
+                  <span className="devices-inline-title">AirIQ Performance</span>
+                  <span className="devices-inline-subtitle">Garmin &amp; wearables</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`devices-inline-item ${selectedDevice === 'alerts' ? 'devices-inline-item--active' : ''}`}
+                onClick={() => handleAddDevice('alerts')}
+              >
+                <span className="devices-inline-image-wrap" aria-hidden>
+                  <img src={alertsImage} alt="" className="devices-inline-image" />
+                </span>
+                <span className="devices-inline-copy">
+                  <span className="devices-inline-title">Smart alerts</span>
+                  <span className="devices-inline-subtitle">Email | App | Watch</span>
+                </span>
+              </button>
+            </div>
+            <div className="indoor-sensor-summary">
+              <div className="indoor-sensor-summary__header">
+                <div>
+                  <p className="indoor-sensor-summary__eyebrow">AirIQ Home</p>
+                  <h3 className="indoor-sensor-summary__title">
+                    {hasConnectedIndoorSensor ? sensorStatus?.selected_device_name || 'Qingping connected' : 'No indoor sensor connected yet'}
+                  </h3>
+                </div>
+                <div className="indoor-sensor-summary__header-status">
+                  <span className={`indoor-sensor-summary__battery-chip ${batteryToneClass}`}>
+                    <span className="indoor-sensor-summary__battery-icon" aria-hidden>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="7" width="18" height="10" rx="2" ry="2" />
+                        <line x1="22" y1="11" x2="22" y2="13" />
+                        <path d="M6 11h7" />
+                      </svg>
+                    </span>
+                    <span>Battery {sensorReading?.battery_pct ?? '--'}%</span>
+                  </span>
                   <span className={`indoor-sensor-summary__badge ${hasConnectedIndoorSensor ? 'indoor-sensor-summary__badge--live' : ''}`}>
                     {hasConnectedIndoorSensor ? 'Live sync' : 'Setup needed'}
                   </span>
                 </div>
-
-                <p className="indoor-sensor-summary__copy">
-                  {hasConnectedIndoorSensor
-                    ? `Latest reading from ${sensorStatus?.selected_product_name || 'your Qingping sensor'} is available in AirIQ.`
-                    : 'Connect your Qingping sensor once, choose the device, and AirIQ will keep syncing the latest indoor readings for you.'}
-                </p>
-
-                {sensorError ? (
-                  <p className="indoor-sensor-summary__error">{sensorError}</p>
-                ) : null}
-
-                <div className="indoor-sensor-summary__grid">
-                  <div className="indoor-sensor-summary__stat">
-                    <span className="indoor-sensor-summary__label">Temperature</span>
-                    <span className="indoor-sensor-summary__value">{sensorReading?.temperature_c ?? '--'}<span className="indoor-sensor-summary__unit">C</span></span>
-                  </div>
-                  <div className="indoor-sensor-summary__stat">
-                    <span className="indoor-sensor-summary__label">Humidity</span>
-                    <span className="indoor-sensor-summary__value">{sensorReading?.humidity_pct ?? '--'}<span className="indoor-sensor-summary__unit">%</span></span>
-                  </div>
-                  <div className="indoor-sensor-summary__stat">
-                    <span className="indoor-sensor-summary__label">PM2.5</span>
-                    <span className="indoor-sensor-summary__value">{sensorReading?.pm2_5_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
-                  </div>
-                  <div className="indoor-sensor-summary__stat">
-                    <span className="indoor-sensor-summary__label">CO2</span>
-                    <span className="indoor-sensor-summary__value">{sensorReading?.co2_ppm ?? '--'}<span className="indoor-sensor-summary__unit">ppm</span></span>
-                  </div>
-                  <div className="indoor-sensor-summary__stat">
-                    <span className="indoor-sensor-summary__label">PM10</span>
-                    <span className="indoor-sensor-summary__value">{sensorReading?.pm10_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
-                  </div>
+              </div>
+              <p className="indoor-sensor-summary__copy">
+                {hasConnectedIndoorSensor
+                  ? `Latest reading from ${sensorStatus?.selected_product_name || 'your Qingping sensor'} is available in AirIQ.`
+                  : 'Connect your Qingping sensor once, choose the device, and AirIQ will keep syncing the latest indoor readings for you.'}
+              </p>
+              {sensorError ? (
+                <p className="indoor-sensor-summary__error">{sensorError}</p>
+              ) : null}
+              <div className="indoor-sensor-summary__grid">
+                <div className="indoor-sensor-summary__stat">
+                  <span className="indoor-sensor-summary__label">Temperature</span>
+                  <span className="indoor-sensor-summary__value">{sensorReading?.temperature_c ?? '--'}<span className="indoor-sensor-summary__unit">C</span></span>
                 </div>
-
-                <div className="indoor-sensor-summary__footer">
-                  <span>{sensorStatus?.selected_serial_number || sensorStatus?.selected_wifi_mac || 'Select a Qingping sensor in setup'}</span>
-                  <span className="indoor-sensor-summary__footer-right">
-                    <span className="indoor-sensor-summary__battery-chip">
-                      <span className="indoor-sensor-summary__battery-icon" aria-hidden>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="2" y="7" width="18" height="10" rx="2" ry="2" />
-                          <line x1="22" y1="11" x2="22" y2="13" />
-                          <path d="M6 11h7" />
-                        </svg>
-                      </span>
-                      <span>Battery {sensorReading?.battery_pct ?? '--'}%</span>
-                    </span>
-                    <span>Updated: {indoorUpdatedLabel}</span>
-                  </span>
+                <div className="indoor-sensor-summary__stat">
+                  <span className="indoor-sensor-summary__label">Humidity</span>
+                  <span className="indoor-sensor-summary__value">{sensorReading?.humidity_pct ?? '--'}<span className="indoor-sensor-summary__unit">%</span></span>
+                </div>
+                <div className="indoor-sensor-summary__stat">
+                  <span className="indoor-sensor-summary__label">PM2.5</span>
+                  <span className="indoor-sensor-summary__value">{sensorReading?.pm2_5_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
+                </div>
+                <div className="indoor-sensor-summary__stat">
+                  <span className="indoor-sensor-summary__label">CO2</span>
+                  <span className="indoor-sensor-summary__value">{sensorReading?.co2_ppm ?? '--'}<span className="indoor-sensor-summary__unit">ppm</span></span>
+                </div>
+                <div className="indoor-sensor-summary__stat">
+                  <span className="indoor-sensor-summary__label">PM10</span>
+                  <span className="indoor-sensor-summary__value">{sensorReading?.pm10_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
                 </div>
               </div>
-            </section>
+              <div className="indoor-sensor-summary__footer">
+                <span>{sensorStatus?.selected_serial_number || sensorStatus?.selected_wifi_mac || 'Select a Qingping sensor in setup'}</span>
+                <span className="indoor-sensor-summary__footer-right">
+                  <span>{indoorUpdatedPrefix}: {indoorUpdatedLabel}</span>
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="hero-right">
-            <aside className="hero-panel" style={{ '--ring-panel-image': `url(${ringBackground})` }}>
-              <div className="hero-panel-header">
-                <div className="hero-panel-header-left">
-                  <span className="hero-panel-menu" aria-hidden>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
-                  </span>
-                  <p className="hero-panel-location">{heroLocation}</p>
-                </div>
-                <button type="button" className="hero-panel-today">
-                  {mockData.todayTag}
-                  <span className="hero-panel-today-arrow" aria-hidden>v</span>
-                </button>
-              </div>
-
-              <div className="hero-panel-body">
-                <div className="hero-panel-main">
-                  <AqiRing value={heroAqiValue} label={heroAqiLabel} maxValue={6} />
-
-                  <div className="hero-panel-stats">
-                    <div className="hero-panel-stat">
-                      <div className="hero-panel-stat-left">
-                        <span className="hero-panel-stat-icon" aria-hidden>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></svg>
-                        </span>
-                        <span className="hero-panel-stat-label">PM2.5</span>
-                      </div>
-                      <div className={`hero-panel-stat-right ${heroPm25Class}`}>
-                        <span className="hero-panel-stat-num">{heroPm25}</span>
-                        <span className="hero-panel-stat-unit">{mockData.pm25Unit}</span>
-                      </div>
-                    </div>
-                    <div className="hero-panel-stat">
-                      <div className="hero-panel-stat-left">
-                        <span className="hero-panel-stat-icon" aria-hidden>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-                        </span>
-                        <span className="hero-panel-stat-label">PM10</span>
-                      </div>
-                      <div className={`hero-panel-stat-right ${heroPm10Class}`}>
-                        <span className="hero-panel-stat-num">{heroPm10}</span>
-                        <span className="hero-panel-stat-unit">{mockData.pm10Unit}</span>
-                      </div>
-                    </div>
-                    <div className="hero-panel-stat">
-                      <div className="hero-panel-stat-left">
-                        <span className="hero-panel-stat-icon" aria-hidden>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20M5.64 5.64l12.72 12.72M18.36 5.64 5.64 18.36" /><path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8z" /></svg>
-                        </span>
-                        <span className="hero-panel-stat-label">Pollen</span>
-                      </div>
-                      <div className="hero-panel-stat-right hero-panel-stat-right--pollen">
-                        <span className="hero-panel-stat-dot hero-panel-stat-dot--medium" />
-                        <span className="hero-panel-stat-pollen">{mockData.pollen}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {liveSourceMessage ? (
-                  <div className="hero-panel-source">
-                    <p className="hero-panel-source-title">Air Quality Source - {sourceProviderLabel}</p>
-                    <p className="hero-panel-source-copy">{liveSourceMessage}</p>
-                  </div>
-                ) : null}
-
-                <div className="hero-panel-recs">
-                  <p className="hero-panel-recs-title">Recommendations</p>
-                  {mockData.recommendations.map((item) => (
-                    <div key={item.key} className="hero-rec-row">
-                      <span className="hero-rec-left">
-                        <span className="hero-rec-icon" aria-hidden>
-                          <img src={item.icon} alt="" />
-                        </span>
-                        <span className="hero-rec-title">{item.title}</span>
-                      </span>
-                      <span className="hero-rec-value">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </aside>
-
-            <section className="stats-chart-section">
-              <PM25Chart
-                history={liveAirData?.history}
-                forecast={liveAirData?.forecast}
-                currentValue={heroPm25}
-                currentLabel="Now"
-                unit={mockData.pm25Unit}
-                measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
-                sourceProvider={sourceProvider}
-                sourceMethod={sourceMethod}
-                sourceDistanceKm={liveAirData?.source?.distance_km}
-              />
-            </section>
-
-            <section className="globe-cta-section globe-cta-section--right">
-              <button
-                type="button"
-                className="globe-cta"
-                onClick={handleOpenGlobe}
-                style={{ '--globe-banner-image': `url(${globeBanner})` }}
-              >
-                <div className="globe-cta-copy">
-                  <p className="globe-cta-title">Check global air quality</p>
-                  <p className="globe-cta-subtitle">Explore live air everywhere worldwide</p>
-                  <span className="globe-cta-action">Open globe -&gt;</span>
-                </div>
-              </button>
-            </section>
-
-            <section className="plan-selector-section">
-              <PlanSelector onGetStarted={() => setIsRegisterOpen(true)} />
-            </section>
-          </div>
-        </section>
+        </div>
       </main>
 
       <footer className="page-footer">
