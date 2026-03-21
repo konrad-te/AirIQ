@@ -679,12 +679,13 @@ def get_qingping_latest_reading(
         raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
 
     integration = _refresh_qingping_token_if_needed(db=db, integration=integration)
+    synced_at = datetime.now(UTC)
     payload = _qingping_get(
         integration=integration,
         url=_qingping_devices_url(),
     )
 
-    integration.last_synced_at = datetime.now(UTC)
+    integration.last_synced_at = synced_at
     db.commit()
     db.refresh(integration)
 
@@ -699,4 +700,5 @@ def get_qingping_latest_reading(
         normalized=normalized,
         raw_payload=raw_selected_payload,
     )
+    normalized.synced_at = synced_at
     return normalized
