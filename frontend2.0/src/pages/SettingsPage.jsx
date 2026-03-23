@@ -222,7 +222,7 @@ function PreferencesSection() {
 }
 
 // ── Page shell ───────────────────────────────────────────────────────────────
-export default function SettingsPage({ onBack }) {
+export default function SettingsPage({ onBack, onOpenSecurity }) {
   const [activeSection, setActiveSection] = useState('profile')
 
   const renderSection = () => {
@@ -260,6 +260,13 @@ export default function SettingsPage({ onBack }) {
               {s.label}
             </button>
           ))}
+          <button
+            type="button"
+            className="settings-nav-item"
+            onClick={onOpenSecurity}
+          >
+            Security
+          </button>
         </nav>
 
         <main className="settings-content">
