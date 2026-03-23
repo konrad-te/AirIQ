@@ -825,7 +825,12 @@ export default function App() {
           <div className="dashboard-preview__cards">
             <article className="dashboard-preview-card">
               <div className="dashboard-preview-card__top">
-                <span className="dashboard-preview-card__eyebrow">OUTDOOR AIR</span>
+                <span className="dashboard-preview-card__eyebrow">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M19 18H7a4 4 0 1 1 .6-7.96A5.5 5.5 0 0 1 18 11.5h1a3.5 3.5 0 1 1 0 7Z" />
+                  </svg>
+                  OUTDOOR AIR
+                </span>
                 <span className="dashboard-preview-card__pill">Source: Open-Meteo</span>
               </div>
               <div className="dashboard-preview-card__content">
@@ -846,15 +851,39 @@ export default function App() {
                 </div>
               </div>
               <div className="dashboard-preview-card__footer">
-                <span>11°C</span>
-                <span>67 km/h</span>
-                <span>52%</span>
+                <span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                  </svg>
+                  11°C
+                </span>
+                <span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M3 9h11a3 3 0 1 0-3-3" />
+                    <path d="M2 14h14a3 3 0 1 1-3 3" />
+                    <path d="M4 19h7" />
+                  </svg>
+                  67 km/h
+                </span>
+                <span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                  </svg>
+                  52%
+                </span>
               </div>
             </article>
 
             <article className="dashboard-preview-card dashboard-preview-card--indoor">
               <div className="dashboard-preview-card__top">
-                <span className="dashboard-preview-card__eyebrow">INDOOR AIR</span>
+                <span className="dashboard-preview-card__eyebrow">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m3 10 9-7 9 7" />
+                    <path d="M5 9.8V21h14V9.8" />
+                  </svg>
+                  INDOOR AIR
+                </span>
                 <button type="button" className="dashboard-preview-card__room-select">Living Room</button>
               </div>
               <div className="dashboard-preview-card__content">
@@ -866,23 +895,23 @@ export default function App() {
                   <p>All systems normal</p>
                   <div className="dashboard-preview-card__metric-row">
                     <strong>PM2.5</strong>
-                    <span>5.2 µg/m³</span>
+                    <span>5.2 µg/m³ <i /></span>
                   </div>
                   <div className="dashboard-preview-card__metric-row">
                     <strong>PM10</strong>
-                    <span>12 µg/m³</span>
+                    <span>12 µg/m³ <i /></span>
                   </div>
                   <div className="dashboard-preview-card__metric-row">
-                    <strong>CO₂</strong>
-                    <span>620 ppm</span>
+                    <strong>CO2</strong>
+                    <span>620 ppm <i /></span>
                   </div>
                   <div className="dashboard-preview-card__metric-row">
                     <strong>Temp</strong>
-                    <span>22.4°C</span>
+                    <span>22.4°C <i /></span>
                   </div>
                   <div className="dashboard-preview-card__metric-row">
                     <strong>Humidity</strong>
-                    <span>48%</span>
+                    <span>48% <i /></span>
                   </div>
                 </div>
               </div>
@@ -895,6 +924,14 @@ export default function App() {
           <div className="dashboard-preview__scale">
             <p>Air Quality Index (AQI) Scale</p>
             <div className="dashboard-preview__scale-bar" />
+            <div className="dashboard-preview__scale-labels">
+              <span>Good</span>
+              <span>Moderate</span>
+              <span>Unhealthy for Sensitive</span>
+              <span>Unhealthy</span>
+              <span>Very Unhealthy</span>
+              <span>Hazardous</span>
+            </div>
             <small>Current: 1 (Very Good)</small>
           </div>
 

@@ -52,6 +52,14 @@ def hash_session_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
+def reserve_next_id(db: Session, table_name: str) -> int:
+    db.execute(sql_text("SELECT pg_advisory_xact_lock(hashtext(:table_name))"), {"table_name": table_name})
+    next_id = db.execute(
+        sql_text(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table_name}")
+    ).scalar_one()
+    return int(next_id)
+
+
 def create_database_token(
     user_id: int,
     db: Session,
@@ -63,6 +71,7 @@ def create_database_token(
     ttl = timedelta(minutes=get_access_token_expire_minutes())
 
     new_token = UserSession(
+        id=reserve_next_id(db, "user_sessions"),
         token_hash=hash_session_token(randomized_token),
         user_id=user_id,
         user_agent=user_agent,
