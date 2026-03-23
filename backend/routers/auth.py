@@ -11,6 +11,7 @@ from backend.schemas.auth import (
     DeleteAccountSchema,
     PasswordChangeSchema,
     TokenSchema,
+    UserRegisterResponseSchema,
     UserOutSchema,
     UserPreferenceOutSchema,
     UserPreferenceUpdateSchema,
@@ -24,11 +25,21 @@ from backend.security import (
     hash_password,
     verify_password,
 )
-from sqlalchemy import delete, select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def reserve_next_id(db: Session, table_name: str) -> int:
+    # Some environments were migrated with BIGINT PK columns but without IDENTITY defaults.
+    # We serialize per-table ID reservation inside the transaction to avoid collisions.
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:table_name))"), {"table_name": table_name})
+    next_id = db.execute(
+        text(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table_name}")
+    ).scalar_one()
+    return int(next_id)
 
 
 def build_default_household_name(user: User) -> str:
@@ -45,7 +56,23 @@ def build_default_household_slug(user: User) -> str:
     return f"{safe}-{user.id}"
 
 
-@router.post("/user/create", status_code=status.HTTP_201_CREATED)
+def serialize_registered_user(
+    user: User,
+    *,
+    reactivated: bool = False,
+    welcome_message: str | None = None,
+) -> dict:
+    payload = UserOutSchema.model_validate(user).model_dump()
+    payload["reactivated"] = reactivated
+    payload["welcome_message"] = welcome_message
+    return payload
+
+
+@router.post(
+    "/user/create",
+    response_model=UserRegisterResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+)
 def register_user(
     user: UserRegisterSchema,
     db: Session = Depends(get_db),
@@ -68,11 +95,11 @@ def register_user(
             existing.display_name = user.display_name.strip()
         db.commit()
         db.refresh(existing)
-        return {
-            **UserOutSchema.model_validate(existing).model_dump(),
-            "reactivated": True,
-            "welcome_message": f"Welcome back{', ' + existing.display_name if existing.display_name else ''}!",
-        }
+        return serialize_registered_user(
+            existing,
+            reactivated=True,
+            welcome_message=f"Welcome back{', ' + existing.display_name if existing.display_name else ''}!",
+        )
 
     if existing:
         raise HTTPException(
@@ -81,7 +108,9 @@ def register_user(
         )
 
     try:
+        new_user_id = reserve_next_id(db, "users")
         new_user = User(
+            id=new_user_id,
             email=normalised_email,
             display_name=user.display_name.strip() if user.display_name else None,
             password_hash=hashed_password,
@@ -89,9 +118,15 @@ def register_user(
         db.add(new_user)
         db.flush()
 
-        db.add(UserPreference(user_id=new_user.id))
+        db.add(
+            UserPreference(
+                id=reserve_next_id(db, "user_preferences"),
+                user_id=new_user.id,
+            )
+        )
 
         household = Household(
+            id=reserve_next_id(db, "households"),
             owner_user_id=new_user.id,
             name=build_default_household_name(new_user),
             slug=build_default_household_slug(new_user),
@@ -101,6 +136,7 @@ def register_user(
 
         db.add(
             HouseholdMember(
+                id=reserve_next_id(db, "household_members"),
                 household_id=household.id,
                 user_id=new_user.id,
                 role="owner",
@@ -110,7 +146,7 @@ def register_user(
 
         db.commit()
         db.refresh(new_user)
-        return new_user
+        return serialize_registered_user(new_user)
 
     except IntegrityError:
         db.rollback()
