@@ -213,6 +213,7 @@ export default function App() {
   const [confirmedSearchAddress, setConfirmedSearchAddress] = useState(mockData.location)
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false)
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false)
+  const [searchResult, setSearchResult] = useState(null)
   const [recsTab, setRecsTab] = useState('suggestions')
   const [savedLocations, setSavedLocations] = useState([])
   const [sensorStatus, setSensorStatus] = useState(null)
@@ -292,6 +293,21 @@ export default function App() {
     }
   }
 
+  const closeLocationModal = () => {
+    setIsLocationSearchOpen(false)
+    setSearchResult(null)
+    setLiveAirError('')
+    setSuggestions([])
+  }
+
+  const handleAddConfirmed = async () => {
+    if (!searchResult) return
+    await upsertSavedLocation(searchResult.label, searchResult.lat, searchResult.lon)
+    await loadAirQualityForCoords(searchResult.lat, searchResult.lon, searchResult.label)
+    setSearchResult(null)
+    setIsLocationSearchOpen(false)
+  }
+
   const handleSwitchLocation = (loc) => {
     loadAirQualityForCoords(loc.lat, loc.lon, loc.label)
   }
@@ -325,40 +341,8 @@ export default function App() {
       setCurrentLocationLabel(locationLabel)
       setCurrentCoords({ lat, lon })
       setStatusMessage('')
-      upsertSavedLocation(locationLabel, lat, lon)
     } catch (error) {
       setLiveAirError(error instanceof Error ? error.message : 'Failed to load live air data.')
-    } finally {
-      setIsLoadingAirData(false)
-    }
-  }
-
-  const handleSearchSubmit = async (event) => {
-    event.preventDefault()
-    const trimmedAddress = searchAddress.trim()
-    if (!trimmedAddress) {
-      setLiveAirError('Enter an address first.')
-      return
-    }
-
-    setIsLoadingAirData(true)
-    setLiveAirError('')
-    setStatusMessage(`Looking up ${trimmedAddress}...`)
-    setSuggestions([])
-    setIsLoadingSuggestions(false)
-    setConfirmedSearchAddress(trimmedAddress)
-
-    try {
-      const geocoded = await geocodeAddress(trimmedAddress)
-      const data = await getAirQualityData(geocoded.lat, geocoded.lon)
-      setLiveAirData(data)
-      setCurrentLocationLabel(geocoded.address)
-      setCurrentCoords({ lat: geocoded.lat, lon: geocoded.lon })
-      setStatusMessage('')
-      setIsLocationSearchOpen(false)
-      upsertSavedLocation(geocoded.address, geocoded.lat, geocoded.lon)
-    } catch (error) {
-      setLiveAirError(error instanceof Error ? error.message : 'Failed to look up that address.')
     } finally {
       setIsLoadingAirData(false)
     }
@@ -370,32 +354,28 @@ export default function App() {
       return
     }
 
-    setIsLocationSearchOpen(false)
     setIsLoadingAirData(true)
     setLiveAirError('')
-    setCurrentLocationLabel('Your location')
-    setStatusMessage('Getting your location...')
 
     navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        await loadAirQualityForCoords(coords.latitude, coords.longitude, 'Your location')
+      ({ coords }) => {
+        setSearchResult({ label: 'Your location', lat: coords.latitude, lon: coords.longitude })
+        setIsLoadingAirData(false)
       },
       (error) => {
         setIsLoadingAirData(false)
         setLiveAirError(error.message || 'Unable to get your location.')
-        setStatusMessage('')
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     )
   }
 
-  const handleSelectSuggestion = async (suggestion) => {
+  const handleSelectSuggestion = (suggestion) => {
     setSearchAddress(suggestion.label)
     setSuggestions([])
     setIsLoadingSuggestions(false)
     setConfirmedSearchAddress(suggestion.label)
-    setIsLocationSearchOpen(false)
-    await loadAirQualityForCoords(suggestion.lat, suggestion.lon, suggestion.label)
+    setSearchResult({ label: suggestion.label, lat: suggestion.lat, lon: suggestion.lon })
   }
 
   useEffect(() => {
@@ -417,7 +397,6 @@ export default function App() {
           setCurrentLocationLabel(geocoded.address)
           setCurrentCoords({ lat: geocoded.lat, lon: geocoded.lon })
           setStatusMessage('')
-          upsertSavedLocation(geocoded.address, geocoded.lat, geocoded.lon)
         }
       } catch (error) {
         if (!cancelled) {
@@ -1265,16 +1244,16 @@ export default function App() {
       {/* ── Location search popup ── */}
       {isLocationSearchOpen && (
         <>
-          <div className="loc-modal-backdrop" onClick={() => setIsLocationSearchOpen(false)} />
+          <div className="loc-modal-backdrop" onClick={closeLocationModal} />
           <div className="loc-modal" role="dialog" aria-modal="true" aria-label="Search location">
             <div className="loc-modal-header">
               <div className="loc-modal-title-row">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                 </svg>
-                <h3 className="loc-modal-title">Search location</h3>
+                <h3 className="loc-modal-title">{searchResult ? 'Add location' : 'Search location'}</h3>
               </div>
-              <button className="loc-modal-close" onClick={() => setIsLocationSearchOpen(false)} aria-label="Close">
+              <button className="loc-modal-close" onClick={closeLocationModal} aria-label="Close">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
@@ -1282,68 +1261,95 @@ export default function App() {
             </div>
 
             <div className="loc-modal-body">
-              <div className="loc-modal-form-wrap">
-                <form className="loc-modal-form" onSubmit={handleSearchSubmit}>
-                  <svg className="loc-modal-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={searchAddress}
-                    onChange={(event) => {
-                      const nextValue = event.target.value
-                      setSearchAddress(nextValue)
-                      if (nextValue.trim() !== confirmedSearchAddress.trim()) {
-                        setConfirmedSearchAddress('')
-                      }
-                    }}
-                    className="loc-modal-input"
-                    placeholder="City, address, or postcode…"
-                    autoFocus
-                  />
-                  <button type="submit" className="loc-modal-submit" disabled={isLoadingAirData}>
-                    {isLoadingAirData ? 'Loading…' : 'Search'}
-                  </button>
-                </form>
+              {searchResult ? (
+                <>
+                  <div className="loc-modal-result">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <span className="loc-modal-result-label">{searchResult.label}</span>
+                  </div>
+                  <div className="loc-modal-result-actions">
+                    <button
+                      type="button"
+                      className="loc-modal-add-btn"
+                      onClick={handleAddConfirmed}
+                      disabled={isLoadingAirData}
+                    >
+                      {isLoadingAirData ? 'Adding…' : 'Add location'}
+                    </button>
+                    <button
+                      type="button"
+                      className="loc-modal-back-btn"
+                      onClick={() => { setSearchResult(null); setLiveAirError('') }}
+                      disabled={isLoadingAirData}
+                    >
+                      ← Search again
+                    </button>
+                  </div>
+                  {liveAirError && <p className="loc-modal-error">{liveAirError}</p>}
+                </>
+              ) : (
+                <>
+                  <div className="loc-modal-form-wrap">
+                    <div className="loc-modal-form">
+                      <svg className="loc-modal-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={searchAddress}
+                        onChange={(event) => {
+                          const nextValue = event.target.value
+                          setSearchAddress(nextValue)
+                          if (nextValue.trim() !== confirmedSearchAddress.trim()) {
+                            setConfirmedSearchAddress('')
+                          }
+                        }}
+                        className="loc-modal-input"
+                        placeholder="City, address, or postcode…"
+                        autoFocus
+                      />
+                    </div>
 
-                {(isLoadingSuggestions || suggestions.length > 0) && !isLoadingAirData && (
-                  <div className="loc-modal-suggestions">
-                    {isLoadingSuggestions ? (
-                      <div className="loc-modal-suggestion loc-modal-suggestion--muted">Searching…</div>
-                    ) : (
-                      suggestions.map((suggestion) => (
-                        <button
-                          key={`${suggestion.place_id ?? suggestion.label}-${suggestion.lat}-${suggestion.lon}`}
-                          type="button"
-                          className="loc-modal-suggestion"
-                          onClick={() => handleSelectSuggestion(suggestion)}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-                          </svg>
-                          {suggestion.label}
-                        </button>
-                      ))
+                    {(isLoadingSuggestions || suggestions.length > 0) && !isLoadingAirData && (
+                      <div className="loc-modal-suggestions">
+                        {isLoadingSuggestions ? (
+                          <div className="loc-modal-suggestion loc-modal-suggestion--muted">Searching…</div>
+                        ) : (
+                          suggestions.map((suggestion) => (
+                            <button
+                              key={`${suggestion.place_id ?? suggestion.label}-${suggestion.lat}-${suggestion.lon}`}
+                              type="button"
+                              className="loc-modal-suggestion"
+                              onClick={() => handleSelectSuggestion(suggestion)}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                              </svg>
+                              {suggestion.label}
+                            </button>
+                          ))
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              <div className="loc-modal-divider">
-                <span>or</span>
-              </div>
+                  <div className="loc-modal-divider">
+                    <span>or</span>
+                  </div>
 
-              <button type="button" className="loc-modal-my-location" onClick={handleUseMyLocation}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-                  <path d="m4.93 4.93 2.12 2.12M16.95 16.95l2.12 2.12M16.95 7.05l2.12-2.12M4.93 19.07l2.12-2.12" />
-                </svg>
-                Use my current location
-              </button>
+                  <button type="button" className="loc-modal-my-location" onClick={handleUseMyLocation} disabled={isLoadingAirData}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                      <path d="m4.93 4.93 2.12 2.12M16.95 16.95l2.12 2.12M16.95 7.05l2.12-2.12M4.93 19.07l2.12-2.12" />
+                    </svg>
+                    {isLoadingAirData ? 'Getting location…' : 'Use my current location'}
+                  </button>
 
-              {liveAirError && (
-                <p className="loc-modal-error">{liveAirError}</p>
+                  {liveAirError && <p className="loc-modal-error">{liveAirError}</p>}
+                </>
               )}
             </div>
           </div>
