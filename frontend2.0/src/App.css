@@ -1398,7 +1398,8 @@
 }
 
 .loc-modal-form-wrap {
-  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .loc-modal-form {
@@ -1408,7 +1409,7 @@
   background: #f4f7fc;
   border: 1.5px solid rgba(210, 225, 243, 0.9);
   border-radius: 14px;
-  padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+  padding: 0.6rem 0.9rem;
   transition: border-color 0.18s ease;
 }
 
@@ -1436,47 +1437,21 @@
   color: #9ab0c8;
 }
 
-.loc-modal-submit {
-  background: linear-gradient(135deg, #0874f8, #02b4ff);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  padding: 0.48rem 1.1rem;
-  border-radius: 10px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: opacity 0.18s ease;
-}
-
-.loc-modal-submit:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.loc-modal-submit:hover:not(:disabled) {
-  opacity: 0.88;
-}
 
 .loc-modal-suggestions {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 0;
-  right: 0;
+  margin-top: 0.4rem;
   background: #fff;
   border: 1px solid rgba(210, 225, 243, 0.9);
   border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(10, 30, 60, 0.12);
-  z-index: 10;
-  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
 .loc-modal-suggestion {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.55rem;
   background: none;
   border: none;
@@ -1485,7 +1460,9 @@
   padding: 0.65rem 1rem;
   font-size: 0.88rem;
   color: #1a3152;
+  line-height: 1.4;
   transition: background 0.15s ease;
+  flex-shrink: 0;
 }
 
 .loc-modal-suggestion:hover {
@@ -1545,6 +1522,75 @@
   font-size: 0.8rem;
   color: #c0392b;
   text-align: center;
+}
+
+/* ── loc-modal result / confirm view ── */
+.loc-modal-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(221, 239, 255, 0.5);
+  border: 1px solid #c0d9f0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  color: #1a3152;
+}
+
+.loc-modal-result svg {
+  flex-shrink: 0;
+  color: #0f8cf4;
+}
+
+.loc-modal-result-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.loc-modal-result-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+
+.loc-modal-add-btn {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0874f8, #02b4ff);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.5rem 1.2rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease;
+}
+
+.loc-modal-add-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.loc-modal-back-btn {
+  background: none;
+  border: none;
+  color: #4a5f7e;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0.5rem 0.4rem;
+  transition: color 0.15s ease;
+}
+
+.loc-modal-back-btn:hover:not(:disabled) {
+  color: #1a3152;
+}
+
+.loc-modal-back-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
 .dash-aqi-loc {
