@@ -173,24 +173,28 @@ def _normalize_reading_payload(
             detail="Qingping device data response had an unexpected shape.",
         )
 
-    devices = _extract_devices(payload)
-    selected = next(
-        (
-            device
-            for device in devices
-            if _normalize_device_payload(
-                raw_device=device,
-                selected_device_id=integration.selected_device_id,
-            ).device_id
-            == integration.selected_device_id
-        ),
-        None,
-    )
+    selected: dict[str, Any] | None = None
+    if isinstance(payload.get("data"), dict) or isinstance(payload.get("info"), dict):
+        selected = payload
+    else:
+        devices = _extract_devices(payload)
+        selected = next(
+            (
+                device
+                for device in devices
+                if _normalize_device_payload(
+                    raw_device=device,
+                    selected_device_id=integration.selected_device_id,
+                ).device_id
+                == integration.selected_device_id
+            ),
+            None,
+        )
 
     if selected is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Selected Qingping device was not found in the latest device list.",
+            detail="Selected Qingping device was not found in Qingping response.",
         )
 
     info = selected.get("info") if isinstance(selected.get("info"), dict) else {}
@@ -680,10 +684,17 @@ def get_qingping_latest_reading(
 
     integration = _refresh_qingping_token_if_needed(db=db, integration=integration)
     synced_at = datetime.now(UTC)
-    payload = _qingping_get(
-        integration=integration,
-        url=_qingping_devices_url(),
-    )
+    try:
+        payload = _qingping_get(
+            integration=integration,
+            url=_qingping_device_data_url(integration.selected_device_id),
+        )
+    except HTTPException:
+        # Fallback for tenants/environments where direct device data endpoint is unavailable.
+        payload = _qingping_get(
+            integration=integration,
+            url=_qingping_devices_url(),
+        )
 
     integration.last_synced_at = synced_at
     db.commit()

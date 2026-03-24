@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import heroBackground from './assets/123.png'
+import dashboardBackground from './assets/dashboard-bg-new.png'
 import logoAiriq from './assets/logo-airiq.svg'
 import sensorImage from './assets/sensor.png'
 import watchImage from './assets/watch.png'
@@ -59,6 +60,7 @@ const mockData = {
 
 const POLISH_LOCALE = 'pl-PL'
 const POLISH_TIMEZONE = 'Europe/Warsaw'
+const REFRESH_COOLDOWN_MS = 5 * 60 * 1000
 
 function formatRoundedMetric(value, suffix, fallback) {
   return typeof value === 'number' ? `${Math.round(value)}${suffix}` : fallback
@@ -210,10 +212,16 @@ export default function App() {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   const [confirmedSearchAddress, setConfirmedSearchAddress] = useState(mockData.location)
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false)
+  const [recsTab, setRecsTab] = useState('suggestions')
   const [savedLocations, setSavedLocations] = useState([])
   const [sensorStatus, setSensorStatus] = useState(null)
   const [sensorReading, setSensorReading] = useState(null)
   const [sensorError, setSensorError] = useState('')
+  const [currentCoords, setCurrentCoords] = useState(null)
+  const [outdoorRefreshCooldownUntil, setOutdoorRefreshCooldownUntil] = useState(0)
+  const [indoorRefreshCooldownUntil, setIndoorRefreshCooldownUntil] = useState(0)
+  const [nowTs, setNowTs] = useState(Date.now())
+  const [isRefreshingIndoor, setIsRefreshingIndoor] = useState(false)
 
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
@@ -304,6 +312,7 @@ export default function App() {
       const data = await getAirQualityData(lat, lon)
       setLiveAirData(data)
       setCurrentLocationLabel(locationLabel)
+      setCurrentCoords({ lat, lon })
       setStatusMessage('')
       upsertSavedLocation(locationLabel, lat, lon)
     } catch (error) {
@@ -333,6 +342,7 @@ export default function App() {
       const data = await getAirQualityData(geocoded.lat, geocoded.lon)
       setLiveAirData(data)
       setCurrentLocationLabel(geocoded.address)
+      setCurrentCoords({ lat: geocoded.lat, lon: geocoded.lon })
       setStatusMessage('')
       setIsLocationSearchOpen(false)
       upsertSavedLocation(geocoded.address, geocoded.lat, geocoded.lon)
@@ -394,6 +404,7 @@ export default function App() {
         if (!cancelled) {
           setLiveAirData(data)
           setCurrentLocationLabel(geocoded.address)
+          setCurrentCoords({ lat: geocoded.lat, lon: geocoded.lon })
           setStatusMessage('')
           upsertSavedLocation(geocoded.address, geocoded.lat, geocoded.lon)
         }
@@ -451,6 +462,11 @@ export default function App() {
       window.clearTimeout(debounceId)
     }
   }, [searchAddress, user])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTs(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     if (!token) {
@@ -548,14 +564,49 @@ export default function App() {
     return source.charAt(0).toUpperCase() || '?'
   })()
 
-  const heroPm25 = liveAirData?.current?.pm25 ?? mockData.pm25Value
-  const heroPm10 = liveAirData?.current?.pm10 ?? mockData.pm10Value
+  const heroPm25 = liveAirData?.current?.pm25 ?? '--'
+  const heroPm10 = liveAirData?.current?.pm10 ?? '--'
   const heroLocation = currentLocationLabel
   const heroAqiValue = liveAirData?.aqi?.value ?? 0
-  const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? 'Loading' : '-')
+  const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? 'Loading' : 'No data')
   const sourceProvider = liveAirData?.source?.provider
   const sourceMethod = liveAirData?.source?.method
+  const sourceProviderLabel = (() => {
+    if (sourceProvider === 'airly') return 'Airly'
+    if (sourceProvider === 'openaq') return 'OpenAQ'
+    if (sourceProvider === 'open-meteo') return 'Open-Meteo'
+    if (sourceProvider === 'none') return 'Unavailable'
+    return sourceProvider || 'Unknown'
+  })()
+  const sourceMethodLabel = sourceMethod === 'point'
+    ? 'Interpolated point'
+    : sourceMethod === 'nearest_station'
+      ? 'Nearest station'
+      : sourceMethod === 'model'
+        ? 'Model'
+        : null
+  const sourceBadgeLabel = sourceMethodLabel
+    ? `Source: ${sourceProviderLabel} (${sourceMethodLabel})`
+    : `Source: ${sourceProviderLabel}`
   const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
+  const sourceDistanceKm = liveAirData?.source?.distance_km
+  const sourceTooltipMessage = (() => {
+    if (sourceProvider === 'airly' && sourceMethod === 'point') {
+      return 'Interpolated point means Airly estimates air quality at your exact location using nearby measurements and spatial modeling. Confidence: High in covered urban areas, Medium in sparse areas.'
+    }
+    if (sourceProvider === 'airly' && sourceMethod === 'nearest_station') {
+      const distanceText = typeof sourceDistanceKm === 'number' ? ` (${sourceDistanceKm.toFixed(1)} km away)` : ''
+      return `Nearest station means values come from the closest Airly sensor${distanceText}, not your exact coordinates. Confidence: High when close to the station, Medium when farther away.`
+    }
+    if (sourceProvider === 'openaq' && sourceMethod === 'nearest_station') {
+      const distanceText = typeof sourceDistanceKm === 'number' ? ` (${sourceDistanceKm.toFixed(1)} km away)` : ''
+      return `Nearest station means values come from the closest OpenAQ station${distanceText}. Confidence: Medium, because station distance and local micro-conditions may differ.`
+    }
+    if (sourceProvider === 'open-meteo' && sourceMethod === 'model') {
+      return 'Model estimate means values are forecast/model-based for your area, not measured by a local sensor at your point. Confidence: Lower than nearby station measurements.'
+    }
+    return liveSourceMessage || 'Live outdoor air quality based on selected location.'
+  })()
   const weatherCurrent = liveAirData?.current
   const weatherTemperature = formatRoundedMetric(weatherCurrent?.temperature_c, '\u00B0', '--\u00B0')
   const weatherFeelsLike = formatRoundedMetric(
@@ -571,6 +622,55 @@ export default function App() {
     weatherCurrent?.wind_speed_ms,
   )
   const weatherCondition = weatherVisual.label
+  const outdoorUpdatedAtRaw = liveAirData?.cache?.created_at
+    || liveAirData?.measurement_window?.to
+    || liveAirData?.measurement_window?.from
+  const outdoorUpdatedDate = outdoorUpdatedAtRaw ? new Date(outdoorUpdatedAtRaw) : null
+  const outdoorUpdatedLabel = outdoorUpdatedDate && !Number.isNaN(outdoorUpdatedDate.getTime())
+    ? new Intl.DateTimeFormat(POLISH_LOCALE, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: POLISH_TIMEZONE,
+      timeZoneName: 'short',
+    }).format(outdoorUpdatedDate)
+    : 'No data timestamp'
+  const outdoorCooldownRemainingMs = Math.max(0, outdoorRefreshCooldownUntil - nowTs)
+  const indoorCooldownRemainingMs = Math.max(0, indoorRefreshCooldownUntil - nowTs)
+  const outdoorOnCooldown = outdoorCooldownRemainingMs > 0
+  const indoorOnCooldown = indoorCooldownRemainingMs > 0
+  const outdoorCanRefresh = Boolean(currentCoords) && !isLoadingAirData && outdoorCooldownRemainingMs === 0
+  const indoorCanRefresh = Boolean(token) && !isRefreshingIndoor && indoorCooldownRemainingMs === 0
+
+  const handleRefreshOutdoor = async () => {
+    if (!currentCoords || !outdoorCanRefresh) return
+    setOutdoorRefreshCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS)
+    await loadAirQualityForCoords(currentCoords.lat, currentCoords.lon, currentLocationLabel)
+  }
+
+  const handleRefreshIndoor = async () => {
+    if (!token || !indoorCanRefresh) return
+    setIndoorRefreshCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS)
+    setIsRefreshingIndoor(true)
+    try {
+      const status = await getQingpingIntegrationStatus(token)
+      setSensorStatus(status)
+
+      if (!status?.is_connected || !status?.selected_device_id) {
+        setSensorReading(null)
+        setSensorError('')
+        return
+      }
+
+      const latest = await getIndoorSensorData(token)
+      setSensorReading(latest)
+      setSensorError('')
+    } catch (error) {
+      setSensorError(error instanceof Error ? error.message : 'Failed to load indoor sensor data.')
+    } finally {
+      setIsRefreshingIndoor(false)
+    }
+  }
   const hasConnectedIndoorSensor = Boolean(sensorStatus?.is_connected && sensorStatus?.selected_device_id)
   const batteryPercentage = typeof sensorReading?.battery_pct === 'number' ? sensorReading.battery_pct : null
   const batteryToneClass = batteryPercentage != null && batteryPercentage < 20
@@ -586,9 +686,20 @@ export default function App() {
     }).format(new Date(sensorReading?.synced_at || sensorReading?.updated_at))
     : 'No reading yet'
   const indoorUpdatedPrefix = sensorReading?.synced_at ? 'Synced' : 'Updated'
+  const indoorAqiValue = hasConnectedIndoorSensor ? 2 : 0
+  const indoorAqiLabel = hasConnectedIndoorSensor ? 'Good' : 'Setup needed'
+  const indoorTitle = sensorStatus?.selected_device_name || 'Living Room'
+  const indoorPm25 = sensorReading?.pm2_5_ug_m3 ?? '--'
+  const indoorPm10 = sensorReading?.pm10_ug_m3 ?? '--'
+  const indoorCo2 = sensorReading?.co2_ppm ?? '--'
+  const indoorTemp = sensorReading?.temperature_c ?? '--'
+  const indoorHumidity = sensorReading?.humidity_pct ?? '--'
+  const indoorBattery = sensorReading?.battery_pct ?? '--'
+
+  const activeBackground = route === '/' ? dashboardBackground : heroBackground
 
   return (
-    <div className="page-root" style={{ backgroundImage: `url(${heroBackground})` }}>
+    <div className={`page-root${route === '/' ? ' page-root--dashboard' : ''}`} style={{ backgroundImage: `url(${activeBackground})` }}>
       <header className="top-nav">
         <div className="brand">
           <img src={logoAiriq} alt="AirIQ" className="brand-logo" />
@@ -805,21 +916,52 @@ export default function App() {
               </span>
             </div>
           </div>
+          <div className="dashboard-preview__scale dashboard-preview__scale--indoor-submenu">
+            <p>Air Quality Index (AQI) Scale</p>
+            <div className="dashboard-preview__scale-bar" />
+            <div className="dashboard-preview__scale-labels">
+              <span>Good</span>
+              <span>Moderate</span>
+              <span>Unhealthy for Sensitive</span>
+              <span>Unhealthy</span>
+              <span>Very Unhealthy</span>
+              <span>Hazardous</span>
+            </div>
+            <small>Current: {indoorAqiValue} ({indoorAqiLabel})</small>
+          </div>
         </div>
 
       </>) : (<>
         <section className="dashboard-preview">
-          <div className="dashboard-preview__header">
-            <div>
-              <h2 className="dashboard-preview__title">Outdoor &amp; Indoor Air Quality</h2>
-              <button type="button" className="dashboard-preview__location">
-                Stockholm, Sweden
+          <div className="dashboard-preview__locations">
+            <div className="dashboard-preview__location-chip dashboard-preview__location-chip--action">
+              <button type="button" onClick={() => setIsLocationSearchOpen(true)}>
+                Add location
               </button>
             </div>
-            <div className="dashboard-preview__header-right">
-              <span className="dashboard-preview__updated">Updated 2 min ago</span>
-              <button type="button" className="dashboard-preview__search">Search location</button>
-            </div>
+            {savedLocations.length > 0 && (
+              <>
+              {savedLocations.map((loc) => (
+                <div
+                  key={loc.label}
+                  className={`dashboard-preview__location-chip${currentLocationLabel === loc.label ? ' dashboard-preview__location-chip--active' : ''}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchLocation(loc)}
+                    disabled={isLoadingAirData || currentLocationLabel === loc.label}
+                  >
+                    {loc.label}
+                  </button>
+                  {savedLocations.length > 1 && (
+                    <button type="button" onClick={() => handleRemoveLocation(loc.label)}>
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              </>
+            )}
           </div>
 
           <div className="dashboard-preview__cards">
@@ -831,47 +973,64 @@ export default function App() {
                   </svg>
                   OUTDOOR AIR
                 </span>
-                <span className="dashboard-preview-card__pill">Source: Open-Meteo</span>
+                <span className="dashboard-preview-card__pill dashboard-preview-card__pill--tooltip">
+                  {sourceBadgeLabel}
+                  <span className="dashboard-preview-card__tooltip" role="tooltip">
+                    {sourceTooltipMessage}
+                  </span>
+                </span>
               </div>
               <div className="dashboard-preview-card__content">
                 <div className="dashboard-preview-card__ring">
-                  <AqiRing value={1} label="Very Good" maxValue={6} />
+                  <AqiRing value={heroAqiValue} label={heroAqiLabel} maxValue={6} />
                 </div>
-                <div className="dashboard-preview-card__stats">
-                  <h3>Very Good</h3>
-                  <p>Excellent outdoor air quality</p>
-                  <div className="dashboard-preview-card__metric-row">
+                <div className="dashboard-preview-card__copy">
+                  Live outdoor air quality.
+                </div>
+                <div className="dashboard-preview-card__meta-row dashboard-preview-card__meta-row--placeholder" aria-hidden>
+                  <span className="dashboard-preview-card__meta-chip">Battery: --</span>
+                  <span className="dashboard-preview-card__meta-chip">Live sync</span>
+                </div>
+                <div className="dashboard-preview-card__metrics-grid">
+                  <div className="dashboard-preview-card__metric-tile">
                     <strong>PM2.5</strong>
-                    <span>2.1 µg/m³</span>
+                    <span>{heroPm25} µg/m³</span>
                   </div>
-                  <div className="dashboard-preview-card__metric-row">
+                  <div className="dashboard-preview-card__metric-tile">
                     <strong>PM10</strong>
-                    <span>8.9 µg/m³</span>
+                    <span>{heroPm10} µg/m³</span>
+                  </div>
+                  <div className="dashboard-preview-card__metric-tile">
+                    <strong>Temp</strong>
+                    <span>{weatherTemperature}</span>
+                  </div>
+                  <div className="dashboard-preview-card__metric-tile">
+                    <strong>Wind</strong>
+                    <span>{weatherWind}</span>
+                  </div>
+                  <div className="dashboard-preview-card__metric-tile">
+                    <strong>Humidity</strong>
+                    <span>{weatherHumidity}</span>
                   </div>
                 </div>
               </div>
-              <div className="dashboard-preview-card__footer">
-                <span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                  </svg>
-                  11°C
-                </span>
-                <span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M3 9h11a3 3 0 1 0-3-3" />
-                    <path d="M2 14h14a3 3 0 1 1-3 3" />
-                    <path d="M4 19h7" />
-                  </svg>
-                  67 km/h
-                </span>
-                <span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-                  </svg>
-                  52%
-                </span>
+              <div className="dashboard-preview-card__status">
+                <span>Updated: {outdoorUpdatedLabel}</span>
+                <div className={`dashboard-preview-card__refresh-wrap${outdoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
+                  <button
+                    type="button"
+                    className="dashboard-preview-card__refresh-btn"
+                    onClick={handleRefreshOutdoor}
+                    disabled={!outdoorCanRefresh}
+                  >
+                    {isLoadingAirData ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                  {outdoorOnCooldown && (
+                    <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
+                      You can refresh every 5 minutes only.
+                    </span>
+                  )}
+                </div>
               </div>
             </article>
 
@@ -884,60 +1043,131 @@ export default function App() {
                   </svg>
                   INDOOR AIR
                 </span>
-                <button type="button" className="dashboard-preview-card__room-select">Living Room</button>
+                <button type="button" className="dashboard-preview-card__room-select" onClick={() => handleAddDevice('sensor')}>
+                  {hasConnectedIndoorSensor ? `Device: ${sensorStatus?.selected_device_name || indoorTitle}` : 'Connect device'}
+                </button>
               </div>
               <div className="dashboard-preview-card__content">
                 <div className="dashboard-preview-card__ring">
-                  <AqiRing value={2} label="Good" maxValue={6} />
+                  <AqiRing value={indoorAqiValue} label={indoorAqiLabel} maxValue={6} />
                 </div>
-                <div className="dashboard-preview-card__stats">
-                  <h3>Good</h3>
-                  <p>All systems normal</p>
-                  <div className="dashboard-preview-card__metric-row">
-                    <strong>PM2.5</strong>
-                    <span>5.2 µg/m³ <i /></span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-row">
-                    <strong>PM10</strong>
-                    <span>12 µg/m³ <i /></span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-row">
-                    <strong>CO2</strong>
-                    <span>620 ppm <i /></span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-row">
-                    <strong>Temp</strong>
-                    <span>22.4°C <i /></span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-row">
-                    <strong>Humidity</strong>
-                    <span>48% <i /></span>
-                  </div>
+                <div className="dashboard-preview-card__copy">
+                  {hasConnectedIndoorSensor ? '\u00A0' : 'Connect your indoor device to start seeing room data.'}
                 </div>
+                {hasConnectedIndoorSensor ? (
+                  <>
+                    <div className="dashboard-preview-card__meta-row">
+                      <span className="dashboard-preview-card__meta-chip">Battery: {indoorBattery}%</span>
+                      <span className="dashboard-preview-card__meta-chip dashboard-preview-card__meta-chip--live">Live sync</span>
+                    </div>
+                    <div className="dashboard-preview-card__metrics-grid">
+                      <div className="dashboard-preview-card__metric-tile">
+                        <strong>PM2.5</strong>
+                        <span>{indoorPm25} µg/m³</span>
+                      </div>
+                      <div className="dashboard-preview-card__metric-tile">
+                        <strong>PM10</strong>
+                        <span>{indoorPm10} µg/m³</span>
+                      </div>
+                      <div className="dashboard-preview-card__metric-tile">
+                        <strong>CO2</strong>
+                        <span>{indoorCo2} ppm</span>
+                      </div>
+                      <div className="dashboard-preview-card__metric-tile">
+                        <strong>Temp</strong>
+                        <span>{indoorTemp}°C</span>
+                      </div>
+                      <div className="dashboard-preview-card__metric-tile">
+                        <strong>Humidity</strong>
+                        <span>{indoorHumidity}%</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="dashboard-preview-card__connect-wrap">
+                    <button type="button" className="dashboard-preview-card__connect-btn" onClick={() => handleAddDevice('sensor')}>
+                      Connect Device
+                    </button>
+                    <small>Use your current setup flow for Qingping/AirIQ Home pairing.</small>
+                  </div>
+                )}
+                {sensorError && <p className="dashboard-preview-card__error">{sensorError}</p>}
               </div>
               <div className="dashboard-preview-card__status">
-                All readings are within healthy ranges.
+                <span>{hasConnectedIndoorSensor ? `${indoorUpdatedPrefix}: ${indoorUpdatedLabel}` : 'No indoor sensor connected yet.'}</span>
+                <div className={`dashboard-preview-card__refresh-wrap${indoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
+                  <button
+                    type="button"
+                    className="dashboard-preview-card__refresh-btn"
+                    onClick={handleRefreshIndoor}
+                    disabled={!indoorCanRefresh}
+                  >
+                    {isRefreshingIndoor ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                  {indoorOnCooldown && (
+                    <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
+                      You can refresh every 5 minutes only.
+                    </span>
+                  )}
+                </div>
               </div>
             </article>
           </div>
 
-          <div className="dashboard-preview__scale">
-            <p>Air Quality Index (AQI) Scale</p>
-            <div className="dashboard-preview__scale-bar" />
-            <div className="dashboard-preview__scale-labels">
-              <span>Good</span>
-              <span>Moderate</span>
-              <span>Unhealthy for Sensitive</span>
-              <span>Unhealthy</span>
-              <span>Very Unhealthy</span>
-              <span>Hazardous</span>
+          <section className="dashboard-preview-recs">
+            <div className="dashboard-preview-recs__tabs">
+              <button
+                type="button"
+                className={`dashboard-preview-recs__tab${recsTab === 'suggestions' ? ' dashboard-preview-recs__tab--active' : ''}`}
+                onClick={() => setRecsTab('suggestions')}
+              >
+                Suggestions
+              </button>
+              <button
+                type="button"
+                className={`dashboard-preview-recs__tab${recsTab === 'ai' ? ' dashboard-preview-recs__tab--active' : ''}`}
+                onClick={() => setRecsTab('ai')}
+              >
+                AI Recommendations
+              </button>
             </div>
-            <small>Current: 1 (Very Good)</small>
-          </div>
 
-          <div className="dashboard-preview__message">
-            Both outdoor and indoor air quality are excellent. Perfect conditions for outdoor activities.
-          </div>
+            <div className="dashboard-preview-recs__body">
+              {recsTab === 'suggestions' ? (
+                <div className="dashboard-preview-recs__grid">
+                  <article className="dashboard-preview-recs__item">
+                    <h4>Ventilation Window</h4>
+                    <p>Best time to open windows based on PM and wind trend.</p>
+                    <span>Recommended today: 13:00-15:00</span>
+                  </article>
+                  <article className="dashboard-preview-recs__item">
+                    <h4>Outdoor Activity</h4>
+                    <p>Current air quality supports running and medium-intensity workouts.</p>
+                    <span>Good right now</span>
+                  </article>
+                  <article className="dashboard-preview-recs__item">
+                    <h4>Indoor Comfort</h4>
+                    <p>Humidity and temperature are stable. Keep current settings.</p>
+                    <span>Conditions balanced</span>
+                  </article>
+                </div>
+              ) : (
+                <div className="dashboard-preview-recs__ai">
+                  <h4>AI Daily Plan</h4>
+                  <p>
+                    Your tailored recommendations will appear here once enough live outdoor and
+                    indoor readings are collected for your saved locations.
+                  </p>
+                  <div className="dashboard-preview-recs__chips">
+                    <span>Sleep timing</span>
+                    <span>Workout windows</span>
+                    <span>Ventilation strategy</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
         </section>
       </>)}
 
