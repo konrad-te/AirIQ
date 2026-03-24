@@ -19,11 +19,11 @@ import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
-import SecurityPage from './pages/SecurityPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAirQualityData, getIndoorSensorData, suggestAddresses } from './services/airDataService'
+import { addSavedLocation, getSavedLocations, removeSavedLocation } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 
 const mockData = {
@@ -212,6 +212,7 @@ export default function App() {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   const [confirmedSearchAddress, setConfirmedSearchAddress] = useState(mockData.location)
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false)
+  const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false)
   const [recsTab, setRecsTab] = useState('suggestions')
   const [savedLocations, setSavedLocations] = useState([])
   const [sensorStatus, setSensorStatus] = useState(null)
@@ -241,11 +242,6 @@ export default function App() {
   const handleOpenSettings = () => {
     window.history.pushState({}, '', '/settings')
     setRoute('/settings')
-  }
-
-  const handleOpenSecurity = () => {
-    window.history.pushState({}, '', '/security')
-    setRoute('/security')
   }
 
   const handleOpenIndoor = () => {
@@ -282,18 +278,33 @@ export default function App() {
     console.log('User chose device:', deviceType)
   }
 
-  const upsertSavedLocation = (label, lat, lon) => {
-    setSavedLocations((prev) => {
-      if (prev.some((l) => l.label === label)) return prev
-      return [...prev, { label, lat, lon }]
-    })
+  const upsertSavedLocation = async (label, lat, lon) => {
+    if (token) {
+      try {
+        const saved = await addSavedLocation(token, { label, lat, lon })
+        setSavedLocations((prev) => {
+          if (prev.some((l) => l.id === saved.id)) return prev
+          return [...prev, saved]
+        })
+      } catch {
+        // silently ignore — location still visible for this session
+      }
+    }
   }
 
   const handleSwitchLocation = (loc) => {
     loadAirQualityForCoords(loc.lat, loc.lon, loc.label)
   }
 
-  const handleRemoveLocation = (label) => {
+  const handleRemoveLocation = async (label) => {
+    const loc = savedLocations.find((l) => l.label === label)
+    if (loc?.id && token) {
+      try {
+        await removeSavedLocation(token, loc.id)
+      } catch {
+        // silently ignore
+      }
+    }
     setSavedLocations((prev) => {
       const next = prev.filter((l) => l.label !== label)
       if (currentLocationLabel === label && next.length > 0) {
@@ -427,6 +438,16 @@ export default function App() {
   }, [user])
 
   useEffect(() => {
+    if (!user || !token) {
+      setSavedLocations([])
+      return
+    }
+    getSavedLocations(token)
+      .then((locs) => setSavedLocations(locs))
+      .catch(() => {})
+  }, [user])
+
+  useEffect(() => {
     if (!user) {
       setSuggestions([])
       setIsLoadingSuggestions(false)
@@ -541,11 +562,7 @@ export default function App() {
   }
 
   if (route === '/settings') {
-    return <SettingsPage onBack={handleBackToLanding} onOpenSecurity={handleOpenSecurity} />
-  }
-
-  if (route === '/security') {
-    return <SecurityPage onBack={handleOpenSettings} onAccountDeleted={handleAccountDeleted} />
+    return <SettingsPage onBack={handleBackToLanding} onAccountDeleted={handleAccountDeleted} />
   }
 
 
@@ -934,34 +951,70 @@ export default function App() {
       </>) : (<>
         <section className="dashboard-preview">
           <div className="dashboard-preview__locations">
-            <div className="dashboard-preview__location-chip dashboard-preview__location-chip--action">
-              <button type="button" onClick={() => setIsLocationSearchOpen(true)}>
-                Add location
-              </button>
-            </div>
-            {savedLocations.length > 0 && (
-              <>
-              {savedLocations.map((loc) => (
-                <div
-                  key={loc.label}
-                  className={`dashboard-preview__location-chip${currentLocationLabel === loc.label ? ' dashboard-preview__location-chip--active' : ''}`}
+            <div className="location-menu">
+              {isLocationMenuOpen && (
+                <div className="location-menu-backdrop" onClick={() => setIsLocationMenuOpen(false)} />
+              )}
+              <button
+                type="button"
+                className="location-menu-trigger"
+                onClick={() => setIsLocationMenuOpen((v) => !v)}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span>{currentLocationLabel}</span>
+                <svg
+                  className={`location-menu-chevron${isLocationMenuOpen ? ' location-menu-chevron--open' : ''}`}
+                  width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
                 >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {isLocationMenuOpen && (
+                <div className="location-menu-dropdown">
+                  {savedLocations.map((loc) => {
+                    const isActive = currentLocationLabel === loc.label
+                    return (
+                      <div key={loc.label} className={`location-menu-item${isActive ? ' location-menu-item--active' : ''}`}>
+                        <button
+                          type="button"
+                          onClick={() => { if (!isActive) handleSwitchLocation(loc); setIsLocationMenuOpen(false) }}
+                          disabled={isLoadingAirData}
+                        >
+                          {isActive && (
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{marginRight: '0.4rem', flexShrink: 0}}>
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                          {loc.label}
+                        </button>
+                        {savedLocations.length > 1 && (
+                          <button
+                            type="button"
+                            className="location-menu-remove"
+                            onClick={() => handleRemoveLocation(loc.label)}
+                            aria-label={`Remove ${loc.label}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <div className="location-menu-divider" />
                   <button
                     type="button"
-                    onClick={() => handleSwitchLocation(loc)}
-                    disabled={isLoadingAirData || currentLocationLabel === loc.label}
+                    className="location-menu-add"
+                    onClick={() => { setIsLocationSearchOpen(true); setIsLocationMenuOpen(false) }}
                   >
-                    {loc.label}
+                    + Add location
                   </button>
-                  {savedLocations.length > 1 && (
-                    <button type="button" onClick={() => handleRemoveLocation(loc.label)}>
-                      ×
-                    </button>
-                  )}
                 </div>
-              ))}
-              </>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="dashboard-preview__cards">
