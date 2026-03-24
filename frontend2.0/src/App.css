@@ -3478,5 +3478,160 @@
   .indoor-sensor-summary__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ── Location Menu Dropdown ─────────────────────────────────────────────────── */
+
+.location-menu {
+  position: relative;
+  align-self: flex-start;
+}
+
+.location-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.location-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #d4e3f3;
+  border-radius: 999px;
+  background: rgba(246, 251, 255, 0.96);
+  color: #2f5784;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.32rem 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  max-width: 280px;
+}
+
+.location-menu-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-menu-trigger:hover {
+  border-color: #8cbef0;
+  background: rgba(221, 239, 255, 0.96);
+}
+
+.location-menu-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.location-menu-chevron--open {
+  transform: rotate(180deg);
+}
+
+.location-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  width: max-content;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid rgba(210, 225, 243, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(10, 30, 60, 0.12);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.location-menu-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.location-menu-item:hover {
+  background: rgba(15, 140, 244, 0.08);
+}
+
+.location-menu-item--active {
+  background: rgba(15, 140, 244, 0.1);
+  color: #0a72cc;
+}
+
+.location-menu-item > button:first-child {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  background: none;
+  border: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.location-menu-item > button:first-child:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.location-menu-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #8aa1bc;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+}
+
+.location-menu-item:hover .location-menu-remove {
+  opacity: 1;
+}
+
+.location-menu-remove:hover {
+  color: #c0392b;
+}
+
+.location-menu-divider {
+  height: 1px;
+  background: rgba(210, 225, 243, 0.9);
+  margin: 0.3rem 0.4rem;
+  flex-shrink: 0;
+}
+
+.location-menu-add {
+  background: none;
+  border: none;
+  text-align: left;
+  width: 100%;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f8cf4;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.location-menu-add:hover {
+  background: rgba(15, 140, 244, 0.08);
+}
 
 }

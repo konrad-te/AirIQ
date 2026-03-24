@@ -1,5 +1,6 @@
 from .base import Base
 from .city_point import CityPoint
+from .saved_location import SavedLocation
 from .data_provider import DataProvider
 from .external_station import ExternalStation
 from .feedback import Feedback
@@ -30,6 +31,7 @@ __all__ = [
     "IngestRun",
     "LocationStationCache",
     "ProviderCacheEntry",
+    "SavedLocation",
     "User",
     "UserQingpingIntegration",
     "UserPreference",

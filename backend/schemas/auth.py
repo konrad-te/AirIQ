@@ -59,3 +59,19 @@ class PasswordChangeSchema(BaseModel):
 
 class DeleteAccountSchema(BaseModel):
     password: str
+
+
+class SavedLocationOutSchema(BaseModel):
+    id: int
+    label: str
+    lat: float
+    lon: float
+    sort_order: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SavedLocationCreateSchema(BaseModel):
+    label: str = Field(max_length=255)
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
