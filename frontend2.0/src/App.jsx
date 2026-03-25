@@ -22,7 +22,7 @@ import SettingsPage from './pages/SettingsPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
-import { geocodeAddress, getAirQualityData, getIndoorSensorData, suggestAddresses } from './services/airDataService'
+import { geocodeAddress, getAiRecommendation, getAirQualityData, getIndoorSensorData, suggestAddresses } from './services/airDataService'
 import { addSavedLocation, getSavedLocations, removeSavedLocation } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 
@@ -224,6 +224,10 @@ export default function App() {
   const [indoorRefreshCooldownUntil, setIndoorRefreshCooldownUntil] = useState(0)
   const [nowTs, setNowTs] = useState(Date.now())
   const [isRefreshingIndoor, setIsRefreshingIndoor] = useState(false)
+  const [aiOutdoor, setAiOutdoor] = useState([])
+  const [aiIndoor, setAiIndoor] = useState([])
+  const [isLoadingAi, setIsLoadingAi] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
@@ -667,6 +671,37 @@ export default function App() {
       setIsRefreshingIndoor(false)
     }
   }
+  const handleGetAiRecommendation = async () => {
+    if (!token || isLoadingAi) return
+    setIsLoadingAi(true)
+    setAiError('')
+    try {
+      const outdoor = {
+        aqi: liveAirData?.current?.aqi ?? null,
+        aqi_label: liveAirData?.current?.aqi_label ?? null,
+        pm25: liveAirData?.current?.pm25 ?? null,
+        pm10: liveAirData?.current?.pm10 ?? null,
+        temperature: liveAirData?.current?.temperature ?? null,
+        humidity: liveAirData?.current?.humidity ?? null,
+        location: currentLocationLabel ?? null,
+      }
+      const indoor = sensorReading ? {
+        pm25: sensorReading.pm2_5_ug_m3 ?? null,
+        pm10: sensorReading.pm10_ug_m3 ?? null,
+        co2: sensorReading.co2_ppm ?? null,
+        temperature: sensorReading.temperature_c ?? null,
+        humidity: sensorReading.humidity_pct ?? null,
+      } : null
+      const result = await getAiRecommendation(outdoor, indoor, token)
+      setAiOutdoor(result.outdoor)
+      setAiIndoor(result.indoor)
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'Failed to get AI recommendation.')
+    } finally {
+      setIsLoadingAi(false)
+    }
+  }
+
   const hasConnectedIndoorSensor = Boolean(sensorStatus?.is_connected && sensorStatus?.selected_device_id)
   const batteryPercentage = typeof sensorReading?.battery_pct === 'number' ? sensorReading.battery_pct : null
   const batteryToneClass = batteryPercentage != null && batteryPercentage < 20
@@ -1185,16 +1220,52 @@ export default function App() {
                 </div>
               ) : (
                 <div className="dashboard-preview-recs__ai">
-                  <h4>AI Daily Plan</h4>
-                  <p>
-                    Your tailored recommendations will appear here once enough live outdoor and
-                    indoor readings are collected for your saved locations.
-                  </p>
-                  <div className="dashboard-preview-recs__chips">
-                    <span>Sleep timing</span>
-                    <span>Workout windows</span>
-                    <span>Ventilation strategy</span>
+                  <div className="ai-recs__cards">
+                    <div className="ai-recs__card ai-recs__card--outdoor">
+                      <div className="ai-recs__card-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        <span>Outdoor</span>
+                      </div>
+                      {aiOutdoor.length > 0 ? (
+                        <ul className="ai-recs__card-list">
+                          {aiOutdoor.map((item, i) => <li key={i}>{item}</li>)}
+                        </ul>
+                      ) : (
+                        <p className="ai-recs__card-hint">Workout windows &amp; outdoor activity advice based on current air quality.</p>
+                      )}
+                    </div>
+
+                    <div className="ai-recs__card ai-recs__card--indoor">
+                      <div className="ai-recs__card-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        <span>Indoor</span>
+                      </div>
+                      {aiIndoor.length > 0 ? (
+                        <ul className="ai-recs__card-list">
+                          {aiIndoor.map((item, i) => <li key={i}>{item}</li>)}
+                        </ul>
+                      ) : (
+                        <p className="ai-recs__card-hint">Ventilation timing &amp; sleep quality advice based on indoor sensor readings.</p>
+                      )}
+                    </div>
                   </div>
+
+                  {aiError && (
+                    <p className="dashboard-preview-recs__ai-error">{aiError}</p>
+                  )}
+
+                  {token ? (
+                    <button
+                      type="button"
+                      className="dashboard-preview-recs__ai-btn"
+                      onClick={handleGetAiRecommendation}
+                      disabled={isLoadingAi}
+                    >
+                      {isLoadingAi ? 'Generating…' : (aiOutdoor.length || aiIndoor.length) ? 'Regenerate' : 'Generate AI Plan'}
+                    </button>
+                  ) : (
+                    <p className="dashboard-preview-recs__ai-hint">Sign in to generate AI recommendations.</p>
+                  )}
                 </div>
               )}
             </div>

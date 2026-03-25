@@ -33,6 +33,7 @@ from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
 from backend.routers.integrations import router as integrations_router
+from backend.routers.ai_recommendations import router as ai_router
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
@@ -66,6 +67,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(households_router)
 app.include_router(integrations_router)
+app.include_router(ai_router)
 
 
 def _to_iso(value: datetime | None) -> str | None:

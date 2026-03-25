@@ -823,6 +823,132 @@
   font-weight: 600;
 }
 
+.dashboard-preview-recs__ai-hint {
+  font-size: 0.78rem;
+  color: #5a7799;
+  line-height: 1.5;
+  margin-top: 0.3rem;
+}
+
+.dashboard-preview-recs__ai-error {
+  font-size: 0.75rem;
+  color: #c0392b;
+  margin-top: 0.5rem;
+}
+
+.dashboard-preview-recs__ai-btn {
+  margin-top: 0.85rem;
+  background: linear-gradient(135deg, #3a8ef5 0%, #6b5cf6 100%);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.dashboard-preview-recs__ai-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.dashboard-preview-recs__ai-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* AI recommendation two-box layout */
+.ai-recs__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-bottom: 0.1rem;
+}
+
+.ai-recs__card {
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ai-recs__card--outdoor {
+  background: linear-gradient(145deg, #f0f8ff 0%, #e3f2fd 100%);
+  border: 1px solid #b8d9f5;
+}
+
+.ai-recs__card--indoor {
+  background: linear-gradient(145deg, #f5f0ff 0%, #ede7fd 100%);
+  border: 1px solid #cbbef7;
+}
+
+.ai-recs__card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-recs__card--outdoor .ai-recs__card-header {
+  color: #1a6bb5;
+}
+
+.ai-recs__card--indoor .ai-recs__card-header {
+  color: #5b35a8;
+}
+
+.ai-recs__card-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ai-recs__card-list li {
+  font-size: 0.77rem;
+  line-height: 1.45;
+  color: #2d3748;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.ai-recs__card-list li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  font-size: 0.7rem;
+  top: 0.05em;
+}
+
+.ai-recs__card--outdoor .ai-recs__card-list li::before {
+  color: #1a6bb5;
+}
+
+.ai-recs__card--indoor .ai-recs__card-list li::before {
+  color: #5b35a8;
+}
+
+.ai-recs__card-hint {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #7a8fa8;
+  margin: 0;
+  font-style: italic;
+}
+
+@media (max-width: 500px) {
+  .ai-recs__cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard-preview__scale--indoor-submenu {
   margin-top: 0.8rem;
 }
