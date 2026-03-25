@@ -9,6 +9,17 @@ const LEVEL_COLORS = {
   6: '#eb1308',
 }
 
+const hexToRgba = (hex, alpha) => {
+  const normalized = hex.replace('#', '')
+  const chunkSize = normalized.length === 3 ? 1 : 2
+  const channels = normalized.match(new RegExp(`.{${chunkSize}}`, 'g')) || ['00', '00', '00']
+  const [r, g, b] = channels.map((channel) => {
+    const doubled = chunkSize === 1 ? `${channel}${channel}` : channel
+    return Number.parseInt(doubled, 16)
+  })
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
   const safeValue = Math.min(Math.max(value, 0), maxValue)
   const displayLabel = String(label || '-')
@@ -70,12 +81,17 @@ const AqiRing = ({ value = 42, label = 'Good', maxValue = 100 }) => {
 
   const trackPath = buildTubePath(totalArcDeg)
   const progressPath = buildTubePath(progressArcDeg)
+  const ringStyle = {
+    '--aqi-ring-color': progressColor,
+    '--aqi-ring-glow': hexToRgba(progressColor, 0.34),
+    '--aqi-ring-glow-soft': hexToRgba(progressColor, 0.18),
+  }
 
   return (
-    <div className="aqi-ring">
+    <div className="aqi-ring" style={ringStyle}>
       <svg className="aqi-ring-svg" viewBox="0 0 140 140">
         <path className="aqi-ring-track" d={trackPath} />
-        <path className="aqi-ring-progress" d={progressPath} fill={progressColor} />
+        <path className="aqi-ring-progress" d={progressPath} />
       </svg>
 
       <div className="aqi-ring-content">

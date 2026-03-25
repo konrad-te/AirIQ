@@ -73,6 +73,128 @@
     0 0 0 1px rgba(215, 228, 245, 0.9);
 }
 
+.admin-suggestion-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.admin-suggestion-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.admin-field span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4f6687;
+}
+
+.admin-field input {
+  width: 100%;
+  border: 1.5px solid rgba(210, 225, 243, 0.95);
+  border-radius: 12px;
+  background: rgba(248, 251, 255, 0.95);
+  color: #1a3152;
+  font-size: 0.92rem;
+  padding: 0.72rem 0.85rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-field input:focus {
+  border-color: rgba(15, 140, 244, 0.45);
+  box-shadow: 0 0 0 3px rgba(15, 140, 244, 0.12);
+}
+
+.admin-suggestion-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-primary-btn,
+.admin-secondary-btn {
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.72rem 1rem;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.admin-primary-btn {
+  border: none;
+  background: linear-gradient(135deg, #0d7ef5, #28a6ff);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(13, 126, 245, 0.24);
+}
+
+.admin-primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.admin-secondary-btn {
+  border: 1.5px solid rgba(210, 225, 243, 0.95);
+  background: #fff;
+  color: #35567f;
+}
+
+.admin-secondary-btn:hover:not(:disabled) {
+  border-color: rgba(15, 140, 244, 0.35);
+  background: rgba(244, 249, 255, 0.95);
+}
+
+.admin-primary-btn:disabled,
+.admin-secondary-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.admin-suggestion-result {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-suggestion-context {
+  border: 1.5px solid rgba(210, 225, 243, 0.9);
+  border-radius: 16px;
+  background: rgba(248, 251, 255, 0.92);
+  padding: 1rem;
+}
+
+.admin-suggestion-context h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: #1a3152;
+}
+
+.admin-suggestion-context__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.admin-suggestion-context__chips span {
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(210, 225, 243, 0.95);
+  color: #476381;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+}
+
 /* Card header */
 .admin-card-header {
   margin-bottom: 2rem;
@@ -478,7 +600,8 @@
 
 @media (max-width: 640px) {
   .admin-stats-grid,
-  .admin-stats-grid--2col {
+  .admin-stats-grid--2col,
+  .admin-suggestion-grid {
     grid-template-columns: 1fr;
   }
 

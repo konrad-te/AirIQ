@@ -55,6 +55,7 @@ OPENAQ_LATEST_URL = "https://api.openaq.org/v3/latest"
 OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OPENMETEO_WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 
 UNITS = {
     "pm": "µg/m³",
@@ -63,6 +64,7 @@ UNITS = {
     "humidity": "%",
     "wind_speed": "m/s",
     "wind_direction": "°",
+    "uv_index": "index",
 }
 
 EU_AQI_LABELS = {
@@ -399,6 +401,7 @@ def _normalize_airly_timeseries(series: Any) -> list[dict[str, Any]]:
             "wind_direction_deg": None,
             "weather_code": None,
             "is_day": None,
+            "uv_index": None,
             "no2": _to_float(values.get("NO2")),
             "co": _to_float(values.get("CO")),
             "o3": _to_float(values.get("O3")),
@@ -581,6 +584,7 @@ def normalize_airly(raw: dict[str, Any], source: dict[str, Any]) -> dict[str, An
             "wind_direction_deg": None,
             "weather_code": None,
             "is_day": None,
+            "uv_index": None,
             "no2": _to_float(values.get("NO2")),
             "co": _to_float(values.get("CO")),
             "o3": _to_float(values.get("O3")),
@@ -624,6 +628,7 @@ def _normalized_needs_weather(norm: dict[str, Any]) -> bool:
         or current.get("wind_direction_deg") is None
         or current.get("weather_code") is None
         or current.get("is_day") is None
+        or current.get("uv_index") is None
     )
 
 
@@ -822,6 +827,7 @@ def fetch_openaq_latest_nearby(
                 "wind_direction_deg": None,
                 "weather_code": None,
                 "is_day": None,
+                "uv_index": None,
                 "no2": None,
                 "co": None,
                 "o3": None,
@@ -907,6 +913,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> dict[str, Any] | None
             "wind_direction_deg": None,
             "weather_code": None,
             "is_day": None,
+            "uv_index": None,
             "no2": None,
             "co": None,
             "o3": None,
@@ -931,6 +938,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> dict[str, Any] | None
             "wind_direction_deg": None,
             "weather_code": None,
             "is_day": None,
+            "uv_index": None,
             "no2": None,
             "co": None,
             "o3": None,
@@ -970,12 +978,12 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
         "timezone": "UTC",
         "current": (
             "temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,"
-            "weather_code,is_day,"
+            "weather_code,is_day,uv_index,"
             "wind_speed_10m,wind_direction_10m"
         ),
         "hourly": (
             "temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,"
-            "weather_code,is_day,"
+            "weather_code,is_day,uv_index,"
             "wind_speed_10m,wind_direction_10m"
         ),
         "past_days": 1,
@@ -996,6 +1004,7 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
     pressure_values = hourly.get("pressure_msl") or []
     weather_code_values = hourly.get("weather_code") or []
     is_day_values = hourly.get("is_day") or []
+    uv_index_values = hourly.get("uv_index") or []
     wind_speed_values = hourly.get("wind_speed_10m") or []
     wind_direction_values = hourly.get("wind_direction_10m") or []
 
@@ -1008,6 +1017,7 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
         len(pressure_values),
         len(weather_code_values),
         len(is_day_values),
+        len(uv_index_values),
         len(wind_speed_values),
         len(wind_direction_values),
     )
@@ -1027,6 +1037,7 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
                 "pressure_hpa": _to_float(pressure_values[index]),
                 "weather_code": weather_code_values[index],
                 "is_day": is_day_values[index],
+                "uv_index": _to_float(uv_index_values[index]),
                 "wind_speed_ms": _to_float(wind_speed_values[index]),
                 "wind_direction_deg": _to_float(wind_direction_values[index]),
             }
@@ -1041,6 +1052,7 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
             "pressure_hpa": _to_float(current.get("pressure_msl")),
             "weather_code": current.get("weather_code"),
             "is_day": current.get("is_day"),
+            "uv_index": _to_float(current.get("uv_index")),
             "wind_speed_ms": _to_float(current.get("wind_speed_10m")),
             "wind_direction_deg": _to_float(current.get("wind_direction_10m")),
         },
@@ -1165,6 +1177,8 @@ def _merge_weather_into_normalized(
             current["weather_code"] = weather_current.get("weather_code")
         if current.get("is_day") is None:
             current["is_day"] = weather_current.get("is_day")
+        if current.get("uv_index") is None:
+            current["uv_index"] = weather_current.get("uv_index")
         norm["current"] = current
 
     for series_name in ("history", "forecast"):
@@ -1202,6 +1216,8 @@ def _merge_weather_into_normalized(
                 row["weather_code"] = weather_row.get("weather_code")
             if row.get("is_day") is None:
                 row["is_day"] = weather_row.get("is_day")
+            if row.get("uv_index") is None:
+                row["uv_index"] = weather_row.get("uv_index")
 
     meta = norm.get("meta") or {}
     meta["units"] = dict(UNITS)
@@ -1467,6 +1483,43 @@ def suggest_addresses_nominatim(address: str, limit: int = 5) -> list[dict[str, 
     return suggestions
 
 
+def reverse_geocode_nominatim(lat: float, lon: float) -> dict[str, Any] | None:
+    headers = {"User-Agent": NOMINATIM_USER_AGENT}
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "format": "jsonv2",
+        "zoom": 18,
+        "addressdetails": 1,
+    }
+    if NOMINATIM_EMAIL:
+        params["email"] = NOMINATIM_EMAIL
+
+    try:
+        time.sleep(0.35)
+        response = requests.get(
+            NOMINATIM_REVERSE_URL,
+            params=params,
+            headers=headers,
+            timeout=10,
+        )
+        response.raise_for_status()
+        result = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    display_name = result.get("display_name")
+    if not isinstance(display_name, str) or not display_name.strip():
+        return None
+
+    return {
+        "address": display_name.strip(),
+        "lat": lat,
+        "lon": lon,
+        "place_id": result.get("place_id"),
+    }
+
+
 def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
     coord_key = _coord_key(lat, lon)
 
@@ -1682,6 +1735,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 "wind_direction_deg": None,
                 "weather_code": None,
                 "is_day": None,
+                "uv_index": None,
                 "no2": None,
                 "co": None,
                 "o3": None,
