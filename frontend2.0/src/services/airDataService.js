@@ -36,6 +36,30 @@ export async function suggestAddresses(query, limit = 5) {
   return response.json()
 }
 
+export async function getAiRecommendation(outdoorData, indoorData, token) {
+  const response = await fetch(`${API_BASE_URL}/api/ai/recommendation`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ outdoor: outdoorData, indoor: indoorData }),
+  })
+
+  if (!response.ok) {
+    let detail = `AI request failed with status ${response.status}`
+    try {
+      const payload = await response.json()
+      if (payload?.detail) detail = payload.detail
+    } catch {
+      // ignore
+    }
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
 export async function getIndoorSensorData(token) {
   const response = await fetch(`${API_BASE_URL}/api/sensor/home/latest`, {
     headers: {
