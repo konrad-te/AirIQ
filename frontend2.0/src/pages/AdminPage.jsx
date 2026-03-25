@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react'
 import logoAiriq from '../assets/logo-airiq.svg'
 import SuggestionsPanel from '../components/SuggestionsPanel'
 import { useAuth } from '../context/AuthContext'
-import { getAdminStats, getAdminFeedback, markFeedbackRead, deleteFeedback, previewAdminSuggestions } from '../services/authService'
+import {
+  getAdminStats,
+  getAdminFeedback,
+  markFeedbackRead,
+  deleteFeedback,
+  getRecommendationConfig,
+  previewAdminSuggestions,
+  updateRecommendationConfig,
+} from '../services/authService'
 import './AdminPage.css'
 
 // ── Small reusable pieces ────────────────────────────────────────────────────
@@ -241,6 +249,7 @@ const SUGGESTION_TEST_DEFAULTS = {
   indoor_co2_ppm: '950',
   indoor_pm25: '8',
   indoor_pm10: '12',
+  indoor_humidity_pct: '35',
   wind_kmh: '12',
 }
 
@@ -251,6 +260,138 @@ function parseNumericField(value) {
 
   const parsed = Number(trimmed)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+const RECOMMENDATION_CONFIG_DEFAULTS = {
+  indoor_pm25_high_threshold: '25',
+  indoor_humidity_low_threshold: '30',
+  indoor_humidity_ideal_min: '40',
+  indoor_humidity_ideal_max: '60',
+  indoor_humidity_high_threshold: '60',
+  sleep_temp_ideal_min: '16',
+  sleep_temp_ideal_max: '20',
+}
+
+function RecommendationConfigSection({ token }) {
+  const [form, setForm] = useState(RECOMMENDATION_CONFIG_DEFAULTS)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getRecommendationConfig(token)
+      .then((config) => {
+        if (cancelled) return
+        setForm({
+          indoor_pm25_high_threshold: String(config.indoor_pm25_high_threshold ?? 25),
+          indoor_humidity_low_threshold: String(config.indoor_humidity_low_threshold ?? 30),
+          indoor_humidity_ideal_min: String(config.indoor_humidity_ideal_min ?? 40),
+          indoor_humidity_ideal_max: String(config.indoor_humidity_ideal_max ?? 60),
+          indoor_humidity_high_threshold: String(config.indoor_humidity_high_threshold ?? 60),
+          sleep_temp_ideal_min: String(config.sleep_temp_ideal_min ?? 16),
+          sleep_temp_ideal_max: String(config.sleep_temp_ideal_max ?? 20),
+        })
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [token])
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+    setSuccess('')
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const payload = Object.fromEntries(
+        Object.entries(form).map(([key, value]) => [key, parseNumericField(value)]),
+      )
+      const updated = await updateRecommendationConfig(token, payload)
+      setForm({
+        indoor_pm25_high_threshold: String(updated.indoor_pm25_high_threshold),
+        indoor_humidity_low_threshold: String(updated.indoor_humidity_low_threshold),
+        indoor_humidity_ideal_min: String(updated.indoor_humidity_ideal_min),
+        indoor_humidity_ideal_max: String(updated.indoor_humidity_ideal_max),
+        indoor_humidity_high_threshold: String(updated.indoor_humidity_high_threshold),
+        sleep_temp_ideal_min: String(updated.sleep_temp_ideal_min),
+        sleep_temp_ideal_max: String(updated.sleep_temp_ideal_max),
+      })
+      setSuccess('Recommendation settings saved.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card-header">
+        <h1 className="admin-title">Recommendation Settings</h1>
+        <p className="admin-subtitle">Default thresholds used by indoor air, humidity, and sleep recommendations.</p>
+      </div>
+
+      {loading ? (
+        <div className="admin-loading">Loading settings...</div>
+      ) : (
+        <form className="admin-suggestion-form" onSubmit={handleSubmit}>
+          <div className="admin-suggestion-grid">
+            <label className="admin-field">
+              <span>Indoor PM2.5 high</span>
+              <input name="indoor_pm25_high_threshold" value={form.indoor_pm25_high_threshold} onChange={handleChange} inputMode="decimal" placeholder="25" />
+            </label>
+            <label className="admin-field">
+              <span>Indoor humidity low</span>
+              <input name="indoor_humidity_low_threshold" value={form.indoor_humidity_low_threshold} onChange={handleChange} inputMode="decimal" placeholder="30" />
+            </label>
+            <label className="admin-field">
+              <span>Humidity ideal min</span>
+              <input name="indoor_humidity_ideal_min" value={form.indoor_humidity_ideal_min} onChange={handleChange} inputMode="decimal" placeholder="40" />
+            </label>
+            <label className="admin-field">
+              <span>Humidity ideal max</span>
+              <input name="indoor_humidity_ideal_max" value={form.indoor_humidity_ideal_max} onChange={handleChange} inputMode="decimal" placeholder="60" />
+            </label>
+            <label className="admin-field">
+              <span>Indoor humidity high</span>
+              <input name="indoor_humidity_high_threshold" value={form.indoor_humidity_high_threshold} onChange={handleChange} inputMode="decimal" placeholder="60" />
+            </label>
+            <label className="admin-field">
+              <span>Sleep temp min °C</span>
+              <input name="sleep_temp_ideal_min" value={form.sleep_temp_ideal_min} onChange={handleChange} inputMode="decimal" placeholder="16" />
+            </label>
+            <label className="admin-field">
+              <span>Sleep temp max °C</span>
+              <input name="sleep_temp_ideal_max" value={form.sleep_temp_ideal_max} onChange={handleChange} inputMode="decimal" placeholder="20" />
+            </label>
+          </div>
+
+          <div className="admin-suggestion-actions">
+            <button type="submit" className="admin-primary-btn" disabled={saving}>
+              {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+
+          {error && <p className="admin-error">{error}</p>}
+          {success && <p className="admin-success">{success}</p>}
+        </form>
+      )}
+    </div>
+  )
 }
 
 function AdminSuggestionTester({ token }) {
@@ -279,6 +420,7 @@ function AdminSuggestionTester({ token }) {
         indoor_co2_ppm: parseNumericField(form.indoor_co2_ppm),
         indoor_pm25: parseNumericField(form.indoor_pm25),
         indoor_pm10: parseNumericField(form.indoor_pm10),
+        indoor_humidity_pct: parseNumericField(form.indoor_humidity_pct),
         wind_kmh: parseNumericField(form.wind_kmh),
       }
       const result = await previewAdminSuggestions(token, payload)
@@ -341,6 +483,10 @@ function AdminSuggestionTester({ token }) {
             <span>Indoor PM10</span>
             <input name="indoor_pm10" value={form.indoor_pm10} onChange={handleChange} inputMode="decimal" placeholder="12" />
           </label>
+          <label className="admin-field">
+            <span>Indoor Humidity %</span>
+            <input name="indoor_humidity_pct" value={form.indoor_humidity_pct} onChange={handleChange} inputMode="decimal" placeholder="35" />
+          </label>
         </div>
 
         <div className="admin-suggestion-actions">
@@ -369,6 +515,7 @@ function AdminSuggestionTester({ token }) {
               <span>Indoor CO2: {preview.context?.indoor_co2_ppm ?? '—'}</span>
               <span>Indoor PM2.5: {preview.context?.indoor_pm25 ?? '—'}</span>
               <span>Indoor PM10: {preview.context?.indoor_pm10 ?? '—'}</span>
+              <span>Indoor Humidity: {preview.context?.indoor_humidity_pct ?? '—'}</span>
             </div>
           </div>
 
@@ -406,6 +553,7 @@ export default function AdminPage({ onBack }) {
 
       <main className="admin-main">
         <div className="admin-dashboard">
+          <RecommendationConfigSection token={token} />
           <AdminSuggestionTester token={token} />
 
           <div className="admin-card">

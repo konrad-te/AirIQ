@@ -15,6 +15,8 @@
  * @property {SuggestionSeverity | null | undefined=} severity
  * @property {string} title
  * @property {string | null | undefined=} short_label
+ * @property {string | null | undefined=} recommendation
+ * @property {string | null | undefined=} impact
  * @property {string} primary_reason
  * @property {string[]=} secondary_reasons
  * @property {string[]=} reasons

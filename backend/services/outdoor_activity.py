@@ -68,6 +68,11 @@ def evaluate_outdoor_activity(
             severity=None,
             title="Not enough outdoor data",
             short_label="Data missing",
+            recommendation=(
+                "AirIQ needs current outdoor PM or UV data before it can judge "
+                "outdoor activity right now."
+            ),
+            impact=None,
             primary_reason=(
                 "AirIQ needs current outdoor PM or UV data before it can judge "
                 "outdoor activity right now."
@@ -102,6 +107,13 @@ def evaluate_outdoor_activity(
         severity=air.severity,
         title=air.title,
         short_label=air.short_label,
+        recommendation=_merge_recommendation(air.message, note_parts),
+        impact=_build_activity_impact(
+            severity=air.severity,
+            uv=uv,
+            temperature_c=context.outdoor_temperature_c,
+            air_data_available=True,
+        ),
         primary_reason=air.message,
         reasons=reasons,
         note=" ".join(note_parts) if note_parts else None,
@@ -151,6 +163,16 @@ def _build_uv_only_suggestion(
         severity=severity,
         title=title_by_bucket[uv.bucket],
         short_label=short_label_by_bucket[uv.bucket],
+        recommendation=_merge_recommendation(
+            "Air quality data is unavailable right now, so this recommendation is based on UV exposure only.",
+            note_parts,
+        ),
+        impact=_build_activity_impact(
+            severity=severity,
+            uv=uv,
+            temperature_c=context.outdoor_temperature_c,
+            air_data_available=False,
+        ),
         primary_reason=(
             "Air quality data is unavailable right now, so this recommendation is "
             "based on UV exposure only."
@@ -201,18 +223,16 @@ def _assess_air_quality(context: VentilationContext) -> _AirAssessment | None:
             "be fine for most people."
         ),
         "caution": (
-            "Air quality is slightly elevated right now. Short walks or light "
-            "activity are usually fine, but longer or more intense exercise may be "
-            "less comfortable."
+            "Air quality is slightly elevated right now, so lighter or shorter "
+            "outdoor activity is the better choice."
         ),
         "warning": (
-            "Air quality is poor right now. It may be better to avoid intense "
-            "outdoor exercise and keep activity light or move it indoors."
+            "Air quality is poor right now, so it is better to keep outdoor "
+            "activity light or move intense exercise indoors."
         ),
         "danger": (
-            "Air quality is very poor right now. It is better to avoid outdoor "
-            "exercise and limit time outside if possible, especially if you are "
-            "sensitive to air pollution."
+            "Air quality is very poor right now, so it is better to avoid outdoor "
+            "exercise and limit time outside if possible."
         ),
     }
     short_label_map = {
@@ -396,6 +416,44 @@ def _build_reason_tags(*reason_tags: str) -> list[str]:
         seen.add(reason_tag)
         ordered.append(reason_tag)
     return ordered
+
+
+def _merge_recommendation(base_message: str, note_parts: list[str]) -> str:
+    return (
+        f"{base_message} {' '.join(note_parts)}".strip()
+        if note_parts
+        else base_message
+    )
+
+
+def _build_activity_impact(
+    *,
+    severity: SuggestionSeverity,
+    uv: _UvAssessment | None,
+    temperature_c: float | None,
+    air_data_available: bool,
+) -> str | None:
+    impact_parts: list[str] = []
+
+    if air_data_available and severity in {"caution", "warning", "danger"}:
+        impact_parts.append(
+            "Elevated particle levels can make harder exercise feel less comfortable and may irritate breathing."
+        )
+    elif uv is not None and uv.bucket in {"moderate", "high", "very_high", "extreme"}:
+        impact_parts.append(
+            "Stronger sun exposure can increase sunburn risk and make longer activity less comfortable."
+        )
+
+    if temperature_c is not None and temperature_c >= 28:
+        impact_parts.append(
+            "Heat can make intense outdoor activity feel harder."
+        )
+    elif temperature_c is not None and temperature_c <= -5:
+        impact_parts.append(
+            "Very cold air can irritate the lungs during intense exercise."
+        )
+
+    return " ".join(impact_parts) if impact_parts else None
 
 
 def _ordered_fields(*field_names: str) -> list[str]:

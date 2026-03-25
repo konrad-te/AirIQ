@@ -68,6 +68,8 @@ def evaluate_ventilation(
             id="improve_air_without_ventilation",
             priority="high",
             title="Improve air without opening windows",
+            recommendation=_build_blocked_recommendation(indoor),
+            impact=_build_clear_impact(indoor),
             primary_reason="Outdoor air is too polluted for ventilation.",
             secondary_reasons=_build_clear_secondary_reasons(indoor, fallback=True),
             advice=(
@@ -87,6 +89,14 @@ def evaluate_ventilation(
             id="keep_windows_closed",
             priority="high",
             title="Keep windows closed for now",
+            recommendation=(
+                "Keep windows closed for now because outdoor particle pollution is "
+                "too high for safe ventilation."
+            ),
+            impact=(
+                "Bringing polluted outdoor air inside can make the room less "
+                "comfortable to breathe."
+            ),
             primary_reason="Outdoor particle levels are too high for safe ventilation.",
             secondary_reasons=[],
             advice=None,
@@ -103,6 +113,8 @@ def evaluate_ventilation(
             id="open_windows_now",
             priority="high",
             title="Open windows now",
+            recommendation=_build_open_recommendation(indoor, outdoor.bucket),
+            impact=_build_clear_impact(indoor),
             primary_reason=(
                 "Outdoor air is clean and indoor air would benefit from ventilation."
             ),
@@ -121,6 +133,8 @@ def evaluate_ventilation(
             id="ventilate_briefly",
             priority="high",
             title="Ventilate briefly",
+            recommendation=_build_open_recommendation(indoor, outdoor.bucket),
+            impact=_build_clear_impact(indoor),
             primary_reason=(
                 "Indoor air would benefit from ventilation, and outdoor air is "
                 "acceptable for a short refresh."
@@ -140,6 +154,8 @@ def evaluate_ventilation(
             id="ventilate_soon",
             priority="medium",
             title="Ventilate soon",
+            recommendation=_build_soon_recommendation(indoor, outdoor.bucket),
+            impact=_build_slight_impact(indoor),
             primary_reason=(
                 "Indoor air is starting to feel stale, and outdoor air is still "
                 "acceptable for ventilation."
@@ -269,6 +285,106 @@ def _build_slight_secondary_reasons(assessment: _IndoorAssessment) -> list[str]:
         reasons.append("Indoor particles are slightly elevated.")
 
     return reasons
+
+
+def _build_blocked_recommendation(assessment: _IndoorAssessment) -> str:
+    indoor_context = _describe_indoor_need(assessment, emphasize=True)
+    return (
+        f"{indoor_context}, but outdoor air is too polluted for opening windows "
+        "right now. Use an air purifier or reduce indoor pollution sources instead."
+    )
+
+
+def _build_open_recommendation(
+    assessment: _IndoorAssessment,
+    outdoor_bucket: OutdoorVentilationBucket,
+) -> str:
+    indoor_context = _describe_indoor_need(assessment, emphasize=True)
+    if outdoor_bucket == "acceptable":
+        return (
+            f"{indoor_context}, so a short airing-out is recommended. Outdoor air "
+            "quality is acceptable right now, but it is better not to leave windows "
+            "open for long."
+        )
+    return (
+        f"{indoor_context}, so airing out the room is recommended. Outdoor air is "
+        "clean right now."
+    )
+
+
+def _build_soon_recommendation(
+    assessment: _IndoorAssessment,
+    outdoor_bucket: OutdoorVentilationBucket,
+) -> str:
+    indoor_context = _describe_indoor_need(assessment, emphasize=False)
+    outdoor_context = (
+        "Outdoor air is still acceptable right now."
+        if outdoor_bucket == "acceptable"
+        else "Outdoor air is clean right now."
+    )
+    return f"{indoor_context}, so plan a short airing-out soon. {outdoor_context}"
+
+
+def _build_clear_impact(assessment: _IndoorAssessment) -> str | None:
+    impacts: list[str] = []
+
+    if assessment.clear_co2:
+        impacts.append(
+            "High indoor CO2 can make the room feel stuffy and may reduce comfort or focus."
+        )
+    if assessment.clear_particles:
+        impacts.append(
+            "Elevated indoor particles can make the air feel less comfortable to breathe."
+        )
+
+    return " ".join(impacts) if impacts else None
+
+
+def _build_slight_impact(assessment: _IndoorAssessment) -> str | None:
+    impacts: list[str] = []
+
+    if assessment.slight_co2:
+        impacts.append(
+            "Slightly elevated CO2 can make a room feel stale over time."
+        )
+    if assessment.slight_particles:
+        impacts.append(
+            "Slightly elevated indoor particles can reduce comfort if they keep building up."
+        )
+
+    return " ".join(impacts) if impacts else None
+
+
+def _describe_indoor_need(
+    assessment: _IndoorAssessment,
+    *,
+    emphasize: bool,
+) -> str:
+    if assessment.clear_co2 and assessment.clear_particles:
+        return (
+            "Indoor CO2 and particle levels are elevated"
+            if emphasize
+            else "Indoor air is starting to feel stale"
+        )
+    if assessment.clear_co2:
+        return (
+            "Indoor CO2 is high"
+            if emphasize
+            else "Indoor CO2 is starting to climb"
+        )
+    if assessment.clear_particles:
+        return (
+            "Indoor particle levels are elevated"
+            if emphasize
+            else "Indoor particles are starting to build up"
+        )
+    if assessment.slight_co2 and assessment.slight_particles:
+        return "Indoor CO2 and particles are starting to rise"
+    if assessment.slight_co2:
+        return "Indoor CO2 is slightly elevated"
+    if assessment.slight_particles:
+        return "Indoor particle levels are slightly elevated"
+    return "Indoor air is starting to feel stale"
 
 
 def _build_note(context: VentilationContext) -> str | None:

@@ -937,6 +937,17 @@
   min-height: 200px;
 }
 
+.dashboard-preview-recs__error {
+  margin: 0 0 0.85rem;
+  border: 1px solid rgba(239, 102, 90, 0.24);
+  background: rgba(255, 241, 239, 0.94);
+  color: #b8473b;
+  border-radius: 12px;
+  padding: 0.72rem 0.85rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .dashboard-preview-recs__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

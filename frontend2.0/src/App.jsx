@@ -75,6 +75,7 @@ const DASHBOARD_ADMIN_OVERRIDE_DEFAULTS = {
   indoor_co2_ppm: '',
   indoor_pm25: '',
   indoor_pm10: '',
+  indoor_humidity_pct: '',
 }
 
 function formatRoundedMetric(value, suffix, fallback) {
@@ -275,6 +276,7 @@ export default function App() {
   const [sensorStatus, setSensorStatus] = useState(null)
   const [sensorReading, setSensorReading] = useState(null)
   const [dashboardSuggestions, setDashboardSuggestions] = useState([])
+  const [dashboardSuggestionsError, setDashboardSuggestionsError] = useState('')
   const [sensorError, setSensorError] = useState('')
   const [currentCoords, setCurrentCoords] = useState(null)
   const [detectedCurrentLocation, setDetectedCurrentLocation] = useState('')
@@ -598,6 +600,7 @@ export default function App() {
 
     if (!token || (!currentCoords && !isAdminPreviewActive)) {
       setDashboardSuggestions([])
+      setDashboardSuggestionsError('')
       return undefined
     }
 
@@ -613,10 +616,12 @@ export default function App() {
           : await getHomeSuggestions(token, currentCoords.lat, currentCoords.lon)
         if (!cancelled) {
           setDashboardSuggestions(Array.isArray(payload?.suggestions) ? payload.suggestions : [])
+          setDashboardSuggestionsError('')
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setDashboardSuggestions([])
+          setDashboardSuggestionsError(error instanceof Error ? error.message : 'Failed to refresh suggestions.')
         }
       } finally {
         if (!cancelled) {
@@ -707,6 +712,7 @@ export default function App() {
     indoor_co2_ppm: sensorReading?.co2_ppm ?? null,
     indoor_pm25: sensorReading?.pm2_5_ug_m3 ?? null,
     indoor_pm10: sensorReading?.pm10_ug_m3 ?? null,
+    indoor_humidity_pct: sensorReading?.humidity_pct ?? null,
   }
 
   const handleDashboardAdminFieldChange = (event) => {
@@ -725,6 +731,7 @@ export default function App() {
       indoor_co2_ppm: sensorReading?.co2_ppm != null ? String(sensorReading.co2_ppm) : '',
       indoor_pm25: sensorReading?.pm2_5_ug_m3 != null ? String(sensorReading.pm2_5_ug_m3) : '',
       indoor_pm10: sensorReading?.pm10_ug_m3 != null ? String(sensorReading.pm10_ug_m3) : '',
+      indoor_humidity_pct: sensorReading?.humidity_pct != null ? String(sensorReading.humidity_pct) : '',
     })
     setDashboardAdminError('')
   }
@@ -740,6 +747,7 @@ export default function App() {
       indoor_co2_ppm: parseOptionalNumberInput(dashboardAdminForm.indoor_co2_ppm),
       indoor_pm25: parseOptionalNumberInput(dashboardAdminForm.indoor_pm25),
       indoor_pm10: parseOptionalNumberInput(dashboardAdminForm.indoor_pm10),
+      indoor_humidity_pct: parseOptionalNumberInput(dashboardAdminForm.indoor_humidity_pct),
     }
 
     const payload = {
@@ -752,6 +760,7 @@ export default function App() {
       indoor_co2_ppm: manualPayload.indoor_co2_ppm ?? currentDashboardPreviewBase.indoor_co2_ppm,
       indoor_pm25: manualPayload.indoor_pm25 ?? currentDashboardPreviewBase.indoor_pm25,
       indoor_pm10: manualPayload.indoor_pm10 ?? currentDashboardPreviewBase.indoor_pm10,
+      indoor_humidity_pct: manualPayload.indoor_humidity_pct ?? currentDashboardPreviewBase.indoor_humidity_pct,
     }
 
     const hasAnyValue = Object.values(payload).some((value) => value != null)
@@ -909,7 +918,7 @@ export default function App() {
   const indoorPm10 = dashboardAdminOverride?.indoor_pm10 ?? sensorReading?.pm10_ug_m3 ?? '--'
   const indoorCo2 = dashboardAdminOverride?.indoor_co2_ppm ?? sensorReading?.co2_ppm ?? '--'
   const indoorTemp = sensorReading?.temperature_c ?? '--'
-  const indoorHumidity = sensorReading?.humidity_pct ?? '--'
+  const indoorHumidity = dashboardAdminOverride?.indoor_humidity_pct ?? sensorReading?.humidity_pct ?? '--'
   const indoorBattery = sensorReading?.battery_pct ?? '--'
   const indoorEarliestRefreshAt = Math.max(indoorRefreshCooldownUntil, indoorExpectedNextRefreshTs)
   const indoorCooldownRemainingMs = Math.max(0, indoorEarliestRefreshAt - nowTs)
@@ -1261,6 +1270,10 @@ export default function App() {
                       <span>Indoor PM10</span>
                       <input name="indoor_pm10" value={dashboardAdminForm.indoor_pm10} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="12" />
                     </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Indoor Humidity %</span>
+                      <input name="indoor_humidity_pct" value={dashboardAdminForm.indoor_humidity_pct} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="35" />
+                    </label>
                   </div>
                   <div className="dashboard-admin-override__actions">
                     <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleFillDashboardAdminFromLive}>
@@ -1466,7 +1479,12 @@ export default function App() {
 
             <div className="dashboard-preview-recs__body">
               {recsTab === 'suggestions' ? (
-                <SuggestionsPanel suggestions={dashboardSuggestions} />
+                <>
+                  {dashboardSuggestionsError && (
+                    <p className="dashboard-preview-recs__error">{dashboardSuggestionsError}</p>
+                  )}
+                  <SuggestionsPanel suggestions={dashboardSuggestions} />
+                </>
               ) : (
                 <div className="dashboard-preview-recs__ai">
                   <h4>AI Daily Plan</h4>
