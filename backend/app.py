@@ -32,12 +32,25 @@ from backend.models import (
 from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
+from backend.schemas.recommendation_config import (
+    RecommendationConfigSchema,
+    RecommendationConfigUpdateSchema,
+)
 from backend.schemas.suggestions import VentilationContext
 from backend.routers.integrations import router as integrations_router
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
+from backend.services.indoor_air import (
+    evaluate_high_indoor_pm25,
+    evaluate_low_indoor_humidity,
+)
 from backend.services.outdoor_activity import evaluate_outdoor_activity
+from backend.services.recommendation_config import (
+    get_recommendation_config,
+    update_recommendation_config,
+)
+from backend.services.sleep_comfort import evaluate_sleep_temperature
 from backend.services.ventilation import evaluate_ventilation
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -91,6 +104,7 @@ def _wind_ms_to_kmh(value: float | int | Decimal | None) -> float | None:
 
 def _build_dashboard_suggestions_payload(
     *,
+    settings: dict[str, float],
     outdoor_data: dict,
     indoor_data: dict | None,
 ) -> dict:
@@ -107,22 +121,51 @@ def _build_dashboard_suggestions_payload(
         indoor_co2_ppm=_to_float(indoor_payload.get("co2_ppm")),
         indoor_pm25=_to_float(indoor_payload.get("pm2_5_ug_m3")),
         indoor_pm10=_to_float(indoor_payload.get("pm10_ug_m3")),
+        indoor_humidity_pct=_to_float(indoor_payload.get("humidity_pct")),
         wind_kmh=_wind_ms_to_kmh(outdoor_current.get("wind_speed_ms")),
     )
-    return _build_suggestions_payload_from_context(ventilation_context)
+    return _build_suggestions_payload_from_context(
+        ventilation_context,
+        settings=settings,
+        outdoor_data=outdoor_data,
+    )
 
 
 def _build_suggestions_payload_from_context(
     ventilation_context: VentilationContext,
+    *,
+    settings: dict[str, float],
+    outdoor_data: dict | None = None,
 ) -> dict:
-    outdoor_activity_suggestion = evaluate_outdoor_activity(ventilation_context)
     ventilation_suggestion = evaluate_ventilation(ventilation_context)
+    outdoor_activity_suggestion = evaluate_outdoor_activity(ventilation_context)
+    indoor_pm25_suggestion = evaluate_high_indoor_pm25(
+        ventilation_context,
+        threshold=settings["indoor_pm25_high_threshold"],
+        has_ventilation_recommendation=ventilation_suggestion is not None,
+    )
+    low_humidity_suggestion = evaluate_low_indoor_humidity(
+        ventilation_context,
+        low_threshold=settings["indoor_humidity_low_threshold"],
+    )
+    sleep_temperature_suggestion = evaluate_sleep_temperature(
+        outdoor_data=outdoor_data,
+        context=ventilation_context,
+        ideal_min=settings["sleep_temp_ideal_min"],
+        ideal_max=settings["sleep_temp_ideal_max"],
+    )
 
     suggestions = []
-    if outdoor_activity_suggestion is not None:
-        suggestions.append(outdoor_activity_suggestion.model_dump())
     if ventilation_suggestion is not None:
         suggestions.append(ventilation_suggestion.model_dump())
+    if indoor_pm25_suggestion is not None:
+        suggestions.append(indoor_pm25_suggestion.model_dump())
+    if low_humidity_suggestion is not None:
+        suggestions.append(low_humidity_suggestion.model_dump())
+    if sleep_temperature_suggestion is not None:
+        suggestions.append(sleep_temperature_suggestion.model_dump())
+    if outdoor_activity_suggestion is not None:
+        suggestions.append(outdoor_activity_suggestion.model_dump())
 
     priority_rank = {"high": 0, "medium": 1, "low": 2}
     suggestions.sort(key=lambda item: priority_rank.get(item.get("priority"), 99))
@@ -130,6 +173,7 @@ def _build_suggestions_payload_from_context(
     return {
         "suggestions": suggestions,
         "context": ventilation_context.model_dump(),
+        "settings": settings,
     }
 
 
@@ -287,6 +331,7 @@ def get_home_suggestions(
     response.headers["Pragma"] = "no-cache"
 
     outdoor_data = get_air_quality_data(lat, lon)
+    settings = get_recommendation_config(db)
 
     indoor_data: dict | None = None
     try:
@@ -299,6 +344,7 @@ def get_home_suggestions(
             raise
 
     return _build_dashboard_suggestions_payload(
+        settings=settings,
         outdoor_data=outdoor_data,
         indoor_data=indoor_data,
     )
@@ -308,9 +354,40 @@ def get_home_suggestions(
 def preview_admin_suggestions(
     context: VentilationContext,
     admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> dict:
     _ = admin
-    return _build_suggestions_payload_from_context(context)
+    return _build_suggestions_payload_from_context(
+        context,
+        settings=get_recommendation_config(db),
+    )
+
+
+@app.get("/api/admin/recommendation-config")
+def get_admin_recommendation_config(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> RecommendationConfigSchema:
+    _ = admin
+    return RecommendationConfigSchema(**get_recommendation_config(db))
+
+
+@app.patch("/api/admin/recommendation-config")
+def patch_admin_recommendation_config(
+    updates: RecommendationConfigUpdateSchema,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> RecommendationConfigSchema:
+    _ = admin
+    config = update_recommendation_config(
+        db,
+        {
+            key: value
+            for key, value in updates.model_dump().items()
+            if value is not None
+        },
+    )
+    return RecommendationConfigSchema(**config)
 
 
 def _run_scheduled_ingest() -> None:

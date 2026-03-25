@@ -19,6 +19,7 @@ class EvaluateOutdoorActivityTests(unittest.TestCase):
         self.assertEqual(suggestion.id, "outdoor_activity")
         self.assertEqual(suggestion.severity, "good")
         self.assertEqual(suggestion.title, "Great time for outdoor activity")
+        self.assertIn("good time for walking", suggestion.recommendation)
         self.assertIn("Air looks clean", suggestion.reasons)
         self.assertIsNone(suggestion.note)
 
@@ -33,6 +34,8 @@ class EvaluateOutdoorActivityTests(unittest.TestCase):
 
         self.assertEqual(suggestion.severity, "caution")
         self.assertEqual(suggestion.priority, "medium")
+        self.assertIn("lighter or shorter outdoor activity", suggestion.recommendation)
+        self.assertIn("breathing", suggestion.impact or "")
         self.assertIn("PM2.5 elevated", suggestion.reasons)
         self.assertIn("UV high", suggestion.reasons)
         self.assertIsNotNone(suggestion.note)
@@ -65,6 +68,8 @@ class EvaluateOutdoorActivityTests(unittest.TestCase):
 
         self.assertEqual(suggestion.id, "outdoor_activity_uv_only")
         self.assertEqual(suggestion.severity, "warning")
+        self.assertIn("based on UV exposure only", suggestion.recommendation)
+        self.assertIn("sunburn risk", suggestion.impact or "")
         self.assertIn("Air data unavailable", suggestion.reasons)
         self.assertIsNotNone(suggestion.note)
         assert suggestion.note is not None
@@ -77,6 +82,7 @@ class EvaluateOutdoorActivityTests(unittest.TestCase):
         self.assertEqual(suggestion.id, "outdoor_activity_missing")
         self.assertIsNone(suggestion.severity)
         self.assertEqual(suggestion.title, "Not enough outdoor data")
+        self.assertIn("needs current outdoor PM or UV data", suggestion.recommendation)
         self.assertEqual(suggestion.reasons, ["Waiting for outdoor data"])
 
 

@@ -204,3 +204,23 @@ export async function previewAdminSuggestions(token, context) {
   if (!response.ok) throw new Error(extractDetail(data, 'Failed to generate suggestion preview.'))
   return data
 }
+
+export async function getRecommendationConfig(token) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/recommendation-config`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to load recommendation settings.'))
+  return data
+}
+
+export async function updateRecommendationConfig(token, updates) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/recommendation-config`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(updates),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to update recommendation settings.'))
+  return data
+}

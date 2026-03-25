@@ -436,6 +436,15 @@
   margin: 0;
 }
 
+.admin-success {
+  font-size: 0.85rem;
+  color: #1d7a4f;
+  background: rgba(29, 122, 79, 0.08);
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem;
+  margin: 0;
+}
+
 /* Empty state */
 .admin-empty {
   text-align: center;

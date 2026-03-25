@@ -35,17 +35,17 @@ export default function SuggestionCard({ suggestion }) {
     family,
     priority,
     severity,
-    title,
     short_label: shortLabel,
+    recommendation,
+    impact,
     primary_reason: primaryReason,
-    secondary_reasons: secondaryReasons = [],
     reasons = [],
-    advice,
-    note,
   } = suggestion
 
   const familyLabel = formatFamilyLabel(category || family)
   const severityLabel = severity ? SEVERITY_LABELS[severity] || formatFamilyLabel(severity) : null
+  const recommendationText = recommendation || primaryReason
+  const impactText = typeof impact === 'string' && impact.trim() ? impact : null
 
   return (
     <article className={`suggestion-card suggestion-card--${priority}${severity ? ` suggestion-card--severity-${severity}` : ''}`}>
@@ -58,7 +58,6 @@ export default function SuggestionCard({ suggestion }) {
       </div>
 
       <div className="suggestion-card__body">
-        <h3 className="suggestion-card__title">{title}</h3>
         {(severityLabel || shortLabel || reasons.length > 0) && (
           <div className="suggestion-card__tags">
             {severityLabel && (
@@ -78,27 +77,15 @@ export default function SuggestionCard({ suggestion }) {
             ))}
           </div>
         )}
-        <p className="suggestion-card__primary">{primaryReason}</p>
+        <div className="suggestion-card__section">
+          <span className="suggestion-card__section-label">Recommendation</span>
+          <p className="suggestion-card__section-copy">{recommendationText}</p>
+        </div>
 
-        {secondaryReasons.length > 0 && (
-          <ul className="suggestion-card__secondary-list">
-            {secondaryReasons.map((reason, index) => (
-              <li key={`${suggestion.id}-reason-${index}`}>{reason}</li>
-            ))}
-          </ul>
-        )}
-
-        {advice && (
-          <div className="suggestion-card__callout suggestion-card__callout--advice">
-            <span className="suggestion-card__callout-label">Advice</span>
-            <p>{advice}</p>
-          </div>
-        )}
-
-        {note && (
-          <div className="suggestion-card__callout suggestion-card__callout--note">
-            <span className="suggestion-card__callout-label">Note</span>
-            <p>{note}</p>
+        {impactText && (
+          <div className="suggestion-card__section suggestion-card__section--impact">
+            <span className="suggestion-card__section-label">Why it matters</span>
+            <p className="suggestion-card__section-copy">{impactText}</p>
           </div>
         )}
       </div>

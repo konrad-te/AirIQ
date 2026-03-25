@@ -1,4 +1,5 @@
 from .base import Base
+from .app_setting import AppSetting
 from .city_point import CityPoint
 from .data_provider import DataProvider
 from .external_station import ExternalStation
@@ -18,6 +19,7 @@ from .user_sessions import UserSession
 
 __all__ = [
     "Base",
+    "AppSetting",
     "CityPoint",
     "DataProvider",
     "ExternalStation",

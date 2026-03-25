@@ -65,6 +65,8 @@ class EvaluateVentilationTests(unittest.TestCase):
         assert suggestion is not None
         self.assertEqual(suggestion.id, "open_windows_now")
         self.assertIsNone(suggestion.note)
+        self.assertIn("airing out the room is recommended", suggestion.recommendation)
+        self.assertIn("stuffy", suggestion.impact or "")
         self.assertIn(
             "ventilation would help refresh the room",
             suggestion.secondary_reasons[0],
@@ -83,6 +85,8 @@ class EvaluateVentilationTests(unittest.TestCase):
         assert suggestion is not None
         self.assertEqual(suggestion.id, "ventilate_briefly")
         self.assertEqual(suggestion.priority, "high")
+        self.assertIn("short airing-out is recommended", suggestion.recommendation)
+        self.assertIn("comfort or focus", suggestion.impact or "")
         self.assertEqual(
             suggestion.advice,
             "A short airing-out is safer here than leaving windows open for long.",

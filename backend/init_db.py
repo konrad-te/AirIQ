@@ -4,6 +4,7 @@ from backend.database import engine
 from sqlalchemy import inspect, text
 
 REQUIRED_TABLES = {
+    "app_settings",
     "users",
     "user_sessions",
     "households",
