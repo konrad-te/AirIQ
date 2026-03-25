@@ -193,3 +193,14 @@ export async function getAdminStats(token) {
   if (!response.ok) throw new Error(extractDetail(data, 'Failed to load admin stats.'))
   return data
 }
+
+export async function previewAdminSuggestions(token, context) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/suggestions/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(context),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to generate suggestion preview.'))
+  return data
+}

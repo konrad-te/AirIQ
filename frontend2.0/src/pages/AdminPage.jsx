@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import logoAiriq from '../assets/logo-airiq.svg'
+import SuggestionsPanel from '../components/SuggestionsPanel'
 import { useAuth } from '../context/AuthContext'
-import { getAdminStats, getAdminFeedback, markFeedbackRead, deleteFeedback } from '../services/authService'
+import { getAdminStats, getAdminFeedback, markFeedbackRead, deleteFeedback, previewAdminSuggestions } from '../services/authService'
 import './AdminPage.css'
 
 // ── Small reusable pieces ────────────────────────────────────────────────────
@@ -231,6 +232,153 @@ function MessagesSection({ token }) {
   )
 }
 
+const SUGGESTION_TEST_DEFAULTS = {
+  outdoor_pm25: '18',
+  outdoor_pm10: '30',
+  outdoor_uv_index: '6',
+  outdoor_temperature_c: '24',
+  outdoor_humidity_pct: '55',
+  indoor_co2_ppm: '950',
+  indoor_pm25: '8',
+  indoor_pm10: '12',
+  wind_kmh: '12',
+}
+
+function parseNumericField(value) {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function AdminSuggestionTester({ token }) {
+  const [form, setForm] = useState(SUGGESTION_TEST_DEFAULTS)
+  const [preview, setPreview] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const payload = {
+        outdoor_pm25: parseNumericField(form.outdoor_pm25),
+        outdoor_pm10: parseNumericField(form.outdoor_pm10),
+        outdoor_uv_index: parseNumericField(form.outdoor_uv_index),
+        outdoor_temperature_c: parseNumericField(form.outdoor_temperature_c),
+        outdoor_humidity_pct: parseNumericField(form.outdoor_humidity_pct),
+        indoor_co2_ppm: parseNumericField(form.indoor_co2_ppm),
+        indoor_pm25: parseNumericField(form.indoor_pm25),
+        indoor_pm10: parseNumericField(form.indoor_pm10),
+        wind_kmh: parseNumericField(form.wind_kmh),
+      }
+      const result = await previewAdminSuggestions(token, payload)
+      setPreview(result)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleReset = () => {
+    setForm(SUGGESTION_TEST_DEFAULTS)
+    setPreview(null)
+    setError('')
+  }
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card-header">
+        <h1 className="admin-title">Suggestion Tester</h1>
+        <p className="admin-subtitle">Enter indoor and outdoor values manually, then generate suggestions instantly without touching live dashboard data.</p>
+      </div>
+
+      <form className="admin-suggestion-form" onSubmit={handleSubmit}>
+        <div className="admin-suggestion-grid">
+          <label className="admin-field">
+            <span>Outdoor PM2.5</span>
+            <input name="outdoor_pm25" value={form.outdoor_pm25} onChange={handleChange} inputMode="decimal" placeholder="18" />
+          </label>
+          <label className="admin-field">
+            <span>Outdoor PM10</span>
+            <input name="outdoor_pm10" value={form.outdoor_pm10} onChange={handleChange} inputMode="decimal" placeholder="30" />
+          </label>
+          <label className="admin-field">
+            <span>Outdoor UV</span>
+            <input name="outdoor_uv_index" value={form.outdoor_uv_index} onChange={handleChange} inputMode="decimal" placeholder="6" />
+          </label>
+          <label className="admin-field">
+            <span>Outdoor Temp °C</span>
+            <input name="outdoor_temperature_c" value={form.outdoor_temperature_c} onChange={handleChange} inputMode="decimal" placeholder="24" />
+          </label>
+          <label className="admin-field">
+            <span>Outdoor Humidity %</span>
+            <input name="outdoor_humidity_pct" value={form.outdoor_humidity_pct} onChange={handleChange} inputMode="decimal" placeholder="55" />
+          </label>
+          <label className="admin-field">
+            <span>Wind km/h</span>
+            <input name="wind_kmh" value={form.wind_kmh} onChange={handleChange} inputMode="decimal" placeholder="12" />
+          </label>
+          <label className="admin-field">
+            <span>Indoor CO2 ppm</span>
+            <input name="indoor_co2_ppm" value={form.indoor_co2_ppm} onChange={handleChange} inputMode="decimal" placeholder="950" />
+          </label>
+          <label className="admin-field">
+            <span>Indoor PM2.5</span>
+            <input name="indoor_pm25" value={form.indoor_pm25} onChange={handleChange} inputMode="decimal" placeholder="8" />
+          </label>
+          <label className="admin-field">
+            <span>Indoor PM10</span>
+            <input name="indoor_pm10" value={form.indoor_pm10} onChange={handleChange} inputMode="decimal" placeholder="12" />
+          </label>
+        </div>
+
+        <div className="admin-suggestion-actions">
+          <button type="submit" className="admin-primary-btn" disabled={loading}>
+            {loading ? 'Generating...' : 'Generate Suggestions'}
+          </button>
+          <button type="button" className="admin-secondary-btn" onClick={handleReset} disabled={loading}>
+            Reset
+          </button>
+        </div>
+      </form>
+
+      {error && <p className="admin-error">{error}</p>}
+
+      {preview && (
+        <div className="admin-suggestion-result">
+          <div className="admin-suggestion-context">
+            <h3>Values Used</h3>
+            <div className="admin-suggestion-context__chips">
+              <span>Outdoor PM2.5: {preview.context?.outdoor_pm25 ?? '—'}</span>
+              <span>Outdoor PM10: {preview.context?.outdoor_pm10 ?? '—'}</span>
+              <span>Outdoor UV: {preview.context?.outdoor_uv_index ?? '—'}</span>
+              <span>Outdoor Temp: {preview.context?.outdoor_temperature_c ?? '—'}</span>
+              <span>Outdoor Humidity: {preview.context?.outdoor_humidity_pct ?? '—'}</span>
+              <span>Wind: {preview.context?.wind_kmh ?? '—'}</span>
+              <span>Indoor CO2: {preview.context?.indoor_co2_ppm ?? '—'}</span>
+              <span>Indoor PM2.5: {preview.context?.indoor_pm25 ?? '—'}</span>
+              <span>Indoor PM10: {preview.context?.indoor_pm10 ?? '—'}</span>
+            </div>
+          </div>
+
+          <SuggestionsPanel suggestions={preview.suggestions} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function AdminPage({ onBack }) {
@@ -258,6 +406,8 @@ export default function AdminPage({ onBack }) {
 
       <main className="admin-main">
         <div className="admin-dashboard">
+          <AdminSuggestionTester token={token} />
+
           <div className="admin-card">
             <div className="admin-card-header">
               <h1 className="admin-title">Admin Dashboard</h1>

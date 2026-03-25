@@ -14,6 +14,7 @@ import DeviceSetupModal from './components/DeviceSetupModal'
 import LoginModal from './components/LoginModal'
 import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
+import SuggestionsPanel from './components/SuggestionsPanel'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -23,7 +24,8 @@ import SecurityPage from './pages/SecurityPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
-import { geocodeAddress, getAirQualityData, getIndoorSensorData, suggestAddresses } from './services/airDataService'
+import { geocodeAddress, getAirQualityData, getHomeSuggestions, getIndoorSensorData, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
+import { previewAdminSuggestions } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 
 const mockData = {
@@ -61,13 +63,69 @@ const mockData = {
 const POLISH_LOCALE = 'pl-PL'
 const POLISH_TIMEZONE = 'Europe/Warsaw'
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000
+const INDOOR_UPDATE_ESTIMATE_MS = 15 * 60 * 1000
+const INDOOR_MANUAL_RETRY_MS = 2 * 60 * 1000
+const DASHBOARD_ADMIN_OVERRIDE_DEFAULTS = {
+  outdoor_pm25: '',
+  outdoor_pm10: '',
+  outdoor_uv_index: '',
+  outdoor_temperature_c: '',
+  outdoor_humidity_pct: '',
+  wind_kmh: '',
+  indoor_co2_ppm: '',
+  indoor_pm25: '',
+  indoor_pm10: '',
+}
 
 function formatRoundedMetric(value, suffix, fallback) {
   return typeof value === 'number' ? `${Math.round(value)}${suffix}` : fallback
 }
 
+function formatUvIndex(value) {
+  if (typeof value !== 'number') return '--'
+  return value >= 10 ? `${Math.round(value)}` : value.toFixed(1).replace(/\.0$/, '')
+}
+
 function formatWindKmh(speedMs) {
   return typeof speedMs === 'number' ? `${Math.round(speedMs * 3.6)} km/h` : '-- km/h'
+}
+
+function formatClockTimestamp(value) {
+  if (!value) return 'No reading yet'
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return 'No reading yet'
+
+  return new Intl.DateTimeFormat(POLISH_LOCALE, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: POLISH_TIMEZONE,
+    timeZoneName: 'short',
+  }).format(date)
+}
+
+function formatElapsedMinutes(totalMinutes) {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return '0 min'
+  if (totalMinutes < 60) return `${Math.round(totalMinutes)} min`
+
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = Math.round(totalMinutes % 60)
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+}
+
+function formatLocationFallbackLabel(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 'Detected current location'
+  return `Detected near ${lat.toFixed(3)}, ${lon.toFixed(3)}`
+}
+
+function parseOptionalNumberInput(value) {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function getWeatherVisual(weatherCode, isDay, windSpeedMs) {
@@ -208,7 +266,7 @@ export default function App() {
   const [liveAirError, setLiveAirError] = useState('')
   const [isLoadingAirData, setIsLoadingAirData] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
-  const [suggestions, setSuggestions] = useState([])
+  const [locationSuggestions, setLocationSuggestions] = useState([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   const [confirmedSearchAddress, setConfirmedSearchAddress] = useState(mockData.location)
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false)
@@ -216,12 +274,20 @@ export default function App() {
   const [savedLocations, setSavedLocations] = useState([])
   const [sensorStatus, setSensorStatus] = useState(null)
   const [sensorReading, setSensorReading] = useState(null)
+  const [dashboardSuggestions, setDashboardSuggestions] = useState([])
   const [sensorError, setSensorError] = useState('')
   const [currentCoords, setCurrentCoords] = useState(null)
+  const [detectedCurrentLocation, setDetectedCurrentLocation] = useState('')
+  const [dashboardAdminForm, setDashboardAdminForm] = useState(DASHBOARD_ADMIN_OVERRIDE_DEFAULTS)
+  const [dashboardAdminOverride, setDashboardAdminOverride] = useState(null)
+  const [dashboardAdminError, setDashboardAdminError] = useState('')
+  const [isDashboardAdminToolsOpen, setIsDashboardAdminToolsOpen] = useState(false)
   const [outdoorRefreshCooldownUntil, setOutdoorRefreshCooldownUntil] = useState(0)
   const [indoorRefreshCooldownUntil, setIndoorRefreshCooldownUntil] = useState(0)
   const [nowTs, setNowTs] = useState(Date.now())
   const [isRefreshingIndoor, setIsRefreshingIndoor] = useState(false)
+  const [suggestionsRefreshNonce, setSuggestionsRefreshNonce] = useState(0)
+  const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false)
 
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
@@ -333,7 +399,7 @@ export default function App() {
     setIsLoadingAirData(true)
     setLiveAirError('')
     setStatusMessage(`Looking up ${trimmedAddress}...`)
-    setSuggestions([])
+    setLocationSuggestions([])
     setIsLoadingSuggestions(false)
     setConfirmedSearchAddress(trimmedAddress)
 
@@ -359,15 +425,30 @@ export default function App() {
       return
     }
 
-    setIsLocationSearchOpen(false)
     setIsLoadingAirData(true)
     setLiveAirError('')
-    setCurrentLocationLabel('Your location')
+    setCurrentLocationLabel('Detecting your location...')
     setStatusMessage('Getting your location...')
 
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
-        await loadAirQualityForCoords(coords.latitude, coords.longitude, 'Your location')
+        const fallbackLabel = formatLocationFallbackLabel(coords.latitude, coords.longitude)
+        let resolvedLabel = fallbackLabel
+
+        try {
+          const reverse = await reverseGeocodeCoordinates(coords.latitude, coords.longitude)
+          if (typeof reverse?.address === 'string' && reverse.address.trim()) {
+            resolvedLabel = reverse.address.trim()
+          }
+        } catch {
+          // Keep the coordinate fallback if reverse lookup is unavailable.
+        }
+
+        setDetectedCurrentLocation(resolvedLabel)
+        setSearchAddress(resolvedLabel)
+        setConfirmedSearchAddress(resolvedLabel)
+
+        await loadAirQualityForCoords(coords.latitude, coords.longitude, resolvedLabel)
       },
       (error) => {
         setIsLoadingAirData(false)
@@ -380,7 +461,7 @@ export default function App() {
 
   const handleSelectSuggestion = async (suggestion) => {
     setSearchAddress(suggestion.label)
-    setSuggestions([])
+    setLocationSuggestions([])
     setIsLoadingSuggestions(false)
     setConfirmedSearchAddress(suggestion.label)
     setIsLocationSearchOpen(false)
@@ -428,20 +509,20 @@ export default function App() {
 
   useEffect(() => {
     if (!user) {
-      setSuggestions([])
+      setLocationSuggestions([])
       setIsLoadingSuggestions(false)
       return undefined
     }
 
     const query = searchAddress.trim()
     if (query.length < 2) {
-      setSuggestions([])
+      setLocationSuggestions([])
       setIsLoadingSuggestions(false)
       return undefined
     }
 
     if (query === confirmedSearchAddress.trim()) {
-      setSuggestions([])
+      setLocationSuggestions([])
       setIsLoadingSuggestions(false)
       return undefined
     }
@@ -450,9 +531,9 @@ export default function App() {
       try {
         setIsLoadingSuggestions(true)
         const payload = await suggestAddresses(query, 5)
-        setSuggestions(Array.isArray(payload?.results) ? payload.results : [])
+        setLocationSuggestions(Array.isArray(payload?.results) ? payload.results : [])
       } catch {
-        setSuggestions([])
+        setLocationSuggestions([])
       } finally {
         setIsLoadingSuggestions(false)
       }
@@ -512,6 +593,56 @@ export default function App() {
     }
   }, [token])
 
+  useEffect(() => {
+    const isAdminPreviewActive = Boolean(user?.role === 'admin' && dashboardAdminOverride)
+
+    if (!token || (!currentCoords && !isAdminPreviewActive)) {
+      setDashboardSuggestions([])
+      return undefined
+    }
+
+    let cancelled = false
+
+    const loadDashboardSuggestions = async () => {
+      try {
+        if (!cancelled) {
+          setIsRefreshingSuggestions(true)
+        }
+        const payload = isAdminPreviewActive
+          ? await previewAdminSuggestions(token, dashboardAdminOverride)
+          : await getHomeSuggestions(token, currentCoords.lat, currentCoords.lon)
+        if (!cancelled) {
+          setDashboardSuggestions(Array.isArray(payload?.suggestions) ? payload.suggestions : [])
+        }
+      } catch {
+        if (!cancelled) {
+          setDashboardSuggestions([])
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRefreshingSuggestions(false)
+        }
+      }
+    }
+
+    loadDashboardSuggestions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    token,
+    user?.role,
+    currentCoords?.lat,
+    currentCoords?.lon,
+    liveAirData?.current?.pm25,
+    liveAirData?.current?.pm10,
+    liveAirData?.current?.wind_speed_ms,
+    sensorReading?.updated_at,
+    dashboardAdminOverride,
+    suggestionsRefreshNonce,
+  ])
+
   if (isLoadingAuth) {
     return null
   }
@@ -564,14 +695,94 @@ export default function App() {
     return source.charAt(0).toUpperCase() || '?'
   })()
 
-  const heroPm25 = liveAirData?.current?.pm25 ?? '--'
-  const heroPm10 = liveAirData?.current?.pm10 ?? '--'
+  const currentDashboardPreviewBase = {
+    outdoor_pm25: liveAirData?.current?.pm25 ?? null,
+    outdoor_pm10: liveAirData?.current?.pm10 ?? null,
+    outdoor_uv_index: liveAirData?.current?.uv_index ?? null,
+    outdoor_temperature_c: liveAirData?.current?.temperature_c ?? null,
+    outdoor_humidity_pct: liveAirData?.current?.humidity_pct ?? null,
+    wind_kmh: liveAirData?.current?.wind_speed_ms != null
+      ? Math.round(liveAirData.current.wind_speed_ms * 3.6 * 10) / 10
+      : null,
+    indoor_co2_ppm: sensorReading?.co2_ppm ?? null,
+    indoor_pm25: sensorReading?.pm2_5_ug_m3 ?? null,
+    indoor_pm10: sensorReading?.pm10_ug_m3 ?? null,
+  }
+
+  const handleDashboardAdminFieldChange = (event) => {
+    const { name, value } = event.target
+    setDashboardAdminForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleFillDashboardAdminFromLive = () => {
+    setDashboardAdminForm({
+      outdoor_pm25: liveAirData?.current?.pm25 != null ? String(liveAirData.current.pm25) : '',
+      outdoor_pm10: liveAirData?.current?.pm10 != null ? String(liveAirData.current.pm10) : '',
+      outdoor_uv_index: liveAirData?.current?.uv_index != null ? String(liveAirData.current.uv_index) : '',
+      outdoor_temperature_c: liveAirData?.current?.temperature_c != null ? String(liveAirData.current.temperature_c) : '',
+      outdoor_humidity_pct: liveAirData?.current?.humidity_pct != null ? String(liveAirData.current.humidity_pct) : '',
+      wind_kmh: liveAirData?.current?.wind_speed_ms != null ? String(Math.round(liveAirData.current.wind_speed_ms * 3.6 * 10) / 10) : '',
+      indoor_co2_ppm: sensorReading?.co2_ppm != null ? String(sensorReading.co2_ppm) : '',
+      indoor_pm25: sensorReading?.pm2_5_ug_m3 != null ? String(sensorReading.pm2_5_ug_m3) : '',
+      indoor_pm10: sensorReading?.pm10_ug_m3 != null ? String(sensorReading.pm10_ug_m3) : '',
+    })
+    setDashboardAdminError('')
+  }
+
+  const handleApplyDashboardAdminOverride = () => {
+    const manualPayload = {
+      outdoor_pm25: parseOptionalNumberInput(dashboardAdminForm.outdoor_pm25),
+      outdoor_pm10: parseOptionalNumberInput(dashboardAdminForm.outdoor_pm10),
+      outdoor_uv_index: parseOptionalNumberInput(dashboardAdminForm.outdoor_uv_index),
+      outdoor_temperature_c: parseOptionalNumberInput(dashboardAdminForm.outdoor_temperature_c),
+      outdoor_humidity_pct: parseOptionalNumberInput(dashboardAdminForm.outdoor_humidity_pct),
+      wind_kmh: parseOptionalNumberInput(dashboardAdminForm.wind_kmh),
+      indoor_co2_ppm: parseOptionalNumberInput(dashboardAdminForm.indoor_co2_ppm),
+      indoor_pm25: parseOptionalNumberInput(dashboardAdminForm.indoor_pm25),
+      indoor_pm10: parseOptionalNumberInput(dashboardAdminForm.indoor_pm10),
+    }
+
+    const payload = {
+      outdoor_pm25: manualPayload.outdoor_pm25 ?? currentDashboardPreviewBase.outdoor_pm25,
+      outdoor_pm10: manualPayload.outdoor_pm10 ?? currentDashboardPreviewBase.outdoor_pm10,
+      outdoor_uv_index: manualPayload.outdoor_uv_index ?? currentDashboardPreviewBase.outdoor_uv_index,
+      outdoor_temperature_c: manualPayload.outdoor_temperature_c ?? currentDashboardPreviewBase.outdoor_temperature_c,
+      outdoor_humidity_pct: manualPayload.outdoor_humidity_pct ?? currentDashboardPreviewBase.outdoor_humidity_pct,
+      wind_kmh: manualPayload.wind_kmh ?? currentDashboardPreviewBase.wind_kmh,
+      indoor_co2_ppm: manualPayload.indoor_co2_ppm ?? currentDashboardPreviewBase.indoor_co2_ppm,
+      indoor_pm25: manualPayload.indoor_pm25 ?? currentDashboardPreviewBase.indoor_pm25,
+      indoor_pm10: manualPayload.indoor_pm10 ?? currentDashboardPreviewBase.indoor_pm10,
+    }
+
+    const hasAnyValue = Object.values(payload).some((value) => value != null)
+    if (!hasAnyValue) {
+      setDashboardAdminError('Enter at least one test value to preview the dashboard.')
+      return
+    }
+
+    setDashboardAdminError('')
+    setDashboardAdminOverride(payload)
+  }
+
+  const handleClearDashboardAdminOverride = () => {
+    setDashboardAdminOverride(null)
+    setDashboardAdminError('')
+  }
+
+  const handleRefreshSuggestions = () => {
+    setSuggestionsRefreshNonce((prev) => prev + 1)
+  }
+
+  const heroPm25 = dashboardAdminOverride?.outdoor_pm25 ?? liveAirData?.current?.pm25 ?? '--'
+  const heroPm10 = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
   const heroLocation = currentLocationLabel
   const heroAqiValue = liveAirData?.aqi?.value ?? 0
   const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? 'Loading' : 'No data')
   const sourceProvider = liveAirData?.source?.provider
   const sourceMethod = liveAirData?.source?.method
+  const isDashboardAdminPreviewActive = Boolean(user?.role === 'admin' && dashboardAdminOverride)
   const sourceProviderLabel = (() => {
+    if (isDashboardAdminPreviewActive) return 'Admin override'
     if (sourceProvider === 'airly') return 'Airly'
     if (sourceProvider === 'openaq') return 'OpenAQ'
     if (sourceProvider === 'open-meteo') return 'Open-Meteo'
@@ -585,12 +796,17 @@ export default function App() {
       : sourceMethod === 'model'
         ? 'Model'
         : null
-  const sourceBadgeLabel = sourceMethodLabel
+  const sourceBadgeLabel = isDashboardAdminPreviewActive
+    ? 'Source: Admin override (Preview)'
+    : sourceMethodLabel
     ? `Source: ${sourceProviderLabel} (${sourceMethodLabel})`
     : `Source: ${sourceProviderLabel}`
   const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
   const sourceDistanceKm = liveAirData?.source?.distance_km
   const sourceTooltipMessage = (() => {
+    if (isDashboardAdminPreviewActive) {
+      return 'Admin preview mode is overriding dashboard values and suggestion output for testing. Live data is unchanged.'
+    }
     if (sourceProvider === 'airly' && sourceMethod === 'point') {
       return 'Interpolated point means Airly estimates air quality at your exact location using nearby measurements and spatial modeling. Confidence: High in covered urban areas, Medium in sparse areas.'
     }
@@ -608,14 +824,21 @@ export default function App() {
     return liveSourceMessage || 'Live outdoor air quality based on selected location.'
   })()
   const weatherCurrent = liveAirData?.current
-  const weatherTemperature = formatRoundedMetric(weatherCurrent?.temperature_c, '\u00B0', '--\u00B0')
+  const weatherTemperature = dashboardAdminOverride?.outdoor_temperature_c != null
+    ? formatRoundedMetric(dashboardAdminOverride.outdoor_temperature_c, '\u00B0', '--\u00B0')
+    : formatRoundedMetric(weatherCurrent?.temperature_c, '\u00B0', '--\u00B0')
   const weatherFeelsLike = formatRoundedMetric(
     weatherCurrent?.apparent_temperature_c ?? weatherCurrent?.temperature_c,
     '\u00B0C',
     '--',
   )
-  const weatherHumidity = formatRoundedMetric(weatherCurrent?.humidity_pct, '%', '--%')
-  const weatherWind = formatWindKmh(weatherCurrent?.wind_speed_ms)
+  const weatherHumidity = dashboardAdminOverride?.outdoor_humidity_pct != null
+    ? formatRoundedMetric(dashboardAdminOverride.outdoor_humidity_pct, '%', '--%')
+    : formatRoundedMetric(weatherCurrent?.humidity_pct, '%', '--%')
+  const weatherUv = formatUvIndex(dashboardAdminOverride?.outdoor_uv_index ?? weatherCurrent?.uv_index)
+  const weatherWind = dashboardAdminOverride?.wind_kmh != null
+    ? `${Math.round(dashboardAdminOverride.wind_kmh)} km/h`
+    : formatWindKmh(weatherCurrent?.wind_speed_ms)
   const weatherVisual = getWeatherVisual(
     weatherCurrent?.weather_code,
     weatherCurrent?.is_day,
@@ -636,11 +859,8 @@ export default function App() {
     }).format(outdoorUpdatedDate)
     : 'No data timestamp'
   const outdoorCooldownRemainingMs = Math.max(0, outdoorRefreshCooldownUntil - nowTs)
-  const indoorCooldownRemainingMs = Math.max(0, indoorRefreshCooldownUntil - nowTs)
   const outdoorOnCooldown = outdoorCooldownRemainingMs > 0
-  const indoorOnCooldown = indoorCooldownRemainingMs > 0
   const outdoorCanRefresh = Boolean(currentCoords) && !isLoadingAirData && outdoorCooldownRemainingMs === 0
-  const indoorCanRefresh = Boolean(token) && !isRefreshingIndoor && indoorCooldownRemainingMs === 0
 
   const handleRefreshOutdoor = async () => {
     if (!currentCoords || !outdoorCanRefresh) return
@@ -650,7 +870,7 @@ export default function App() {
 
   const handleRefreshIndoor = async () => {
     if (!token || !indoorCanRefresh) return
-    setIndoorRefreshCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS)
+    setIndoorRefreshCooldownUntil(Date.now() + INDOOR_MANUAL_RETRY_MS)
     setIsRefreshingIndoor(true)
     try {
       const status = await getQingpingIntegrationStatus(token)
@@ -676,25 +896,41 @@ export default function App() {
   const batteryToneClass = batteryPercentage != null && batteryPercentage < 20
     ? 'indoor-sensor-summary__battery-chip--low'
     : 'indoor-sensor-summary__battery-chip--healthy'
-  const indoorUpdatedLabel = sensorReading?.synced_at || sensorReading?.updated_at
-    ? new Intl.DateTimeFormat(POLISH_LOCALE, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: POLISH_TIMEZONE,
-      timeZoneName: 'short',
-    }).format(new Date(sensorReading?.synced_at || sensorReading?.updated_at))
-    : 'No reading yet'
-  const indoorUpdatedPrefix = sensorReading?.synced_at ? 'Synced' : 'Updated'
+  const indoorMeasurementAt = sensorReading?.updated_at ? new Date(sensorReading.updated_at) : null
+  const indoorMeasurementLabel = formatClockTimestamp(indoorMeasurementAt)
+  const indoorExpectedNextUpdateAt = indoorMeasurementAt
+    ? new Date(indoorMeasurementAt.getTime() + INDOOR_UPDATE_ESTIMATE_MS)
+    : null
+  const indoorExpectedNextRefreshTs = indoorExpectedNextUpdateAt?.getTime() ?? 0
   const indoorAqiValue = hasConnectedIndoorSensor ? 2 : 0
   const indoorAqiLabel = hasConnectedIndoorSensor ? 'Good' : 'Setup needed'
   const indoorTitle = sensorStatus?.selected_device_name || 'Living Room'
-  const indoorPm25 = sensorReading?.pm2_5_ug_m3 ?? '--'
-  const indoorPm10 = sensorReading?.pm10_ug_m3 ?? '--'
-  const indoorCo2 = sensorReading?.co2_ppm ?? '--'
+  const indoorPm25 = dashboardAdminOverride?.indoor_pm25 ?? sensorReading?.pm2_5_ug_m3 ?? '--'
+  const indoorPm10 = dashboardAdminOverride?.indoor_pm10 ?? sensorReading?.pm10_ug_m3 ?? '--'
+  const indoorCo2 = dashboardAdminOverride?.indoor_co2_ppm ?? sensorReading?.co2_ppm ?? '--'
   const indoorTemp = sensorReading?.temperature_c ?? '--'
   const indoorHumidity = sensorReading?.humidity_pct ?? '--'
   const indoorBattery = sensorReading?.battery_pct ?? '--'
+  const indoorEarliestRefreshAt = Math.max(indoorRefreshCooldownUntil, indoorExpectedNextRefreshTs)
+  const indoorCooldownRemainingMs = Math.max(0, indoorEarliestRefreshAt - nowTs)
+  const indoorOnCooldown = indoorCooldownRemainingMs > 0
+  const indoorCanRefresh = hasConnectedIndoorSensor && Boolean(token) && !isRefreshingIndoor && indoorCooldownRemainingMs === 0
+  const indoorRefreshButtonLabel = !hasConnectedIndoorSensor
+    ? 'No sensor'
+    : indoorOnCooldown
+      ? `Check again in ${formatElapsedMinutes(indoorCooldownRemainingMs / 60000)}`
+      : 'Check for update'
+  const indoorRefreshTooltipMessage = indoorExpectedNextUpdateAt && indoorOnCooldown
+    ? `Next sensor update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
+    : 'AirIQ will check for a newer sensor reading.'
+  const indoorStatusPrimary = hasConnectedIndoorSensor
+    ? `Latest sensor reading: ${indoorMeasurementLabel}`
+    : 'No indoor sensor connected yet.'
+  const indoorStatusSecondary = hasConnectedIndoorSensor
+    ? (indoorExpectedNextUpdateAt && indoorOnCooldown
+      ? `Next update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
+      : 'A newer sensor update may be available now.')
+    : 'Connect a sensor to start seeing room data.'
 
   const activeBackground = route === '/' ? dashboardBackground : heroBackground
 
@@ -875,7 +1111,7 @@ export default function App() {
                   <span>Battery {sensorReading?.battery_pct ?? '--'}%</span>
                 </span>
                 <span className={`indoor-sensor-summary__badge ${hasConnectedIndoorSensor ? 'indoor-sensor-summary__badge--live' : ''}`}>
-                  {hasConnectedIndoorSensor ? 'Live sync' : 'Setup needed'}
+                  {hasConnectedIndoorSensor ? 'Connected' : 'Setup needed'}
                 </span>
               </div>
             </div>
@@ -912,7 +1148,8 @@ export default function App() {
             <div className="indoor-sensor-summary__footer">
               <span>{sensorStatus?.selected_serial_number || sensorStatus?.selected_wifi_mac || 'Select a Qingping sensor in setup'}</span>
               <span className="indoor-sensor-summary__footer-right">
-                <span>{indoorUpdatedPrefix}: {indoorUpdatedLabel}</span>
+                <span>{indoorStatusPrimary}</span>
+                <span>{indoorStatusSecondary}</span>
               </span>
             </div>
           </div>
@@ -964,6 +1201,84 @@ export default function App() {
             )}
           </div>
 
+          {user.role === 'admin' && (
+            <div className={`dashboard-admin-override${isDashboardAdminPreviewActive ? ' dashboard-admin-override--active' : ''}`}>
+              <div className="dashboard-admin-override__header">
+                <div>
+                  <p className="dashboard-admin-override__eyebrow">Admin Tools</p>
+                  <h3>Dashboard suggestion preview</h3>
+                </div>
+                <button
+                  type="button"
+                  className="dashboard-admin-override__toggle"
+                  onClick={() => setIsDashboardAdminToolsOpen((prev) => !prev)}
+                >
+                  {isDashboardAdminToolsOpen ? 'Hide' : 'Show'} tester
+                </button>
+              </div>
+              <p className="dashboard-admin-override__copy">
+                Override only the values you want to test. Any field left blank will keep the current live dashboard value.
+              </p>
+              {isDashboardAdminPreviewActive && (
+                <p className="dashboard-admin-override__status">Preview mode is active. Live dashboard data is unchanged underneath.</p>
+              )}
+              {isDashboardAdminToolsOpen && (
+                <>
+                  <div className="dashboard-admin-override__grid">
+                    <label className="dashboard-admin-override__field">
+                      <span>Outdoor PM2.5</span>
+                      <input name="outdoor_pm25" value={dashboardAdminForm.outdoor_pm25} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="18" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Outdoor PM10</span>
+                      <input name="outdoor_pm10" value={dashboardAdminForm.outdoor_pm10} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="30" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Outdoor UV</span>
+                      <input name="outdoor_uv_index" value={dashboardAdminForm.outdoor_uv_index} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="6" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Outdoor Temp °C</span>
+                      <input name="outdoor_temperature_c" value={dashboardAdminForm.outdoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="24" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Outdoor Humidity %</span>
+                      <input name="outdoor_humidity_pct" value={dashboardAdminForm.outdoor_humidity_pct} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="55" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Wind km/h</span>
+                      <input name="wind_kmh" value={dashboardAdminForm.wind_kmh} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="12" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Indoor CO2 ppm</span>
+                      <input name="indoor_co2_ppm" value={dashboardAdminForm.indoor_co2_ppm} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="950" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Indoor PM2.5</span>
+                      <input name="indoor_pm25" value={dashboardAdminForm.indoor_pm25} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="8" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
+                      <span>Indoor PM10</span>
+                      <input name="indoor_pm10" value={dashboardAdminForm.indoor_pm10} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="12" />
+                    </label>
+                  </div>
+                  <div className="dashboard-admin-override__actions">
+                    <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleFillDashboardAdminFromLive}>
+                      Fill current values
+                    </button>
+                    <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleApplyDashboardAdminOverride}>
+                      Apply preview
+                    </button>
+                    <button type="button" className="dashboard-admin-override__btn" onClick={handleClearDashboardAdminOverride}>
+                      Clear preview
+                    </button>
+                  </div>
+                  {dashboardAdminError && <p className="dashboard-admin-override__error">{dashboardAdminError}</p>}
+                </>
+              )}
+            </div>
+          )}
+
           <div className="dashboard-preview__cards">
             <article className="dashboard-preview-card">
               <div className="dashboard-preview-card__top">
@@ -991,7 +1306,7 @@ export default function App() {
                   <span className="dashboard-preview-card__meta-chip">Battery: --</span>
                   <span className="dashboard-preview-card__meta-chip">Live sync</span>
                 </div>
-                <div className="dashboard-preview-card__metrics-grid">
+                <div className="dashboard-preview-card__metrics-grid dashboard-preview-card__metrics-grid--outdoor">
                   <div className="dashboard-preview-card__metric-tile">
                     <strong>PM2.5</strong>
                     <span>{heroPm25} µg/m³</span>
@@ -1011,6 +1326,10 @@ export default function App() {
                   <div className="dashboard-preview-card__metric-tile">
                     <strong>Humidity</strong>
                     <span>{weatherHumidity}</span>
+                  </div>
+                  <div className="dashboard-preview-card__metric-tile">
+                    <strong>UV Index</strong>
+                    <span>{weatherUv}</span>
                   </div>
                 </div>
               </div>
@@ -1058,7 +1377,7 @@ export default function App() {
                   <>
                     <div className="dashboard-preview-card__meta-row">
                       <span className="dashboard-preview-card__meta-chip">Battery: {indoorBattery}%</span>
-                      <span className="dashboard-preview-card__meta-chip dashboard-preview-card__meta-chip--live">Live sync</span>
+                      <span className="dashboard-preview-card__meta-chip dashboard-preview-card__meta-chip--live">Connected</span>
                     </div>
                     <div className="dashboard-preview-card__metrics-grid">
                       <div className="dashboard-preview-card__metric-tile">
@@ -1094,7 +1413,10 @@ export default function App() {
                 {sensorError && <p className="dashboard-preview-card__error">{sensorError}</p>}
               </div>
               <div className="dashboard-preview-card__status">
-                <span>{hasConnectedIndoorSensor ? `${indoorUpdatedPrefix}: ${indoorUpdatedLabel}` : 'No indoor sensor connected yet.'}</span>
+                <div className="dashboard-preview-card__status-copy">
+                  <span>{indoorStatusPrimary}</span>
+                  <span>{indoorStatusSecondary}</span>
+                </div>
                 <div className={`dashboard-preview-card__refresh-wrap${indoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
                   <button
                     type="button"
@@ -1102,11 +1424,11 @@ export default function App() {
                     onClick={handleRefreshIndoor}
                     disabled={!indoorCanRefresh}
                   >
-                    {isRefreshingIndoor ? 'Refreshing...' : 'Refresh'}
+                    {isRefreshingIndoor ? 'Checking...' : indoorRefreshButtonLabel}
                   </button>
                   {indoorOnCooldown && (
                     <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
-                      You can refresh every 5 minutes only.
+                      {indoorRefreshTooltipMessage}
                     </span>
                   )}
                 </div>
@@ -1116,41 +1438,35 @@ export default function App() {
 
           <section className="dashboard-preview-recs">
             <div className="dashboard-preview-recs__tabs">
+              <div className="dashboard-preview-recs__tab-group">
+                <button
+                  type="button"
+                  className={`dashboard-preview-recs__tab${recsTab === 'suggestions' ? ' dashboard-preview-recs__tab--active' : ''}`}
+                  onClick={() => setRecsTab('suggestions')}
+                >
+                  Suggestions
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-preview-recs__tab${recsTab === 'ai' ? ' dashboard-preview-recs__tab--active' : ''}`}
+                  onClick={() => setRecsTab('ai')}
+                >
+                  AI Recommendations
+                </button>
+              </div>
               <button
                 type="button"
-                className={`dashboard-preview-recs__tab${recsTab === 'suggestions' ? ' dashboard-preview-recs__tab--active' : ''}`}
-                onClick={() => setRecsTab('suggestions')}
+                className="dashboard-preview-recs__refresh"
+                onClick={handleRefreshSuggestions}
+                disabled={isRefreshingSuggestions}
               >
-                Suggestions
-              </button>
-              <button
-                type="button"
-                className={`dashboard-preview-recs__tab${recsTab === 'ai' ? ' dashboard-preview-recs__tab--active' : ''}`}
-                onClick={() => setRecsTab('ai')}
-              >
-                AI Recommendations
+                {isRefreshingSuggestions ? 'Refreshing...' : 'Refresh suggestions'}
               </button>
             </div>
 
             <div className="dashboard-preview-recs__body">
               {recsTab === 'suggestions' ? (
-                <div className="dashboard-preview-recs__grid">
-                  <article className="dashboard-preview-recs__item">
-                    <h4>Ventilation Window</h4>
-                    <p>Best time to open windows based on PM and wind trend.</p>
-                    <span>Recommended today: 13:00-15:00</span>
-                  </article>
-                  <article className="dashboard-preview-recs__item">
-                    <h4>Outdoor Activity</h4>
-                    <p>Current air quality supports running and medium-intensity workouts.</p>
-                    <span>Good right now</span>
-                  </article>
-                  <article className="dashboard-preview-recs__item">
-                    <h4>Indoor Comfort</h4>
-                    <p>Humidity and temperature are stable. Keep current settings.</p>
-                    <span>Conditions balanced</span>
-                  </article>
-                </div>
+                <SuggestionsPanel suggestions={dashboardSuggestions} />
               ) : (
                 <div className="dashboard-preview-recs__ai">
                   <h4>AI Daily Plan</h4>
@@ -1253,12 +1569,12 @@ export default function App() {
                   </button>
                 </form>
 
-                {(isLoadingSuggestions || suggestions.length > 0) && !isLoadingAirData && (
+                {(isLoadingSuggestions || locationSuggestions.length > 0) && !isLoadingAirData && (
                   <div className="loc-modal-suggestions">
                     {isLoadingSuggestions ? (
                       <div className="loc-modal-suggestion loc-modal-suggestion--muted">Searching…</div>
                     ) : (
-                      suggestions.map((suggestion) => (
+                      locationSuggestions.map((suggestion) => (
                         <button
                           key={`${suggestion.place_id ?? suggestion.label}-${suggestion.lat}-${suggestion.lon}`}
                           type="button"
@@ -1288,6 +1604,14 @@ export default function App() {
                 </svg>
                 Use my current location
               </button>
+
+              <div className="loc-modal-location-note">
+                <p>AirIQ asks your browser or Windows for an estimated location. On desktop or Ethernet it can be a little off.</p>
+                <p>For the most precise data, enter your address manually.</p>
+                {detectedCurrentLocation ? (
+                  <p className="loc-modal-location-note__detected">Detected location: {detectedCurrentLocation}</p>
+                ) : null}
+              </div>
 
               {liveAirError && (
                 <p className="loc-modal-error">{liveAirError}</p>

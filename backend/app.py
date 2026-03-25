@@ -11,7 +11,7 @@ from backend.dependencies.authorization import (
     get_household_membership,
     require_household_role,
 )
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from backend.init_db import init_db
 from backend.models import (
@@ -32,16 +32,20 @@ from backend.models import (
 from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
+from backend.schemas.suggestions import VentilationContext
 from backend.routers.integrations import router as integrations_router
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
+from backend.services.outdoor_activity import evaluate_outdoor_activity
+from backend.services.ventilation import evaluate_ventilation
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.main import (
     get_air_quality_data,
     get_lat_lon_nominatim_cached,
+    reverse_geocode_nominatim,
     suggest_addresses_nominatim,
 )
 from backend.routers.integrations import get_qingping_latest_reading
@@ -76,6 +80,63 @@ def _to_float(value: Decimal | float | int | None) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _wind_ms_to_kmh(value: float | int | Decimal | None) -> float | None:
+    speed_ms = _to_float(value)
+    if speed_ms is None:
+        return None
+    return speed_ms * 3.6
+
+
+def _build_dashboard_suggestions_payload(
+    *,
+    outdoor_data: dict,
+    indoor_data: dict | None,
+) -> dict:
+    outdoor_current = outdoor_data.get("current") if isinstance(outdoor_data, dict) else {}
+    outdoor_current = outdoor_current if isinstance(outdoor_current, dict) else {}
+    indoor_payload = indoor_data if isinstance(indoor_data, dict) else {}
+
+    ventilation_context = VentilationContext(
+        outdoor_pm25=_to_float(outdoor_current.get("pm25")),
+        outdoor_pm10=_to_float(outdoor_current.get("pm10")),
+        outdoor_uv_index=_to_float(outdoor_current.get("uv_index")),
+        outdoor_temperature_c=_to_float(outdoor_current.get("temperature_c")),
+        outdoor_humidity_pct=_to_float(outdoor_current.get("humidity_pct")),
+        indoor_co2_ppm=_to_float(indoor_payload.get("co2_ppm")),
+        indoor_pm25=_to_float(indoor_payload.get("pm2_5_ug_m3")),
+        indoor_pm10=_to_float(indoor_payload.get("pm10_ug_m3")),
+        wind_kmh=_wind_ms_to_kmh(outdoor_current.get("wind_speed_ms")),
+    )
+    return _build_suggestions_payload_from_context(ventilation_context)
+
+
+def _build_suggestions_payload_from_context(
+    ventilation_context: VentilationContext,
+) -> dict:
+    outdoor_activity_suggestion = evaluate_outdoor_activity(ventilation_context)
+    ventilation_suggestion = evaluate_ventilation(ventilation_context)
+
+    suggestions = []
+    if outdoor_activity_suggestion is not None:
+        suggestions.append(outdoor_activity_suggestion.model_dump())
+    if ventilation_suggestion is not None:
+        suggestions.append(ventilation_suggestion.model_dump())
+
+    priority_rank = {"high": 0, "medium": 1, "low": 2}
+    suggestions.sort(key=lambda item: priority_rank.get(item.get("priority"), 99))
+
+    return {
+        "suggestions": suggestions,
+        "context": ventilation_context.model_dump(),
+    }
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 
 
 def _serialize_ingest_run(run: IngestRun) -> dict:
@@ -191,12 +252,65 @@ def geocode_suggest(
     return {"results": suggest_addresses_nominatim(q, limit=limit)}
 
 
+@app.get("/api/geocode/reverse")
+def reverse_geocode(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+) -> dict:
+    result = reverse_geocode_nominatim(lat, lon)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Location could not be resolved.")
+
+    return result
+
+
 @app.get("/api/sensor/home/latest")
 def get_home_sensor_latest(
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
     return get_qingping_latest_reading(current_user=current_user, db=db).model_dump()
+
+
+@app.get("/api/suggestions/home")
+def get_home_suggestions(
+    response: Response,
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+
+    outdoor_data = get_air_quality_data(lat, lon)
+
+    indoor_data: dict | None = None
+    try:
+        indoor_data = get_qingping_latest_reading(
+            current_user=current_user,
+            db=db,
+        ).model_dump()
+    except HTTPException as exc:
+        if exc.status_code not in {404}:
+            raise
+
+    return _build_dashboard_suggestions_payload(
+        outdoor_data=outdoor_data,
+        indoor_data=indoor_data,
+    )
+
+
+@app.post("/api/admin/suggestions/preview")
+def preview_admin_suggestions(
+    context: VentilationContext,
+    admin: User = Depends(require_admin),
+) -> dict:
+    _ = admin
+    return _build_suggestions_payload_from_context(context)
 
 
 def _run_scheduled_ingest() -> None:
@@ -297,11 +411,6 @@ def run_map_ingest(db: Session = Depends(get_db)) -> dict:
         "fail_count": summary.fail_count,
     }
 
-
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
 
 
 @app.get("/api/admin/stats")
