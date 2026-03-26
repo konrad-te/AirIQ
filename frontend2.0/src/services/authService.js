@@ -139,6 +139,35 @@ export async function revokeAllOtherSessions(token) {
   })
 }
 
+// ── Saved Locations ───────────────────────────────────────────────────────────
+
+export async function getSavedLocations(token) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/locations`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => [])
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to load saved locations.'))
+  return data
+}
+
+export async function addSavedLocation(token, { label, lat, lon }) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/locations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ label, lat, lon }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to save location.'))
+  return data
+}
+
+export async function removeSavedLocation(token, locationId) {
+  await fetch(`${API_BASE_URL}/api/auth/locations/${locationId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 // ── Feedback ─────────────────────────────────────────────────────────────────
 
 export async function submitFeedback(token, { category, message }) {

@@ -21,7 +21,6 @@ import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
-import SecurityPage from './pages/SecurityPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
@@ -320,10 +319,6 @@ export default function App() {
     setRoute('/settings')
   }
 
-  const handleOpenSecurity = () => {
-    window.history.pushState({}, '', '/security')
-    setRoute('/security')
-  }
 
   const handleOpenIndoor = () => {
     window.history.pushState({}, '', '/indoor')
@@ -686,12 +681,9 @@ export default function App() {
   }
 
   if (route === '/settings') {
-    return <SettingsPage onBack={handleBackToLanding} onOpenSecurity={handleOpenSecurity} />
+    return <SettingsPage onBack={handleBackToLanding} onAccountDeleted={handleAccountDeleted} />
   }
 
-  if (route === '/security') {
-    return <SecurityPage onBack={handleOpenSettings} onAccountDeleted={handleAccountDeleted} />
-  }
 
 
   if (route === '/subscription') {
