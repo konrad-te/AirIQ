@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import heroBackground from './assets/123.png'
+import dashboardBackground from './assets/222.png'
 import logoAiriq from './assets/logo-airiq.svg'
 import sensorImage from './assets/sensor.png'
 import watchImage from './assets/watch.png'
@@ -954,7 +955,7 @@ export default function App() {
       : 'A newer sensor update may be available now.')
     : 'Connect a sensor to start seeing room data.'
 
-  const activeBackground = heroBackground
+  const activeBackground = route === '/' ? dashboardBackground : heroBackground
 
   return (
     <div className={`page-root${route === '/' ? ' page-root--dashboard' : ''}`}>
