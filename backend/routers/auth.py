@@ -6,10 +6,12 @@ from typing import Annotated
 from backend.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from backend.models import Household, HouseholdMember, User, UserPreference, UserSession
+from backend.models import Household, HouseholdMember, SavedLocation, User, UserPreference, UserSession
 from backend.schemas.auth import (
     DeleteAccountSchema,
     PasswordChangeSchema,
+    SavedLocationCreateSchema,
+    SavedLocationOutSchema,
     TokenSchema,
     UserRegisterResponseSchema,
     UserOutSchema,
@@ -25,7 +27,7 @@ from backend.security import (
     hash_password,
     verify_password,
 )
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -435,5 +437,82 @@ def change_password(
             detail="New password must be different from the current password.",
         )
     current_user.password_hash = hash_password(data.new_password)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── Saved Locations ───────────────────────────────────────────────────────────
+
+@router.get("/locations", response_model=list[SavedLocationOutSchema])
+def list_saved_locations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[SavedLocation]:
+    return (
+        db.execute(
+            select(SavedLocation)
+            .where(SavedLocation.user_id == current_user.id)
+            .order_by(SavedLocation.sort_order, SavedLocation.created_at)
+        )
+        .scalars()
+        .all()
+    )
+
+
+@router.post("/locations", response_model=SavedLocationOutSchema, status_code=status.HTTP_201_CREATED)
+def add_saved_location(
+    data: SavedLocationCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SavedLocation:
+    existing = (
+        db.execute(
+            select(SavedLocation).where(
+                SavedLocation.user_id == current_user.id,
+                SavedLocation.label == data.label,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if existing:
+        return existing
+
+    count = db.execute(
+        select(func.count()).select_from(SavedLocation).where(SavedLocation.user_id == current_user.id)
+    ).scalar_one()
+
+    loc = SavedLocation(
+        user_id=current_user.id,
+        label=data.label,
+        lat=data.lat,
+        lon=data.lon,
+        sort_order=count,
+    )
+    db.add(loc)
+    db.commit()
+    db.refresh(loc)
+    return loc
+
+
+@router.delete("/locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_saved_location(
+    location_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    loc = (
+        db.execute(
+            select(SavedLocation).where(
+                SavedLocation.id == location_id,
+                SavedLocation.user_id == current_user.id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not loc:
+        raise HTTPException(status_code=404, detail="Location not found")
+    db.delete(loc)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

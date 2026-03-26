@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import logoAiriq from '../assets/logo-airiq.svg'
 import { useAuth } from '../context/AuthContext'
 import {
+  changePassword,
+  deleteAccount,
   getPreferences,
   updatePreferences,
   updateProfile,
@@ -11,6 +13,8 @@ import './SettingsPage.css'
 const SECTIONS = [
   { id: 'profile', label: 'Profile' },
   { id: 'preferences', label: 'Preferences' },
+  { id: 'password', label: 'Change Password' },
+  { id: 'delete', label: 'Delete Account' },
 ]
 
 const LANGUAGES = [
@@ -42,6 +46,217 @@ const TIMEZONES = [
   { value: 'Asia/Shanghai', label: 'Shanghai (CST)' },
   { value: 'Australia/Sydney', label: 'Sydney (AEST/AEDT)' },
 ]
+
+// ── Change Password Section ───────────────────────────────────────────────────
+function ChangePasswordSection() {
+  const { token } = useAuth()
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    if (next !== confirm) {
+      setError('New passwords do not match.')
+      return
+    }
+    if (next.length < 8) {
+      setError('New password must be at least 8 characters.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    setSuccess(false)
+    try {
+      await changePassword(token, { current_password: current, new_password: next })
+      setSuccess(true)
+      setCurrent('')
+      setNext('')
+      setConfirm('')
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="settings-section">
+      <h2 className="settings-section-title">Change Password</h2>
+      <p className="settings-section-desc">Use a strong password you don't use elsewhere.</p>
+      <form className="settings-form" onSubmit={handleSave}>
+        <div className="settings-field">
+          <label htmlFor="s-current-pw" className="settings-label">Current password</label>
+          <input
+            id="s-current-pw"
+            type="password"
+            className="settings-input"
+            value={current}
+            onChange={(e) => { setCurrent(e.target.value); setError(''); setSuccess(false) }}
+            placeholder="••••••••"
+            autoComplete="current-password"
+            disabled={saving}
+            required
+          />
+        </div>
+        <div className="settings-field">
+          <label htmlFor="s-new-pw" className="settings-label">New password</label>
+          <input
+            id="s-new-pw"
+            type="password"
+            className="settings-input"
+            value={next}
+            onChange={(e) => { setNext(e.target.value); setError(''); setSuccess(false) }}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            disabled={saving}
+            required
+          />
+        </div>
+        <div className="settings-field">
+          <label htmlFor="s-confirm-pw" className="settings-label">Confirm new password</label>
+          <input
+            id="s-confirm-pw"
+            type="password"
+            className="settings-input"
+            value={confirm}
+            onChange={(e) => { setConfirm(e.target.value); setError(''); setSuccess(false) }}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            disabled={saving}
+            required
+          />
+        </div>
+        {error && <p className="settings-error" role="alert">{error}</p>}
+        {success && <p className="settings-success" role="status">Password changed successfully.</p>}
+        <button
+          type="submit"
+          className="btn btn-primary settings-save-btn"
+          disabled={saving || !current || !next || !confirm}
+        >
+          {saving ? 'Saving…' : 'Change password'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// ── Delete Account Section ────────────────────────────────────────────────────
+function DeleteAccountSection({ onDeleted }) {
+  const { token, logout } = useAuth()
+  const [step, setStep] = useState('initial')
+  const [password, setPassword] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault()
+    if (!password) {
+      setError('Please enter your password to confirm.')
+      return
+    }
+    setError('')
+    setStep('confirm')
+  }
+
+  const handleFinalDelete = async () => {
+    setDeleting(true)
+    setError('')
+    try {
+      await deleteAccount(token, password)
+      await logout()
+      onDeleted()
+    } catch (err) {
+      setError(err.message)
+      setDeleting(false)
+      setStep('password')
+    }
+  }
+
+  return (
+    <div className="settings-section">
+      <h2 className="settings-section-title settings-section-title--danger">Delete Account</h2>
+      <p className="settings-section-desc">
+        Deactivates your account and signs you out of all devices.
+        Your data will be permanently removed after 30 days.
+      </p>
+
+      {step === 'initial' && (
+        <button
+          type="button"
+          className="btn settings-delete-btn"
+          onClick={() => setStep('password')}
+        >
+          Delete my account
+        </button>
+      )}
+
+      {step === 'password' && (
+        <form className="settings-delete-confirm" onSubmit={handlePasswordSubmit}>
+          <p className="settings-delete-warning">Enter your password to continue.</p>
+          <div className="settings-field">
+            <label htmlFor="s-delete-password" className="settings-label">Password</label>
+            <input
+              id="s-delete-password"
+              type="password"
+              className="settings-input"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError('') }}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+            />
+          </div>
+          {error && <p className="settings-error" role="alert">{error}</p>}
+          <div className="settings-delete-actions">
+            <button type="submit" className="btn settings-delete-btn" disabled={!password}>
+              Continue
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => { setStep('initial'); setPassword(''); setError('') }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === 'confirm' && (
+        <div className="settings-delete-confirm">
+          <p className="settings-delete-warning">
+            Are you sure? Your account will be deactivated and your data will be permanently
+            removed after 30 days. You can reactivate by registering with the same email
+            within that period.
+          </p>
+          {error && <p className="settings-error" role="alert">{error}</p>}
+          <div className="settings-delete-actions">
+            <button
+              type="button"
+              className="btn settings-delete-btn"
+              onClick={handleFinalDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting…' : 'Yes, permanently delete'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setStep('password')}
+              disabled={deleting}
+            >
+              Go back
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Profile Section ──────────────────────────────────────────────────────────
 function ProfileSection() {
@@ -222,13 +437,15 @@ function PreferencesSection() {
 }
 
 // ── Page shell ───────────────────────────────────────────────────────────────
-export default function SettingsPage({ onBack, onOpenSecurity }) {
+export default function SettingsPage({ onBack, onAccountDeleted }) {
   const [activeSection, setActiveSection] = useState('profile')
 
   const renderSection = () => {
     switch (activeSection) {
       case 'profile': return <ProfileSection />
       case 'preferences': return <PreferencesSection />
+      case 'password': return <ChangePasswordSection />
+      case 'delete': return <DeleteAccountSection onDeleted={onAccountDeleted} />
       default: return null
     }
   }
@@ -254,19 +471,12 @@ export default function SettingsPage({ onBack, onOpenSecurity }) {
             <button
               key={s.id}
               type="button"
-              className={`settings-nav-item ${activeSection === s.id ? 'settings-nav-item--active' : ''}`}
+              className={`settings-nav-item ${activeSection === s.id ? 'settings-nav-item--active' : ''} ${s.id === 'delete' ? 'settings-nav-item--danger' : ''}`}
               onClick={() => setActiveSection(s.id)}
             >
               {s.label}
             </button>
           ))}
-          <button
-            type="button"
-            className="settings-nav-item"
-            onClick={onOpenSecurity}
-          >
-            Security
-          </button>
         </nav>
 
         <main className="settings-content">

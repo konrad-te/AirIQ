@@ -1092,6 +1092,132 @@
   font-weight: 600;
 }
 
+.dashboard-preview-recs__ai-hint {
+  font-size: 0.78rem;
+  color: #5a7799;
+  line-height: 1.5;
+  margin-top: 0.3rem;
+}
+
+.dashboard-preview-recs__ai-error {
+  font-size: 0.75rem;
+  color: #c0392b;
+  margin-top: 0.5rem;
+}
+
+.dashboard-preview-recs__ai-btn {
+  margin-top: 0.85rem;
+  background: linear-gradient(135deg, #3a8ef5 0%, #6b5cf6 100%);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.dashboard-preview-recs__ai-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.dashboard-preview-recs__ai-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* AI recommendation two-box layout */
+.ai-recs__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-bottom: 0.1rem;
+}
+
+.ai-recs__card {
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ai-recs__card--outdoor {
+  background: linear-gradient(145deg, #f0f8ff 0%, #e3f2fd 100%);
+  border: 1px solid #b8d9f5;
+}
+
+.ai-recs__card--indoor {
+  background: linear-gradient(145deg, #f5f0ff 0%, #ede7fd 100%);
+  border: 1px solid #cbbef7;
+}
+
+.ai-recs__card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-recs__card--outdoor .ai-recs__card-header {
+  color: #1a6bb5;
+}
+
+.ai-recs__card--indoor .ai-recs__card-header {
+  color: #5b35a8;
+}
+
+.ai-recs__card-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ai-recs__card-list li {
+  font-size: 0.77rem;
+  line-height: 1.45;
+  color: #2d3748;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.ai-recs__card-list li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  font-size: 0.7rem;
+  top: 0.05em;
+}
+
+.ai-recs__card--outdoor .ai-recs__card-list li::before {
+  color: #1a6bb5;
+}
+
+.ai-recs__card--indoor .ai-recs__card-list li::before {
+  color: #5b35a8;
+}
+
+.ai-recs__card-hint {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #7a8fa8;
+  margin: 0;
+  font-style: italic;
+}
+
+@media (max-width: 500px) {
+  .ai-recs__cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard-preview__scale--indoor-submenu {
   margin-top: 0.8rem;
 }
@@ -1667,7 +1793,8 @@
 }
 
 .loc-modal-form-wrap {
-  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .loc-modal-form {
@@ -1677,7 +1804,7 @@
   background: #f4f7fc;
   border: 1.5px solid rgba(210, 225, 243, 0.9);
   border-radius: 14px;
-  padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+  padding: 0.6rem 0.9rem;
   transition: border-color 0.18s ease;
 }
 
@@ -1705,47 +1832,21 @@
   color: #9ab0c8;
 }
 
-.loc-modal-submit {
-  background: linear-gradient(135deg, #0874f8, #02b4ff);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  padding: 0.48rem 1.1rem;
-  border-radius: 10px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: opacity 0.18s ease;
-}
-
-.loc-modal-submit:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.loc-modal-submit:hover:not(:disabled) {
-  opacity: 0.88;
-}
 
 .loc-modal-suggestions {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 0;
-  right: 0;
+  margin-top: 0.4rem;
   background: #fff;
   border: 1px solid rgba(210, 225, 243, 0.9);
   border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(10, 30, 60, 0.12);
-  z-index: 10;
-  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
 .loc-modal-suggestion {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.55rem;
   background: none;
   border: none;
@@ -1754,7 +1855,9 @@
   padding: 0.65rem 1rem;
   font-size: 0.88rem;
   color: #1a3152;
+  line-height: 1.4;
   transition: background 0.15s ease;
+  flex-shrink: 0;
 }
 
 .loc-modal-suggestion:hover {
@@ -1837,6 +1940,75 @@
   font-size: 0.8rem;
   color: #c0392b;
   text-align: center;
+}
+
+/* ── loc-modal result / confirm view ── */
+.loc-modal-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(221, 239, 255, 0.5);
+  border: 1px solid #c0d9f0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  color: #1a3152;
+}
+
+.loc-modal-result svg {
+  flex-shrink: 0;
+  color: #0f8cf4;
+}
+
+.loc-modal-result-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.loc-modal-result-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+
+.loc-modal-add-btn {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0874f8, #02b4ff);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.5rem 1.2rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease;
+}
+
+.loc-modal-add-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.loc-modal-back-btn {
+  background: none;
+  border: none;
+  color: #4a5f7e;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0.5rem 0.4rem;
+  transition: color 0.15s ease;
+}
+
+.loc-modal-back-btn:hover:not(:disabled) {
+  color: #1a3152;
+}
+
+.loc-modal-back-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
 .dash-aqi-loc {
@@ -3822,5 +3994,158 @@
   .indoor-sensor-summary__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
+/* ── Location Menu Dropdown ─────────────────────────────────────────────────── */
+
+.location-menu {
+  position: relative;
+  align-self: flex-start;
+}
+
+.location-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.location-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #d4e3f3;
+  border-radius: 999px;
+  background: rgba(246, 251, 255, 0.96);
+  color: #2f5784;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.32rem 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  max-width: 280px;
+}
+
+.location-menu-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-menu-trigger:hover {
+  border-color: #8cbef0;
+  background: rgba(221, 239, 255, 0.96);
+}
+
+.location-menu-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.location-menu-chevron--open {
+  transform: rotate(180deg);
+}
+
+.location-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  width: max-content;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid rgba(210, 225, 243, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(10, 30, 60, 0.12);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.location-menu-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.location-menu-item:hover {
+  background: rgba(15, 140, 244, 0.08);
+}
+
+.location-menu-item--active {
+  background: rgba(15, 140, 244, 0.1);
+  color: #0a72cc;
+}
+
+.location-menu-item > button:first-child {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  background: none;
+  border: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.location-menu-item > button:first-child:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.location-menu-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #8aa1bc;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+}
+
+.location-menu-item:hover .location-menu-remove {
+  opacity: 1;
+}
+
+.location-menu-remove:hover {
+  color: #c0392b;
+}
+
+.location-menu-divider {
+  height: 1px;
+  background: rgba(210, 225, 243, 0.9);
+  margin: 0.3rem 0.4rem;
+  flex-shrink: 0;
+}
+
+.location-menu-add {
+  background: none;
+  border: none;
+  text-align: left;
+  width: 100%;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f8cf4;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.location-menu-add:hover {
+  background: rgba(15, 140, 244, 0.08);
 }

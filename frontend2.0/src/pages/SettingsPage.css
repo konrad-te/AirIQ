@@ -268,3 +268,69 @@
   color: #8b9bb5;
   margin: 0;
 }
+
+/* ── Danger nav item ── */
+.settings-nav-item--danger {
+  color: #c0392b;
+}
+
+.settings-nav-item--danger:hover {
+  background: rgba(192, 57, 43, 0.07);
+  color: #c0392b;
+}
+
+.settings-nav-item--danger.settings-nav-item--active {
+  background: rgba(192, 57, 43, 0.1);
+  color: #c0392b;
+}
+
+/* ── Section title danger variant ── */
+.settings-section-title--danger {
+  color: #c0392b;
+}
+
+/* ── Delete account ── */
+.settings-delete-btn {
+  background: #c0392b;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.6rem 1.4rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.settings-delete-btn:hover:not(:disabled) {
+  background: #a93226;
+}
+
+.settings-delete-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.settings-delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 440px;
+}
+
+.settings-delete-warning {
+  font-size: 0.9rem;
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.07);
+  border: 1px solid rgba(192, 57, 43, 0.2);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin: 0;
+}
+
+.settings-delete-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
