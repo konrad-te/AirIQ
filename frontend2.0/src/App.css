@@ -489,50 +489,47 @@
   gap: 0.65rem;
 }
 
-.dashboard-preview__location-chip {
+.dashboard-locations-btn {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #d4e3f3;
+  gap: 0.45rem;
+  border: 1px solid #c8daf0;
   border-radius: 999px;
-  overflow: hidden;
-  background: rgba(246, 251, 255, 0.96);
-}
-
-.dashboard-preview__location-chip--active {
-  border-color: #8cbef0;
-  background: rgba(221, 239, 255, 0.96);
-}
-
-.dashboard-preview__location-chip button {
-  border: none;
-  background: transparent;
-  color: #2f5784;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.32rem 0.65rem;
+  background: rgba(240, 248, 255, 0.92);
+  color: #1e3d5f;
+  font-size: 0.82rem;
+  font-weight: 650;
+  font-family: inherit;
+  padding: 0.38rem 0.85rem;
   cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  backdrop-filter: blur(6px);
 }
 
-.dashboard-preview__location-chip button:disabled {
-  opacity: 0.7;
-  cursor: default;
+.dashboard-locations-btn:hover {
+  background: rgba(221, 239, 255, 0.95);
+  border-color: #8cbef0;
+  box-shadow: 0 1px 6px rgba(13, 126, 245, 0.1);
 }
 
-.dashboard-preview__location-chip button:last-child {
-  border-left: 1px solid #d4e3f3;
-  padding-inline: 0.48rem;
-  color: #8aa1bc;
+.dashboard-locations-btn svg {
+  color: #3a7fd5;
+  flex-shrink: 0;
 }
 
-.dashboard-preview__location-chip--action button {
-  color: #2f5784;
+.dashboard-locations-btn__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0874f8, #02b4ff);
+  color: #fff;
+  font-size: 0.68rem;
   font-weight: 700;
-}
-
-.dashboard-preview__location-chip--action button:last-child {
-  border-left: none;
-  padding-inline: 0.65rem;
-  color: #2f5784;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  padding: 0 0.3rem;
+  line-height: 1;
 }
 
 .dashboard-preview-card {
@@ -2009,6 +2006,94 @@
 .loc-modal-back-btn:disabled {
   opacity: 0.5;
   cursor: wait;
+}
+
+/* ── loc-modal saved locations list ── */
+.loc-modal-saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.loc-modal-saved-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.loc-modal-saved-item:hover {
+  background: rgba(221, 239, 255, 0.4);
+}
+
+.loc-modal-saved-item--active {
+  background: rgba(221, 239, 255, 0.5);
+  border: 1px solid rgba(140, 190, 240, 0.35);
+}
+
+.loc-modal-saved-item__active-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #0874f8;
+  background: rgba(8, 116, 248, 0.08);
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.loc-modal-saved-item__label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #1a3152;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+}
+
+.loc-modal-saved-item__label:not(:disabled):hover {
+  color: #0874f8;
+}
+
+.loc-modal-saved-item__label:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.loc-modal-saved-item__label svg {
+  flex-shrink: 0;
+  color: #5e8bbf;
+}
+
+.loc-modal-saved-item__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #9cb0c8;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.loc-modal-saved-item__remove:hover {
+  color: #d44;
+  background: rgba(220, 60, 60, 0.08);
 }
 
 .dash-aqi-loc {
