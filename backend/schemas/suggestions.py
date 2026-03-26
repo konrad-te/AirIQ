@@ -35,6 +35,7 @@ class VentilationContext(BaseModel):
     outdoor_temperature_c: float | None = None
     outdoor_humidity_pct: float | None = None
     indoor_co2_ppm: float | None = None
+    indoor_temperature_c: float | None = None
     indoor_pm25: float | None = None
     indoor_pm10: float | None = None
     indoor_humidity_pct: float | None = None

@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from backend.schemas.suggestions import SleepSuggestion, VentilationContext
 
 APP_DISPLAY_TIMEZONE = ZoneInfo("Europe/Warsaw")
+
+
+@dataclass(frozen=True)
+class _SleepWindowSummary:
+    average_temp_c: float
+    min_temp_c: float
+    max_temp_c: float
 
 
 def evaluate_sleep_temperature(
@@ -16,55 +24,157 @@ def evaluate_sleep_temperature(
     ideal_max: float,
     now_utc: datetime | None = None,
 ) -> SleepSuggestion | None:
-    sleep_window_temps = _extract_sleep_window_temperatures(
+    indoor_temp = context.indoor_temperature_c
+    overnight = _extract_sleep_window_summary(
         outdoor_data=outdoor_data,
         fallback_temperature=context.outdoor_temperature_c,
         now_utc=now_utc,
     )
-    if not sleep_window_temps:
+
+    if indoor_temp is None and overnight is None:
         return None
 
-    avg_temp = sum(sleep_window_temps) / len(sleep_window_temps)
-    if ideal_min <= avg_temp <= ideal_max:
+    if _sleep_looks_comfortable(
+        indoor_temp_c=indoor_temp,
+        overnight=overnight,
+        ideal_min=ideal_min,
+        ideal_max=ideal_max,
+    ):
         return None
 
-    too_warm = avg_temp > ideal_max
-    recommendation = (
-        "It may be too warm tonight for ideal sleep comfort."
-        if too_warm
-        else "It may be too cold tonight for ideal sleep comfort."
+    too_warm = _is_sleep_too_warm(
+        indoor_temp_c=indoor_temp,
+        overnight=overnight,
+        ideal_max=ideal_max,
     )
-    note_suffix = (
-        f" The overnight temperature trend looks around {round(avg_temp)}°C."
-        if abs(avg_temp - (ideal_max if too_warm else ideal_min)) >= 1
-        else ""
+
+    recommendation = _build_recommendation(
+        too_warm=too_warm,
+        indoor_temp_c=indoor_temp,
+        overnight=overnight,
+        ideal_min=ideal_min,
+        ideal_max=ideal_max,
     )
+    reasons = _build_reason_tags(
+        too_warm=too_warm,
+        indoor_temp_c=indoor_temp,
+        overnight=overnight,
+    )
+    based_on = _build_based_on_fields(indoor_temp, overnight)
 
     return SleepSuggestion(
         id="sleep_temp_too_warm" if too_warm else "sleep_temp_too_cold",
         priority="medium",
         severity="caution",
-        title="Nighttime temperature is outside the ideal sleep range tonight",
+        title="Bedroom temperature may move outside the ideal sleep range tonight",
         short_label="Sleep comfort",
-        recommendation=recommendation + note_suffix,
+        recommendation=recommendation,
         impact=(
             "Bedroom temperature can affect sleep comfort and make it harder to "
             "rest well."
         ),
         primary_reason=recommendation,
-        reasons=[
-            "Night may be too warm" if too_warm else "Night may be too cold",
-        ],
-        based_on=["outdoor_temperature_c"],
+        reasons=reasons,
+        based_on=based_on,
     )
 
 
-def _extract_sleep_window_temperatures(
+def _sleep_looks_comfortable(
+    *,
+    indoor_temp_c: float | None,
+    overnight: _SleepWindowSummary | None,
+    ideal_min: float,
+    ideal_max: float,
+) -> bool:
+    indoor_ok = indoor_temp_c is None or ideal_min <= indoor_temp_c <= ideal_max
+    overnight_ok = (
+        overnight is None
+        or (ideal_min <= overnight.average_temp_c <= ideal_max)
+    )
+    return indoor_ok and overnight_ok
+
+
+def _is_sleep_too_warm(
+    *,
+    indoor_temp_c: float | None,
+    overnight: _SleepWindowSummary | None,
+    ideal_max: float,
+) -> bool:
+    indoor_too_warm = indoor_temp_c is not None and indoor_temp_c > ideal_max
+    overnight_too_warm = (
+        overnight is not None
+        and overnight.average_temp_c > ideal_max
+    )
+    return indoor_too_warm or overnight_too_warm
+
+
+def _build_recommendation(
+    *,
+    too_warm: bool,
+    indoor_temp_c: float | None,
+    overnight: _SleepWindowSummary | None,
+    ideal_min: float,
+    ideal_max: float,
+) -> str:
+    sentence_parts: list[str] = []
+    ideal_range = f"{round(ideal_min)}\u00B0C-{round(ideal_max)}\u00B0C"
+
+    if indoor_temp_c is not None and overnight is not None:
+        sentence_parts.append(
+            f"The bedroom is around {round(indoor_temp_c)}\u00B0C now, but it may become too {'warm' if too_warm else 'cold'} tonight for ideal sleep comfort. The ideal sleep range is about {ideal_range}."
+        )
+    elif indoor_temp_c is not None:
+        sentence_parts.append(
+            f"The bedroom is around {round(indoor_temp_c)}\u00B0C now, which is outside the ideal sleep range of about {ideal_range}."
+        )
+    else:
+        sentence_parts.append(
+            f"The bedroom may become too {'warm' if too_warm else 'cold'} tonight for ideal sleep comfort. The ideal sleep range is about {ideal_range}."
+        )
+
+    if overnight is not None:
+        transition = "stay" if too_warm else "drop"
+        sentence_parts.append(
+            f"Outdoor temperatures are expected to {transition} around {round(overnight.average_temp_c)}\u00B0C overnight."
+        )
+
+    return " ".join(sentence_parts)
+
+
+def _build_reason_tags(
+    *,
+    too_warm: bool,
+    indoor_temp_c: float | None,
+    overnight: _SleepWindowSummary | None,
+) -> list[str]:
+    tags = [
+        "Night may be too warm" if too_warm else "Night may be too cold",
+    ]
+    if indoor_temp_c is not None:
+        tags.append("Indoor temp now")
+    if overnight is not None:
+        tags.append("Outdoor temp trend")
+    return tags
+
+
+def _build_based_on_fields(
+    indoor_temp_c: float | None,
+    overnight: _SleepWindowSummary | None,
+) -> list[str]:
+    fields: list[str] = []
+    if indoor_temp_c is not None:
+        fields.append("indoor_temperature_c")
+    if overnight is not None:
+        fields.append("outdoor_temperature_c")
+    return fields
+
+
+def _extract_sleep_window_summary(
     *,
     outdoor_data: dict | None,
     fallback_temperature: float | None,
     now_utc: datetime | None,
-) -> list[float]:
+) -> _SleepWindowSummary | None:
     rows: list[dict] = []
     if isinstance(outdoor_data, dict):
         current = outdoor_data.get("current")
@@ -76,7 +186,9 @@ def _extract_sleep_window_temperatures(
                 rows.extend(row for row in series if isinstance(row, dict))
 
     current_utc = now_utc.astimezone(UTC) if now_utc else datetime.now(UTC)
-    window_start, window_end = _next_sleep_window(current_utc.astimezone(APP_DISPLAY_TIMEZONE))
+    window_start, window_end = _next_sleep_window(
+        current_utc.astimezone(APP_DISPLAY_TIMEZONE)
+    )
 
     temps: list[float] = []
     for row in rows:
@@ -93,12 +205,21 @@ def _extract_sleep_window_temperatures(
             temps.append(float(temp))
 
     if temps:
-        return temps
+        return _SleepWindowSummary(
+            average_temp_c=sum(temps) / len(temps),
+            min_temp_c=min(temps),
+            max_temp_c=max(temps),
+        )
 
     if fallback_temperature is not None:
-        return [float(fallback_temperature)]
+        temp_value = float(fallback_temperature)
+        return _SleepWindowSummary(
+            average_temp_c=temp_value,
+            min_temp_c=temp_value,
+            max_temp_c=temp_value,
+        )
 
-    return []
+    return None
 
 
 def _next_sleep_window(local_now: datetime) -> tuple[datetime, datetime]:
