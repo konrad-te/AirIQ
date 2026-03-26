@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 import os
 
-from google import genai
-from google.genai import types as genai_types
+try:
+    from google import genai
+    from google.genai import types as genai_types
+except ModuleNotFoundError:
+    genai = None
+    genai_types = None
 from backend.security import get_current_user
 from backend.models import User
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -99,6 +103,12 @@ def get_ai_recommendation(
     body: RecommendationRequest,
     current_user: User = Depends(get_current_user),
 ) -> RecommendationResponse:
+    if genai is None or genai_types is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI recommendations are unavailable because google-genai is not installed.",
+        )
+
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise HTTPException(
