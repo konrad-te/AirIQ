@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import heroBackground from './assets/123.png'
-import dashboardBackground from './assets/dashboard-bg-new.png'
 import logoAiriq from './assets/logo-airiq.svg'
 import sensorImage from './assets/sensor.png'
 import watchImage from './assets/watch.png'
@@ -15,6 +14,7 @@ import LoginModal from './components/LoginModal'
 import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
 import SuggestionsPanel from './components/SuggestionsPanel'
+import OutdoorDayAdvicePanel from './components/OutdoorDayAdvicePanel'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -73,6 +73,7 @@ const DASHBOARD_ADMIN_OVERRIDE_DEFAULTS = {
   outdoor_humidity_pct: '',
   wind_kmh: '',
   indoor_co2_ppm: '',
+  indoor_temperature_c: '',
   indoor_pm25: '',
   indoor_pm10: '',
   indoor_humidity_pct: '',
@@ -89,6 +90,13 @@ function formatUvIndex(value) {
 
 function formatWindKmh(speedMs) {
   return typeof speedMs === 'number' ? `${Math.round(speedMs * 3.6)} km/h` : '-- km/h'
+}
+
+function formatRainAmount(value) {
+  if (typeof value !== 'number') return '-- mm'
+  if (value === 0) return '0 mm'
+  if (value < 10) return `${value.toFixed(1).replace(/\.0$/, '')} mm`
+  return `${Math.round(value)} mm`
 }
 
 function formatClockTimestamp(value) {
@@ -710,6 +718,7 @@ export default function App() {
       ? Math.round(liveAirData.current.wind_speed_ms * 3.6 * 10) / 10
       : null,
     indoor_co2_ppm: sensorReading?.co2_ppm ?? null,
+    indoor_temperature_c: sensorReading?.temperature_c ?? null,
     indoor_pm25: sensorReading?.pm2_5_ug_m3 ?? null,
     indoor_pm10: sensorReading?.pm10_ug_m3 ?? null,
     indoor_humidity_pct: sensorReading?.humidity_pct ?? null,
@@ -729,6 +738,7 @@ export default function App() {
       outdoor_humidity_pct: liveAirData?.current?.humidity_pct != null ? String(liveAirData.current.humidity_pct) : '',
       wind_kmh: liveAirData?.current?.wind_speed_ms != null ? String(Math.round(liveAirData.current.wind_speed_ms * 3.6 * 10) / 10) : '',
       indoor_co2_ppm: sensorReading?.co2_ppm != null ? String(sensorReading.co2_ppm) : '',
+      indoor_temperature_c: sensorReading?.temperature_c != null ? String(sensorReading.temperature_c) : '',
       indoor_pm25: sensorReading?.pm2_5_ug_m3 != null ? String(sensorReading.pm2_5_ug_m3) : '',
       indoor_pm10: sensorReading?.pm10_ug_m3 != null ? String(sensorReading.pm10_ug_m3) : '',
       indoor_humidity_pct: sensorReading?.humidity_pct != null ? String(sensorReading.humidity_pct) : '',
@@ -745,6 +755,7 @@ export default function App() {
       outdoor_humidity_pct: parseOptionalNumberInput(dashboardAdminForm.outdoor_humidity_pct),
       wind_kmh: parseOptionalNumberInput(dashboardAdminForm.wind_kmh),
       indoor_co2_ppm: parseOptionalNumberInput(dashboardAdminForm.indoor_co2_ppm),
+      indoor_temperature_c: parseOptionalNumberInput(dashboardAdminForm.indoor_temperature_c),
       indoor_pm25: parseOptionalNumberInput(dashboardAdminForm.indoor_pm25),
       indoor_pm10: parseOptionalNumberInput(dashboardAdminForm.indoor_pm10),
       indoor_humidity_pct: parseOptionalNumberInput(dashboardAdminForm.indoor_humidity_pct),
@@ -758,6 +769,7 @@ export default function App() {
       outdoor_humidity_pct: manualPayload.outdoor_humidity_pct ?? currentDashboardPreviewBase.outdoor_humidity_pct,
       wind_kmh: manualPayload.wind_kmh ?? currentDashboardPreviewBase.wind_kmh,
       indoor_co2_ppm: manualPayload.indoor_co2_ppm ?? currentDashboardPreviewBase.indoor_co2_ppm,
+      indoor_temperature_c: manualPayload.indoor_temperature_c ?? currentDashboardPreviewBase.indoor_temperature_c,
       indoor_pm25: manualPayload.indoor_pm25 ?? currentDashboardPreviewBase.indoor_pm25,
       indoor_pm10: manualPayload.indoor_pm10 ?? currentDashboardPreviewBase.indoor_pm10,
       indoor_humidity_pct: manualPayload.indoor_humidity_pct ?? currentDashboardPreviewBase.indoor_humidity_pct,
@@ -844,6 +856,7 @@ export default function App() {
   const weatherHumidity = dashboardAdminOverride?.outdoor_humidity_pct != null
     ? formatRoundedMetric(dashboardAdminOverride.outdoor_humidity_pct, '%', '--%')
     : formatRoundedMetric(weatherCurrent?.humidity_pct, '%', '--%')
+  const weatherRain = formatRainAmount(weatherCurrent?.rain_mm)
   const weatherUv = formatUvIndex(dashboardAdminOverride?.outdoor_uv_index ?? weatherCurrent?.uv_index)
   const weatherWind = dashboardAdminOverride?.wind_kmh != null
     ? `${Math.round(dashboardAdminOverride.wind_kmh)} km/h`
@@ -941,10 +954,14 @@ export default function App() {
       : 'A newer sensor update may be available now.')
     : 'Connect a sensor to start seeing room data.'
 
-  const activeBackground = route === '/' ? dashboardBackground : heroBackground
+  const activeBackground = heroBackground
 
   return (
-    <div className={`page-root${route === '/' ? ' page-root--dashboard' : ''}`} style={{ backgroundImage: `url(${activeBackground})` }}>
+    <div className={`page-root${route === '/' ? ' page-root--dashboard' : ''}`}>
+      <div className="page-root__bg" aria-hidden>
+        <img className="page-root__bg-image" src={activeBackground} alt="" />
+        <div className="page-root__bg-fade" />
+      </div>
       <header className="top-nav">
         <div className="brand">
           <img src={logoAiriq} alt="AirIQ" className="brand-logo" />
@@ -1263,6 +1280,10 @@ export default function App() {
                       <input name="indoor_co2_ppm" value={dashboardAdminForm.indoor_co2_ppm} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="950" />
                     </label>
                     <label className="dashboard-admin-override__field">
+                      <span>Indoor Temp °C</span>
+                      <input name="indoor_temperature_c" value={dashboardAdminForm.indoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="19" />
+                    </label>
+                    <label className="dashboard-admin-override__field">
                       <span>Indoor PM2.5</span>
                       <input name="indoor_pm25" value={dashboardAdminForm.indoor_pm25} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="8" />
                     </label>
@@ -1337,8 +1358,16 @@ export default function App() {
                     <span>{weatherWind}</span>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
-                    <strong>Humidity</strong>
-                    <span>{weatherHumidity}</span>
+                    <div className="dashboard-preview-card__split-metric">
+                      <div className="dashboard-preview-card__split-metric-item dashboard-preview-card__split-metric-item--stack">
+                        <small>Humidity</small>
+                        <span>{weatherHumidity}</span>
+                      </div>
+                      <div className="dashboard-preview-card__split-metric-item dashboard-preview-card__split-metric-item--stack dashboard-preview-card__split-metric-item--align-end">
+                        <small>Rain</small>
+                        <span>{weatherRain}</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
                     <strong>UV Index</strong>
@@ -1461,6 +1490,13 @@ export default function App() {
                 </button>
                 <button
                   type="button"
+                  className={`dashboard-preview-recs__tab${recsTab === 'day' ? ' dashboard-preview-recs__tab--active' : ''}`}
+                  onClick={() => setRecsTab('day')}
+                >
+                  Plan for the Day
+                </button>
+                <button
+                  type="button"
                   className={`dashboard-preview-recs__tab${recsTab === 'ai' ? ' dashboard-preview-recs__tab--active' : ''}`}
                   onClick={() => setRecsTab('ai')}
                 >
@@ -1485,6 +1521,13 @@ export default function App() {
                   )}
                   <SuggestionsPanel suggestions={dashboardSuggestions} />
                 </>
+              ) : recsTab === 'day' ? (
+                <OutdoorDayAdvicePanel
+                  airData={liveAirData}
+                  locationLabel={currentLocationLabel}
+                  locale="en-GB"
+                  timeZone={POLISH_TIMEZONE}
+                />
               ) : (
                 <div className="dashboard-preview-recs__ai">
                   <h4>AI Daily Plan</h4>

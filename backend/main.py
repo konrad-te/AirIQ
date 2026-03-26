@@ -62,6 +62,8 @@ UNITS = {
     "temperature": "°C",
     "pressure": "hPa",
     "humidity": "%",
+    "cloud_cover": "%",
+    "rain": "mm",
     "wind_speed": "m/s",
     "wind_direction": "°",
     "uv_index": "index",
@@ -396,12 +398,14 @@ def _normalize_airly_timeseries(series: Any) -> list[dict[str, Any]]:
             "temperature_c": _to_float(values.get("TEMPERATURE")),
             "apparent_temperature_c": None,
             "humidity_pct": _to_float(values.get("HUMIDITY")),
+            "cloud_cover_pct": None,
             "pressure_hpa": _to_float(values.get("PRESSURE")),
             "wind_speed_ms": None,
             "wind_direction_deg": None,
             "weather_code": None,
             "is_day": None,
             "uv_index": None,
+            "rain_mm": None,
             "no2": _to_float(values.get("NO2")),
             "co": _to_float(values.get("CO")),
             "o3": _to_float(values.get("O3")),
@@ -579,6 +583,7 @@ def normalize_airly(raw: dict[str, Any], source: dict[str, Any]) -> dict[str, An
             "temperature_c": _to_float(values.get("TEMPERATURE")),
             "apparent_temperature_c": None,
             "humidity_pct": _to_float(values.get("HUMIDITY")),
+            "cloud_cover_pct": None,
             "pressure_hpa": _to_float(values.get("PRESSURE")),
             "wind_speed_ms": None,
             "wind_direction_deg": None,
@@ -623,12 +628,14 @@ def _normalized_needs_weather(norm: dict[str, Any]) -> bool:
         current.get("temperature_c") is None
         or current.get("apparent_temperature_c") is None
         or current.get("humidity_pct") is None
+        or current.get("cloud_cover_pct") is None
         or current.get("pressure_hpa") is None
         or current.get("wind_speed_ms") is None
         or current.get("wind_direction_deg") is None
         or current.get("weather_code") is None
         or current.get("is_day") is None
         or current.get("uv_index") is None
+        or current.get("rain_mm") is None
     )
 
 
@@ -822,12 +829,14 @@ def fetch_openaq_latest_nearby(
                 "temperature_c": None,
                 "apparent_temperature_c": None,
                 "humidity_pct": None,
+                "cloud_cover_pct": None,
                 "pressure_hpa": None,
                 "wind_speed_ms": None,
                 "wind_direction_deg": None,
                 "weather_code": None,
                 "is_day": None,
                 "uv_index": None,
+                "rain_mm": None,
                 "no2": None,
                 "co": None,
                 "o3": None,
@@ -908,12 +917,14 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> dict[str, Any] | None
             "temperature_c": None,
             "apparent_temperature_c": None,
             "humidity_pct": None,
+            "cloud_cover_pct": None,
             "pressure_hpa": None,
             "wind_speed_ms": None,
             "wind_direction_deg": None,
             "weather_code": None,
             "is_day": None,
             "uv_index": None,
+            "rain_mm": None,
             "no2": None,
             "co": None,
             "o3": None,
@@ -933,6 +944,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> dict[str, Any] | None
             "temperature_c": None,
             "apparent_temperature_c": None,
             "humidity_pct": None,
+            "cloud_cover_pct": None,
             "pressure_hpa": None,
             "wind_speed_ms": None,
             "wind_direction_deg": None,
@@ -977,13 +989,13 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
         "longitude": lon,
         "timezone": "UTC",
         "current": (
-            "temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,"
-            "weather_code,is_day,uv_index,"
+            "temperature_2m,apparent_temperature,relative_humidity_2m,cloud_cover,pressure_msl,"
+            "weather_code,is_day,uv_index,rain,"
             "wind_speed_10m,wind_direction_10m"
         ),
         "hourly": (
-            "temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,"
-            "weather_code,is_day,uv_index,"
+            "temperature_2m,apparent_temperature,relative_humidity_2m,cloud_cover,pressure_msl,"
+            "weather_code,is_day,uv_index,rain,"
             "wind_speed_10m,wind_direction_10m"
         ),
         "past_days": 1,
@@ -1001,10 +1013,12 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
     temp_values = hourly.get("temperature_2m") or []
     apparent_temp_values = hourly.get("apparent_temperature") or []
     humidity_values = hourly.get("relative_humidity_2m") or []
+    cloud_cover_values = hourly.get("cloud_cover") or []
     pressure_values = hourly.get("pressure_msl") or []
     weather_code_values = hourly.get("weather_code") or []
     is_day_values = hourly.get("is_day") or []
     uv_index_values = hourly.get("uv_index") or []
+    rain_values = hourly.get("rain") or []
     wind_speed_values = hourly.get("wind_speed_10m") or []
     wind_direction_values = hourly.get("wind_direction_10m") or []
 
@@ -1014,10 +1028,12 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
         len(temp_values),
         len(apparent_temp_values),
         len(humidity_values),
+        len(cloud_cover_values),
         len(pressure_values),
         len(weather_code_values),
         len(is_day_values),
         len(uv_index_values),
+        len(rain_values),
         len(wind_speed_values),
         len(wind_direction_values),
     )
@@ -1034,10 +1050,12 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
                 "temperature_c": _to_float(temp_values[index]),
                 "apparent_temperature_c": _to_float(apparent_temp_values[index]),
                 "humidity_pct": _to_float(humidity_values[index]),
+                "cloud_cover_pct": _to_float(cloud_cover_values[index]),
                 "pressure_hpa": _to_float(pressure_values[index]),
                 "weather_code": weather_code_values[index],
                 "is_day": is_day_values[index],
                 "uv_index": _to_float(uv_index_values[index]),
+                "rain_mm": _to_float(rain_values[index]),
                 "wind_speed_ms": _to_float(wind_speed_values[index]),
                 "wind_direction_deg": _to_float(wind_direction_values[index]),
             }
@@ -1049,10 +1067,12 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
             "temperature_c": _to_float(current.get("temperature_2m")),
             "apparent_temperature_c": _to_float(current.get("apparent_temperature")),
             "humidity_pct": _to_float(current.get("relative_humidity_2m")),
+            "cloud_cover_pct": _to_float(current.get("cloud_cover")),
             "pressure_hpa": _to_float(current.get("pressure_msl")),
             "weather_code": current.get("weather_code"),
             "is_day": current.get("is_day"),
             "uv_index": _to_float(current.get("uv_index")),
+            "rain_mm": _to_float(current.get("rain")),
             "wind_speed_ms": _to_float(current.get("wind_speed_10m")),
             "wind_direction_deg": _to_float(current.get("wind_direction_10m")),
         },
@@ -1167,6 +1187,8 @@ def _merge_weather_into_normalized(
             )
         if current.get("humidity_pct") is None:
             current["humidity_pct"] = weather_current.get("humidity_pct")
+        if current.get("cloud_cover_pct") is None:
+            current["cloud_cover_pct"] = weather_current.get("cloud_cover_pct")
         if current.get("pressure_hpa") is None:
             current["pressure_hpa"] = weather_current.get("pressure_hpa")
         if current.get("wind_speed_ms") is None:
@@ -1179,6 +1201,8 @@ def _merge_weather_into_normalized(
             current["is_day"] = weather_current.get("is_day")
         if current.get("uv_index") is None:
             current["uv_index"] = weather_current.get("uv_index")
+        if current.get("rain_mm") is None:
+            current["rain_mm"] = weather_current.get("rain_mm")
         norm["current"] = current
 
     for series_name in ("history", "forecast"):
@@ -1206,6 +1230,8 @@ def _merge_weather_into_normalized(
                 )
             if row.get("humidity_pct") is None:
                 row["humidity_pct"] = weather_row.get("humidity_pct")
+            if row.get("cloud_cover_pct") is None:
+                row["cloud_cover_pct"] = weather_row.get("cloud_cover_pct")
             if row.get("pressure_hpa") is None:
                 row["pressure_hpa"] = weather_row.get("pressure_hpa")
             if row.get("wind_speed_ms") is None:
@@ -1218,6 +1244,8 @@ def _merge_weather_into_normalized(
                 row["is_day"] = weather_row.get("is_day")
             if row.get("uv_index") is None:
                 row["uv_index"] = weather_row.get("uv_index")
+            if row.get("rain_mm") is None:
+                row["rain_mm"] = weather_row.get("rain_mm")
 
     meta = norm.get("meta") or {}
     meta["units"] = dict(UNITS)
@@ -1730,12 +1758,14 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 "temperature_c": None,
                 "apparent_temperature_c": None,
                 "humidity_pct": None,
+                "cloud_cover_pct": None,
                 "pressure_hpa": None,
                 "wind_speed_ms": None,
                 "wind_direction_deg": None,
                 "weather_code": None,
                 "is_day": None,
                 "uv_index": None,
+                "rain_mm": None,
                 "no2": None,
                 "co": None,
                 "o3": None,

@@ -7,23 +7,49 @@
 
 .page-root {
   min-height: 100vh;
-  background-size: cover;
-  background-position: center top;
-  background-repeat: no-repeat;
-  background-color: #dfeaf8;
+  position: relative;
+  isolation: isolate;
+  background: #ffffff;
   padding: 0.7rem 1.35rem 0.9rem 1.35rem;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
-  backdrop-filter: blur(2px);
 }
 
 .page-root--dashboard {
   overflow-y: hidden;
   min-height: 100dvh;
-  background-size: cover;
-  background-position: center center;
+}
+
+.page-root__bg {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.page-root__bg-image {
+  display: block;
+  width: 100%;
+  min-width: 100%;
+  height: auto;
+}
+
+.page-root__bg-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: clamp(120px, 16vw, 240px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 100%);
+}
+
+.top-nav,
+.dashboard,
+.page-footer {
+  position: relative;
+  z-index: 1;
 }
 
 .top-nav {
@@ -664,6 +690,48 @@
     radial-gradient(circle at 74% 44%, #4fb78f 0 1px, transparent 1px),
     radial-gradient(circle at 88% 58%, #4fb78f 0 1px, transparent 1px);
   opacity: 0.8;
+}
+
+.dashboard-preview-card__split-metric {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+  width: 100%;
+}
+
+.dashboard-preview-card__split-metric-item {
+  min-width: 0;
+}
+
+.dashboard-preview-card__split-metric-item--stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.06rem;
+  flex: 1 1 0;
+}
+
+.dashboard-preview-card__split-metric-item--align-end {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.dashboard-preview-card__split-metric-item small {
+  color: #6d84a0;
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.dashboard-preview-card__split-metric-item span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #183f66;
+  line-height: 1.15;
+  display: block;
 }
 
 .dashboard-preview-card__status {

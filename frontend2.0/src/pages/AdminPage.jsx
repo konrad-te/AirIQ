@@ -247,6 +247,7 @@ const SUGGESTION_TEST_DEFAULTS = {
   outdoor_temperature_c: '24',
   outdoor_humidity_pct: '55',
   indoor_co2_ppm: '950',
+  indoor_temperature_c: '19',
   indoor_pm25: '8',
   indoor_pm10: '12',
   indoor_humidity_pct: '35',
@@ -263,7 +264,7 @@ function parseNumericField(value) {
 }
 
 const RECOMMENDATION_CONFIG_DEFAULTS = {
-  indoor_pm25_high_threshold: '25',
+  indoor_pm25_high_threshold: '40',
   indoor_humidity_low_threshold: '30',
   indoor_humidity_ideal_min: '40',
   indoor_humidity_ideal_max: '60',
@@ -286,7 +287,7 @@ function RecommendationConfigSection({ token }) {
       .then((config) => {
         if (cancelled) return
         setForm({
-          indoor_pm25_high_threshold: String(config.indoor_pm25_high_threshold ?? 25),
+          indoor_pm25_high_threshold: String(config.indoor_pm25_high_threshold ?? 40),
           indoor_humidity_low_threshold: String(config.indoor_humidity_low_threshold ?? 30),
           indoor_humidity_ideal_min: String(config.indoor_humidity_ideal_min ?? 40),
           indoor_humidity_ideal_max: String(config.indoor_humidity_ideal_max ?? 60),
@@ -352,7 +353,7 @@ function RecommendationConfigSection({ token }) {
           <div className="admin-suggestion-grid">
             <label className="admin-field">
               <span>Indoor PM2.5 high</span>
-              <input name="indoor_pm25_high_threshold" value={form.indoor_pm25_high_threshold} onChange={handleChange} inputMode="decimal" placeholder="25" />
+              <input name="indoor_pm25_high_threshold" value={form.indoor_pm25_high_threshold} onChange={handleChange} inputMode="decimal" placeholder="40" />
             </label>
             <label className="admin-field">
               <span>Indoor humidity low</span>
@@ -418,6 +419,7 @@ function AdminSuggestionTester({ token }) {
         outdoor_temperature_c: parseNumericField(form.outdoor_temperature_c),
         outdoor_humidity_pct: parseNumericField(form.outdoor_humidity_pct),
         indoor_co2_ppm: parseNumericField(form.indoor_co2_ppm),
+        indoor_temperature_c: parseNumericField(form.indoor_temperature_c),
         indoor_pm25: parseNumericField(form.indoor_pm25),
         indoor_pm10: parseNumericField(form.indoor_pm10),
         indoor_humidity_pct: parseNumericField(form.indoor_humidity_pct),
@@ -476,6 +478,10 @@ function AdminSuggestionTester({ token }) {
             <input name="indoor_co2_ppm" value={form.indoor_co2_ppm} onChange={handleChange} inputMode="decimal" placeholder="950" />
           </label>
           <label className="admin-field">
+            <span>Indoor Temp °C</span>
+            <input name="indoor_temperature_c" value={form.indoor_temperature_c} onChange={handleChange} inputMode="decimal" placeholder="19" />
+          </label>
+          <label className="admin-field">
             <span>Indoor PM2.5</span>
             <input name="indoor_pm25" value={form.indoor_pm25} onChange={handleChange} inputMode="decimal" placeholder="8" />
           </label>
@@ -513,6 +519,7 @@ function AdminSuggestionTester({ token }) {
               <span>Outdoor Humidity: {preview.context?.outdoor_humidity_pct ?? '—'}</span>
               <span>Wind: {preview.context?.wind_kmh ?? '—'}</span>
               <span>Indoor CO2: {preview.context?.indoor_co2_ppm ?? '—'}</span>
+              <span>Indoor Temp: {preview.context?.indoor_temperature_c ?? '—'}</span>
               <span>Indoor PM2.5: {preview.context?.indoor_pm25 ?? '—'}</span>
               <span>Indoor PM10: {preview.context?.indoor_pm10 ?? '—'}</span>
               <span>Indoor Humidity: {preview.context?.indoor_humidity_pct ?? '—'}</span>

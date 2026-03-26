@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RecommendationConfigSchema(BaseModel):
-    indoor_pm25_high_threshold: float = Field(default=25, gt=0)
+    indoor_pm25_high_threshold: float = Field(default=40, gt=0)
     indoor_humidity_low_threshold: float = Field(default=30, ge=0, le=100)
     indoor_humidity_ideal_min: float = Field(default=40, ge=0, le=100)
     indoor_humidity_ideal_max: float = Field(default=60, ge=0, le=100)

@@ -119,6 +119,7 @@ def _build_dashboard_suggestions_payload(
         outdoor_temperature_c=_to_float(outdoor_current.get("temperature_c")),
         outdoor_humidity_pct=_to_float(outdoor_current.get("humidity_pct")),
         indoor_co2_ppm=_to_float(indoor_payload.get("co2_ppm")),
+        indoor_temperature_c=_to_float(indoor_payload.get("temperature_c")),
         indoor_pm25=_to_float(indoor_payload.get("pm2_5_ug_m3")),
         indoor_pm10=_to_float(indoor_payload.get("pm10_ug_m3")),
         indoor_humidity_pct=_to_float(indoor_payload.get("humidity_pct")),

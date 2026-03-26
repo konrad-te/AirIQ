@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 RECOMMENDATION_CONFIG_DEFAULTS: dict[str, float] = {
-    "indoor_pm25_high_threshold": 25.0,
+    "indoor_pm25_high_threshold": 40.0,
     "indoor_humidity_low_threshold": 30.0,
     "indoor_humidity_ideal_min": 40.0,
     "indoor_humidity_ideal_max": 60.0,
