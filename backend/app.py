@@ -253,6 +253,14 @@ def on_startup() -> None:
             max_instances=1,
             coalesce=True,
         )
+        scheduler.add_job(
+            _run_discord_status,
+            trigger=IntervalTrigger(hours=1),
+            id="discord_status_hourly",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         scheduler.start()
 
 
@@ -403,6 +411,12 @@ def _run_scheduled_ingest() -> None:
         )
     finally:
         db.close()
+
+
+def _run_discord_status() -> None:
+    from backend.services.discord_monitor import send_discord_status
+
+    send_discord_status()
 
 
 def _run_account_cleanup() -> None:
