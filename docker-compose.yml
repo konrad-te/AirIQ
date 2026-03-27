@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      provenance: false
     env_file:
       - backend/.env
     environment:
@@ -12,16 +11,15 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
-  frontend:
-    build:
-      context: ./frontend2.0
-      dockerfile: Dockerfile
-      provenance: false
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./frontend2.0/dist:/usr/share/nginx/html:ro
     depends_on:
       - backend
-    restart: unless-stopped
