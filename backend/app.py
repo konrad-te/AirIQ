@@ -12,11 +12,13 @@ from backend.dependencies.authorization import (
     require_household_role,
 )
 from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from backend.init_db import init_db
 from backend.models import (
     CityPoint,
     DataProvider,
+    IndoorSensorReading,
     ExternalStation,
     Feedback,
     GeocodeCacheEntry,
@@ -27,6 +29,7 @@ from backend.models import (
     LocationStationCache,
     ProviderCacheEntry,
     User,
+    UserQingpingIntegration,
     UserSession,
 )
 from backend.routers.auth import router as auth_router
@@ -52,8 +55,18 @@ from backend.services.recommendation_config import (
     update_recommendation_config,
 )
 from backend.services.sleep_comfort import evaluate_sleep_temperature
+from backend.services.temperature_alert import (
+    evaluate_indoor_temperature,
+    evaluate_outdoor_temperature,
+)
 from backend.services.ventilation import evaluate_ventilation
+from backend.services.mock_indoor_readings import (
+    delete_mock_indoor_readings,
+    get_user_qingping_device,
+    seed_mock_indoor_readings,
+)
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.main import (
@@ -66,6 +79,23 @@ from backend.routers.integrations import get_qingping_latest_reading
 
 app = FastAPI(title="AirIQ API")
 scheduler = BackgroundScheduler(timezone="UTC")
+
+INDOOR_HISTORY_RANGE_TO_WINDOW = {
+    "24h": timedelta(hours=24),
+    "7d": timedelta(days=7),
+    "30d": timedelta(days=30),
+    "60d": timedelta(days=60),
+}
+INDOOR_HISTORY_RANGE_TO_BUCKET_MINUTES = {
+    "24h": 15,
+    "7d": 60,
+    "30d": 360,
+    "60d": 720,
+}
+
+
+class MockIndoorSeedSchema(BaseModel):
+    months: int = Field(default=2, ge=1, le=6)
 
 cors_origins = (
     os.getenv("CORS_ORIGINS") or "http://localhost:5173,http://127.0.0.1:5173"
@@ -102,6 +132,127 @@ def _wind_ms_to_kmh(value: float | int | Decimal | None) -> float | None:
     if speed_ms is None:
         return None
     return speed_ms * 3.6
+
+
+def _floor_datetime_to_bucket(value: datetime, bucket_minutes: int) -> datetime:
+    bucket_seconds = bucket_minutes * 60
+    timestamp = int(value.astimezone(UTC).timestamp())
+    floored = timestamp - (timestamp % bucket_seconds)
+    return datetime.fromtimestamp(floored, tz=UTC)
+
+
+def _serialize_history_bucket(
+    bucket_time: datetime,
+    aggregate: dict | None,
+) -> dict:
+    if not aggregate:
+        return {
+            "time": bucket_time.isoformat(),
+            "sample_count": 0,
+            "temperature_c": None,
+            "humidity_pct": None,
+            "pm25_ug_m3": None,
+            "pm10_ug_m3": None,
+            "co2_ppm": None,
+            "battery_pct": None,
+        }
+
+    def metric_average(metric_name: str) -> float | None:
+        metric_values: list[float] = aggregate.get(metric_name, [])
+        if not metric_values:
+            return None
+        return round(sum(metric_values) / len(metric_values), 2)
+
+    return {
+        "time": bucket_time.isoformat(),
+        "sample_count": aggregate["sample_count"],
+        "temperature_c": metric_average("temperature_c"),
+        "humidity_pct": metric_average("humidity_pct"),
+        "pm25_ug_m3": metric_average("pm25_ug_m3"),
+        "pm10_ug_m3": metric_average("pm10_ug_m3"),
+        "co2_ppm": metric_average("co2_ppm"),
+        "battery_pct": metric_average("battery_pct"),
+    }
+
+
+def _build_indoor_history_payload(
+    *,
+    readings: list[IndoorSensorReading],
+    time_range: str,
+    device_name: str | None,
+    device_id: str | None,
+    now_utc: datetime,
+) -> dict:
+    bucket_minutes = INDOOR_HISTORY_RANGE_TO_BUCKET_MINUTES[time_range]
+    start_at = now_utc - INDOOR_HISTORY_RANGE_TO_WINDOW[time_range]
+    bucket_start = _floor_datetime_to_bucket(start_at, bucket_minutes)
+    bucket_end = _floor_datetime_to_bucket(now_utc, bucket_minutes)
+
+    aggregates: dict[datetime, dict] = {}
+    latest_recorded_at = None
+    latest_synced_at = None
+
+    for reading in readings:
+        recorded_at = reading.recorded_at.astimezone(UTC)
+        if recorded_at < start_at:
+            continue
+
+        latest_recorded_at = recorded_at
+        latest_synced_at = reading.created_at.astimezone(UTC) if reading.created_at else latest_synced_at
+        bucket_key = _floor_datetime_to_bucket(recorded_at, bucket_minutes)
+        aggregate = aggregates.setdefault(
+            bucket_key,
+            {
+                "sample_count": 0,
+                "temperature_c": [],
+                "humidity_pct": [],
+                "pm25_ug_m3": [],
+                "pm10_ug_m3": [],
+                "co2_ppm": [],
+                "battery_pct": [],
+            },
+        )
+        aggregate["sample_count"] += 1
+        for metric_name in (
+            "temperature_c",
+            "humidity_pct",
+            "pm25_ug_m3",
+            "pm10_ug_m3",
+            "co2_ppm",
+            "battery_pct",
+        ):
+            metric_value = _to_float(getattr(reading, metric_name))
+            if metric_value is not None:
+                aggregate[metric_name].append(metric_value)
+
+    points = []
+    current_bucket = bucket_start
+    while current_bucket <= bucket_end:
+        points.append(_serialize_history_bucket(current_bucket, aggregates.get(current_bucket)))
+        current_bucket += timedelta(minutes=bucket_minutes)
+
+    minutes_since_last_reading = (
+        round((now_utc - latest_recorded_at).total_seconds() / 60)
+        if latest_recorded_at is not None
+        else None
+    )
+    stale_after_minutes = bucket_minutes * 2
+
+    return {
+        "range": time_range,
+        "bucket_minutes": bucket_minutes,
+        "stale_after_minutes": stale_after_minutes,
+        "is_stale": (
+            minutes_since_last_reading is None
+            or minutes_since_last_reading > stale_after_minutes
+        ),
+        "minutes_since_last_reading": minutes_since_last_reading,
+        "device_name": device_name,
+        "device_id": device_id,
+        "last_recorded_at": latest_recorded_at.isoformat() if latest_recorded_at else None,
+        "last_synced_at": latest_synced_at.isoformat() if latest_synced_at else None,
+        "points": points,
+    }
 
 
 def _build_dashboard_suggestions_payload(
@@ -157,6 +308,8 @@ def _build_suggestions_payload_from_context(
         ideal_min=settings["sleep_temp_ideal_min"],
         ideal_max=settings["sleep_temp_ideal_max"],
     )
+    indoor_temperature_suggestion = evaluate_indoor_temperature(ventilation_context)
+    outdoor_temperature_suggestion = evaluate_outdoor_temperature(ventilation_context)
 
     suggestions = []
     if ventilation_suggestion is not None:
@@ -167,6 +320,10 @@ def _build_suggestions_payload_from_context(
         suggestions.append(low_humidity_suggestion.model_dump())
     if sleep_temperature_suggestion is not None:
         suggestions.append(sleep_temperature_suggestion.model_dump())
+    if indoor_temperature_suggestion is not None:
+        suggestions.append(indoor_temperature_suggestion.model_dump())
+    if outdoor_temperature_suggestion is not None:
+        suggestions.append(outdoor_temperature_suggestion.model_dump())
     if outdoor_activity_suggestion is not None:
         suggestions.append(outdoor_activity_suggestion.model_dump())
 
@@ -253,6 +410,14 @@ def on_startup() -> None:
             max_instances=1,
             coalesce=True,
         )
+        scheduler.add_job(
+            _run_discord_status,
+            trigger=IntervalTrigger(hours=1),
+            id="discord_status_hourly",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         scheduler.start()
 
 
@@ -320,6 +485,112 @@ def get_home_sensor_latest(
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     return get_qingping_latest_reading(current_user=current_user, db=db).model_dump()
+
+
+@app.get("/api/sensor/home/history")
+def get_home_sensor_history(
+    response: Response,
+    range_key: str = Query("24h", alias="range"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+
+    if range_key not in INDOOR_HISTORY_RANGE_TO_WINDOW:
+        raise HTTPException(status_code=400, detail="Unsupported history range.")
+
+    integration = (
+        db.execute(
+            select(UserQingpingIntegration).where(
+                UserQingpingIntegration.user_id == current_user.id
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if integration is None or not integration.selected_device_id:
+        raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
+
+    now_utc = datetime.now(UTC)
+    start_at = now_utc - INDOOR_HISTORY_RANGE_TO_WINDOW[range_key]
+    readings = (
+        db.execute(
+            select(IndoorSensorReading)
+            .where(
+                IndoorSensorReading.user_id == current_user.id,
+                IndoorSensorReading.provider == "qingping",
+                IndoorSensorReading.provider_device_key == integration.selected_device_id,
+                IndoorSensorReading.recorded_at >= start_at,
+            )
+            .order_by(IndoorSensorReading.recorded_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+    return _build_indoor_history_payload(
+        readings=readings,
+        time_range=range_key,
+        device_name=integration.selected_device_name,
+        device_id=integration.selected_device_id,
+        now_utc=now_utc,
+    )
+
+
+@app.post("/api/sensor/home/mock-readings")
+def post_mock_indoor_readings(
+    response: Response,
+    body: MockIndoorSeedSchema = MockIndoorSeedSchema(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Insert synthetic readings (same schema as real Qingping rows) for UI testing."""
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+
+    device = get_user_qingping_device(db, current_user.id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
+
+    device_id, device_name = device
+    try:
+        return seed_mock_indoor_readings(
+            db,
+            user_id=current_user.id,
+            device_id=device_id,
+            device_name=device_name,
+            months=body.months,
+        )
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Could not insert mock readings (database conflict). "
+                "Run the latest migration so mock rows can coexist with real sensor rows: "
+                "`alembic upgrade head` in the backend folder, then try again."
+            ),
+        ) from exc
+
+
+@app.delete("/api/sensor/home/mock-readings")
+def delete_mock_indoor_readings_endpoint(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Remove rows previously inserted via POST /api/sensor/home/mock-readings."""
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+
+    device = get_user_qingping_device(db, current_user.id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
+
+    device_id, _ = device
+    deleted = delete_mock_indoor_readings(db, user_id=current_user.id, device_id=device_id)
+    return {"deleted": deleted}
 
 
 @app.get("/api/suggestions/home")
@@ -403,6 +674,12 @@ def _run_scheduled_ingest() -> None:
         )
     finally:
         db.close()
+
+
+def _run_discord_status() -> None:
+    from backend.services.discord_monitor import send_discord_status
+
+    send_discord_status()
 
 
 def _run_account_cleanup() -> None:
