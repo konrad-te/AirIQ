@@ -1,183 +1,135 @@
-#!/usr/bin/env bash
-# AirIQ — Fresh Ubuntu AWS instance setup script
-# Run as a non-root user with sudo access (e.g. ubuntu on EC2)
+#!/bin/bash
+# AirIQ — AWS Ubuntu instance setup script
 # Usage: bash setup.sh
-
-set -euo pipefail
 
 DOMAIN="airiq.ddns.net"
 APP_DIR="$HOME/airiq"
-BLUE='\033[0;34m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 
-info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
-success() { echo -e "${GREEN}[OK]${NC} $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
-die()     { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+set -e
 
 # ─── 1. System packages ───────────────────────────────────────────────────────
-info "Updating system packages..."
+echo "--- 1. Installing system packages ---"
 sudo apt-get update -qq
 sudo apt-get install -y -qq ca-certificates curl gnupg git certbot
 
+# Node.js 22 (needed to build the React frontend)
+if ! command -v node &>/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+fi
+echo "✅ Node $(node --version), npm $(npm --version)"
+
 # ─── 2. Docker CE ─────────────────────────────────────────────────────────────
-if command -v docker &>/dev/null; then
-    success "Docker already installed: $(docker --version)"
-else
-    info "Installing Docker CE..."
+echo "--- 2. Installing Docker ---"
+if ! command -v docker &>/dev/null; then
     sudo install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
         | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
     echo \
         "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
         https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
         | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
     sudo apt-get update -qq
     sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    success "Docker installed: $(docker --version)"
+    sudo usermod -aG docker $USER
 fi
-
-# Allow current user to run docker without sudo
-if ! groups | grep -q docker; then
-    info "Adding $USER to the docker group..."
-    sudo usermod -aG docker "$USER"
-    warn "Group change requires a new shell session. Script will use 'sudo docker' for remaining steps."
-    DOCKER="sudo docker"
-else
-    DOCKER="docker"
-fi
+echo "✅ $(docker --version)"
 
 # ─── 3. Project code ──────────────────────────────────────────────────────────
+echo "--- 3. Project code ---"
 if [ -d "$APP_DIR/.git" ]; then
-    info "Repo already present at $APP_DIR — pulling latest..."
+    echo "Repo found — pulling latest..."
     git -C "$APP_DIR" pull
 elif [ -d "$APP_DIR" ]; then
-    warn "$APP_DIR exists but is not a git repo. Assuming code was uploaded manually."
+    echo "✅ Project folder found at $APP_DIR"
 else
-    echo ""
-    echo "How would you like to get the project code?"
-    echo "  1) Clone from a Git repository"
-    echo "  2) I will upload it manually via scp (script will wait)"
-    read -rp "Choice [1/2]: " CODE_CHOICE
-
-    case "$CODE_CHOICE" in
-        1)
-            read -rp "Git repository URL: " REPO_URL
-            git clone "$REPO_URL" "$APP_DIR"
-            success "Repository cloned to $APP_DIR"
-            ;;
-        2)
-            warn "Upload your project now. Run on your local machine:"
-            warn "  scp -r ./AirIQ ubuntu@16.16.188.166:~/airiq"
-            echo ""
-            read -rp "Press ENTER when the files are in place at $APP_DIR..."
-            [ -d "$APP_DIR" ] || die "Directory $APP_DIR not found. Upload the project first."
-            ;;
-        *)
-            die "Invalid choice."
-            ;;
-    esac
+    echo "Project not found at $APP_DIR."
+    echo "Upload it first with:"
+    echo "  scp -r ./AirIQ ubuntu@16.16.188.166:~/airiq"
+    exit 1
 fi
 
 cd "$APP_DIR"
 
 # ─── 4. Environment file ──────────────────────────────────────────────────────
-ENV_FILE="backend/.env"
-
-if [ -f "$ENV_FILE" ]; then
-    success ".env already exists — skipping."
-else
-    info "Creating backend/.env from .env.example..."
-    [ -f "backend/.env.example" ] || die "backend/.env.example not found in $APP_DIR."
-    cp backend/.env.example "$ENV_FILE"
-
+echo "--- 4. Environment file ---"
+if [ ! -f "backend/.env" ]; then
+    cp backend/.env.example backend/.env
     echo ""
-    echo "────────────────────────────────────────────────────────────"
-    warn "You must fill in backend/.env before the app will start."
-    echo "Required values:"
-    echo "  DB_HOST, DB_PASSWORD       — your AWS RDS endpoint & password"
-    echo "  AIRLY_API, OPEN_AQ         — air quality API keys"
-    echo "  IQAIR_API, GOOGLE_API_KEY  — more API keys"
-    echo "────────────────────────────────────────────────────────────"
-    read -rp "Open backend/.env in nano to edit now? [Y/n]: " EDIT_ENV
+    echo "⚠️  backend/.env needs your real credentials:"
+    echo "     DB_HOST, DB_PASSWORD, AIRLY_API, OPEN_AQ, IQAIR_API, GOOGLE_API_KEY"
+    read -rp "Open in nano now? [Y/n]: " EDIT_ENV
     if [[ "${EDIT_ENV:-Y}" =~ ^[Yy]$ ]]; then
-        nano "$ENV_FILE"
-    else
-        warn "Remember to edit backend/.env before running 'docker compose up'."
+        nano backend/.env
     fi
+else
+    echo "✅ backend/.env already exists"
 fi
 
-# ─── 5. Build images ──────────────────────────────────────────────────────────
-info "Building Docker images (this may take a few minutes)..."
-$DOCKER compose build
+# ─── 5. Build frontend on the host ────────────────────────────────────────────
+echo "--- 5. Building frontend ---"
+cd "$APP_DIR/frontend2.0"
+npm ci
+npm run build
+cd "$APP_DIR"
+echo "✅ Frontend built → frontend2.0/dist/"
 
-# ─── 6. Start backend only (port 80 must stay free for certbot) ───────────────
-info "Starting backend container..."
-$DOCKER compose up -d backend
-
-# ─── 7. TLS certificate via Certbot ──────────────────────────────────────────
-CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-
-if [ -f "$CERT_PATH" ]; then
-    success "Certificate already exists for $DOMAIN — skipping certbot."
+# ─── 6. TLS certificate ───────────────────────────────────────────────────────
+echo "--- 6. TLS certificate ---"
+if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+    echo "✅ Certificate already exists for $DOMAIN"
 else
-    info "Obtaining TLS certificate for $DOMAIN..."
-    read -rp "Enter your email address for Let's Encrypt notifications: " LE_EMAIL
-
+    read -rp "Email for Let's Encrypt notifications: " LE_EMAIL
     sudo certbot certonly \
         --standalone \
         --non-interactive \
         --agree-tos \
         --email "$LE_EMAIL" \
         -d "$DOMAIN"
-
-    success "Certificate issued for $DOMAIN."
+    echo "✅ Certificate issued for $DOMAIN"
 fi
 
-# ─── 8. Start frontend (now that certs exist) ─────────────────────────────────
-info "Starting frontend container..."
-$DOCKER compose up -d frontend
+# ─── 7. Start Docker containers ───────────────────────────────────────────────
+echo "--- 7. Starting Docker containers ---"
+sudo docker compose down 2>/dev/null || true
+sudo docker compose up -d --build
+echo "✅ Containers started"
 
-# ─── 9. Auto-renewal cron job ─────────────────────────────────────────────────
-CRON_JOB="0 0,12 * * * certbot renew --quiet && $DOCKER compose -f $APP_DIR/docker-compose.yml restart frontend"
+# ─── 8. Aliases ───────────────────────────────────────────────────────────────
+echo "--- 8. Setting up aliases ---"
+sed -i '/alias appstatus/d' ~/.bashrc
+sed -i '/alias applogs/d' ~/.bashrc
+sed -i '/alias apprestart/d' ~/.bashrc
+echo "alias appstatus='sudo docker compose -f $APP_DIR/docker-compose.yml ps'" >> ~/.bashrc
+echo "alias applogs='sudo docker compose -f $APP_DIR/docker-compose.yml logs -f'" >> ~/.bashrc
+echo "alias apprestart='sudo docker compose -f $APP_DIR/docker-compose.yml restart'" >> ~/.bashrc
+
+# ─── 9. Cert renewal cron ─────────────────────────────────────────────────────
+echo "--- 9. Cert renewal cron ---"
+CRON_JOB="0 0,12 * * * certbot renew --quiet && sudo docker compose -f $APP_DIR/docker-compose.yml exec nginx nginx -s reload"
 if sudo crontab -l 2>/dev/null | grep -qF "certbot renew"; then
-    success "Certbot renewal cron already set."
+    echo "✅ Renewal cron already set"
 else
-    info "Adding certbot renewal cron job (runs twice daily)..."
     ( sudo crontab -l 2>/dev/null; echo "$CRON_JOB" ) | sudo crontab -
-    success "Renewal cron job added."
+    echo "✅ Renewal cron added"
 fi
 
-# ─── 10. Health check ─────────────────────────────────────────────────────────
-info "Waiting for backend to become healthy..."
-for i in $(seq 1 24); do
-    if curl -sf http://localhost:8000/docs > /dev/null 2>&1; then
-        success "Backend is up."
-        break
-    fi
-    sleep 5
-    [ "$i" -eq 24 ] && warn "Backend did not respond after 2 minutes. Check: docker compose logs backend"
-done
-
-echo ""
-echo "════════════════════════════════════════════════════════════"
-success "AirIQ is running."
-echo ""
-echo "  Frontend : https://$DOMAIN"
-echo "  Backend  : http://localhost:8000/docs  (not public — internal only)"
-echo ""
-echo "  Useful commands:"
-echo "    docker compose logs -f          # stream all logs"
-echo "    docker compose logs -f backend  # backend only"
-echo "    docker compose down             # stop"
-echo "    docker compose up -d            # start"
-echo "    docker compose up --build -d    # rebuild & start"
-echo "    certbot renew --dry-run         # test cert renewal"
-echo "════════════════════════════════════════════════════════════"
-
-if ! groups | grep -q docker; then
+# ─── 10. Verify ───────────────────────────────────────────────────────────────
+echo "--- 10. Verification ---"
+sleep 5
+if sudo docker compose ps | grep -q "Up"; then
+    echo "===================================================="
+    echo "  ✅ AirIQ is running!"
     echo ""
-    warn "Run 'newgrp docker' or start a new SSH session to use docker without sudo."
+    echo "  https://$DOMAIN"
+    echo ""
+    echo "  Run 'source ~/.bashrc' to use aliases:"
+    echo "    appstatus   — container status"
+    echo "    applogs     — stream logs"
+    echo "    apprestart  — restart all containers"
+    echo "===================================================="
+else
+    echo "❌ Something went wrong. Check logs:"
+    echo "   sudo docker compose logs"
 fi
