@@ -98,6 +98,35 @@ export async function getIndoorSensorData(token) {
   return response.json()
 }
 
+export async function getIndoorSensorHistory(token, range = '24h') {
+  const response = await fetch(
+    `${API_BASE_URL}/api/sensor/home/history?range=${encodeURIComponent(range)}`,
+    {
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  if (!response.ok) {
+    let detail = `Sensor history request failed with status ${response.status}`
+
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = payload.detail
+      }
+    } catch {
+      // Ignore JSON parse failures and keep the generic message.
+    }
+
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
 export async function getHomeSuggestions(token, lat, lon) {
   const response = await fetch(
     `${API_BASE_URL}/api/suggestions/home?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
@@ -121,6 +150,58 @@ export async function getHomeSuggestions(token, lat, lon) {
       // Ignore JSON parse failures and keep the generic message.
     }
 
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
+export async function seedMockIndoorReadings(token, months = 2) {
+  const response = await fetch(`${API_BASE_URL}/api/sensor/home/mock-readings`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ months }),
+  })
+
+  if (!response.ok) {
+    let detail = `Mock seed failed with status ${response.status}`
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail)
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
+export async function clearMockIndoorReadings(token) {
+  const response = await fetch(`${API_BASE_URL}/api/sensor/home/mock-readings`, {
+    method: 'DELETE',
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!response.ok) {
+    let detail = `Clear mock failed with status ${response.status}`
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail)
+      }
+    } catch {
+      // ignore
+    }
     throw new Error(detail)
   }
 

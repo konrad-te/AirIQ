@@ -24,6 +24,12 @@ SleepSuggestionId = Literal[
     "sleep_temp_too_warm",
     "sleep_temp_too_cold",
 ]
+TemperatureSuggestionId = Literal[
+    "outdoor_temp_too_hot",
+    "outdoor_temp_too_cold",
+    "indoor_temp_too_hot",
+    "indoor_temp_too_cold",
+]
 SuggestionPriority = Literal["high", "medium", "low"]
 SuggestionSeverity = Literal["good", "ok", "caution", "warning", "danger"]
 
@@ -108,6 +114,26 @@ class SleepSuggestion(BaseModel):
     id: SleepSuggestionId
     family: Literal["sleep"] = "sleep"
     category: Literal["sleep"] = "sleep"
+    priority: SuggestionPriority
+    severity: SuggestionSeverity | None = None
+    title: str
+    short_label: str | None = None
+    recommendation: str
+    impact: str | None = None
+    primary_reason: str
+    secondary_reasons: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    advice: str | None = None
+    note: str | None = None
+    based_on: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TemperatureSuggestion(BaseModel):
+    id: TemperatureSuggestionId
+    family: Literal["temperature"] = "temperature"
+    category: Literal["temperature"] = "temperature"
     priority: SuggestionPriority
     severity: SuggestionSeverity | None = None
     title: str

@@ -2,9 +2,6 @@ import { useEffect, useState } from 'react'
 import heroBackground from './assets/123.png'
 import dashboardBackground from './assets/222.png'
 import logoAiriq from './assets/logo-airiq.svg'
-import sensorImage from './assets/sensor.png'
-import watchImage from './assets/watch.png'
-import alertsImage from './assets/alerts.png'
 import runIcon from './assets/run.png'
 import windowIcon from './assets/window.png'
 import moonIcon from './assets/moon.png'
@@ -16,6 +13,7 @@ import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
 import SuggestionsPanel from './components/SuggestionsPanel'
 import OutdoorDayAdvicePanel from './components/OutdoorDayAdvicePanel'
+import IndoorHistoryPanel from './components/IndoorHistoryPanel'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -24,7 +22,7 @@ import SettingsPage from './pages/SettingsPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
-import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
+import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
 import { addSavedLocation, getSavedLocations, previewAdminSuggestions, removeSavedLocation } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 
@@ -267,7 +265,6 @@ export default function App() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isDeviceSetupOpen, setIsDeviceSetupOpen] = useState(false)
-  const [selectedDevice, setSelectedDevice] = useState(null)
   const [route, setRoute] = useState(() => window.location.pathname)
   const [searchAddress, setSearchAddress] = useState(mockData.location)
   const [currentLocationLabel, setCurrentLocationLabel] = useState(mockData.location)
@@ -285,6 +282,11 @@ export default function App() {
   const [savedLocations, setSavedLocations] = useState([])
   const [sensorStatus, setSensorStatus] = useState(null)
   const [sensorReading, setSensorReading] = useState(null)
+  const [indoorHistoryRange, setIndoorHistoryRange] = useState('24h')
+  const [indoorHistory, setIndoorHistory] = useState(null)
+  const [isLoadingIndoorHistory, setIsLoadingIndoorHistory] = useState(false)
+  const [indoorHistoryError, setIndoorHistoryError] = useState('')
+  const [indoorHistoryRefreshNonce, setIndoorHistoryRefreshNonce] = useState(0)
   const [dashboardSuggestions, setDashboardSuggestions] = useState([])
   const [dashboardSuggestionsError, setDashboardSuggestionsError] = useState('')
   const [sensorError, setSensorError] = useState('')
@@ -300,6 +302,7 @@ export default function App() {
   const [isRefreshingIndoor, setIsRefreshingIndoor] = useState(false)
   const [suggestionsRefreshNonce, setSuggestionsRefreshNonce] = useState(0)
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false)
+  const [hasLoadedSuggestionsOnce, setHasLoadedSuggestionsOnce] = useState(false)
   const [aiRecs, setAiRecs] = useState(null)
   const [aiRecsLoading, setAiRecsLoading] = useState(false)
   const [aiRecsError, setAiRecsError] = useState('')
@@ -330,11 +333,6 @@ export default function App() {
     setRoute('/indoor')
   }
 
-  const handleOpenTrends = () => {
-    window.history.pushState({}, '', '/trends')
-    setRoute('/trends')
-  }
-
   const handleOpenSubscription = () => {
     window.history.pushState({}, '', '/subscription')
     setRoute('/subscription')
@@ -351,7 +349,6 @@ export default function App() {
   }
 
   const handleAddDevice = (deviceType) => {
-    setSelectedDevice(deviceType)
     if (deviceType === 'sensor') {
       setIsDeviceSetupOpen(true)
     }
@@ -615,6 +612,8 @@ export default function App() {
       setSensorStatus(null)
       setSensorReading(null)
       setSensorError('')
+      setIndoorHistory(null)
+      setIndoorHistoryError('')
       return undefined
     }
 
@@ -655,11 +654,63 @@ export default function App() {
   }, [token])
 
   useEffect(() => {
+    if (!token || !sensorStatus?.is_connected || !sensorStatus?.selected_device_id) {
+      setIndoorHistory(null)
+      setIndoorHistoryError('')
+      setIsLoadingIndoorHistory(false)
+      return undefined
+    }
+
+    if (route !== '/indoor') {
+      return undefined
+    }
+
+    let cancelled = false
+
+    const loadIndoorHistory = async () => {
+      try {
+        if (!cancelled) {
+          setIsLoadingIndoorHistory(true)
+          setIndoorHistoryError('')
+        }
+        const payload = await getIndoorSensorHistory(token, indoorHistoryRange)
+        if (!cancelled) {
+          setIndoorHistory(payload)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setIndoorHistory(null)
+          setIndoorHistoryError(error instanceof Error ? error.message : 'Failed to load indoor history.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingIndoorHistory(false)
+        }
+      }
+    }
+
+    loadIndoorHistory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    token,
+    route,
+    indoorHistoryRange,
+    indoorHistoryRefreshNonce,
+    sensorStatus?.is_connected,
+    sensorStatus?.selected_device_id,
+    sensorReading?.updated_at,
+  ])
+
+  useEffect(() => {
     const isAdminPreviewActive = Boolean(user?.role === 'admin' && dashboardAdminOverride)
 
     if (!token || (!currentCoords && !isAdminPreviewActive)) {
       setDashboardSuggestions([])
       setDashboardSuggestionsError('')
+      setHasLoadedSuggestionsOnce(false)
       return undefined
     }
 
@@ -685,6 +736,7 @@ export default function App() {
       } finally {
         if (!cancelled) {
           setIsRefreshingSuggestions(false)
+          setHasLoadedSuggestionsOnce(true)
         }
       }
     }
@@ -841,6 +893,9 @@ export default function App() {
   const handleRefreshSuggestions = () => {
     setSuggestionsRefreshNonce((prev) => prev + 1)
   }
+  const isSuggestionsPanelLoading =
+    (!hasLoadedSuggestionsOnce && !dashboardSuggestionsError) ||
+    (isRefreshingSuggestions && dashboardSuggestions.length === 0)
 
   const handleGenerateAiRecs = async () => {
     setAiRecsLoading(true)
@@ -993,10 +1048,6 @@ export default function App() {
     }
   }
   const hasConnectedIndoorSensor = Boolean(sensorStatus?.is_connected && sensorStatus?.selected_device_id)
-  const batteryPercentage = typeof sensorReading?.battery_pct === 'number' ? sensorReading.battery_pct : null
-  const batteryToneClass = batteryPercentage != null && batteryPercentage < 20
-    ? 'indoor-sensor-summary__battery-chip--low'
-    : 'indoor-sensor-summary__battery-chip--healthy'
   const indoorMeasurementAt = sensorReading?.updated_at ? new Date(sensorReading.updated_at) : null
   const indoorMeasurementLabel = formatClockTimestamp(indoorMeasurementAt)
   const indoorExpectedNextUpdateAt = indoorMeasurementAt
@@ -1056,13 +1107,7 @@ export default function App() {
             className={`nav-link${route === '/indoor' ? ' nav-link--active' : ''}`}
             onClick={handleOpenIndoor}
           >
-            Indoor
-          </button>
-          <button
-            className={`nav-link${route === '/trends' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenTrends}
-          >
-            Trends
+            Sensor History
           </button>
           <button
             className={`nav-link${route === '/globe' ? ' nav-link--active' : ''}`}
@@ -1150,127 +1195,29 @@ export default function App() {
       </>) : route === '/indoor' ? (<>
 
         {/* ══ Indoor page ══ */}
-        <div className="dash-page-header">
-          <h2 className="dash-page-title">Indoor Air</h2>
-          <p className="dash-page-sub">Monitor your indoor environment</p>
-        </div>
         <div className="dash-card">
-          <div className="devices-inline-banner">
-            <button
-              type="button"
-              className={`devices-inline-item ${selectedDevice === 'sensor' ? 'devices-inline-item--active' : ''}`}
-              onClick={() => handleAddDevice('sensor')}
-            >
-              <span className="devices-inline-image-wrap" aria-hidden>
-                <img src={sensorImage} alt="" className="devices-inline-image" />
-              </span>
-              <span className="devices-inline-copy">
-                <span className="devices-inline-title">AirIQ Home</span>
-                <span className="devices-inline-subtitle">Indoor sensor</span>
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`devices-inline-item ${selectedDevice === 'performance' ? 'devices-inline-item--active' : ''}`}
-              onClick={() => handleAddDevice('performance')}
-            >
-              <span className="devices-inline-image-wrap" aria-hidden>
-                <img src={watchImage} alt="" className="devices-inline-image" />
-              </span>
-              <span className="devices-inline-copy">
-                <span className="devices-inline-title">AirIQ Performance</span>
-                <span className="devices-inline-subtitle">Garmin &amp; wearables</span>
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`devices-inline-item ${selectedDevice === 'alerts' ? 'devices-inline-item--active' : ''}`}
-              onClick={() => handleAddDevice('alerts')}
-            >
-              <span className="devices-inline-image-wrap" aria-hidden>
-                <img src={alertsImage} alt="" className="devices-inline-image" />
-              </span>
-              <span className="devices-inline-copy">
-                <span className="devices-inline-title">Smart alerts</span>
-                <span className="devices-inline-subtitle">Email | App | Watch</span>
-              </span>
-            </button>
-          </div>
-          <div className="indoor-sensor-summary">
-            <div className="indoor-sensor-summary__header">
-              <div>
-                <p className="indoor-sensor-summary__eyebrow">AirIQ Home</p>
-                <h3 className="indoor-sensor-summary__title">
-                  {hasConnectedIndoorSensor ? sensorStatus?.selected_device_name || 'Qingping connected' : 'No indoor sensor connected yet'}
-                </h3>
-              </div>
-              <div className="indoor-sensor-summary__header-status">
-                <span className={`indoor-sensor-summary__battery-chip ${batteryToneClass}`}>
-                  <span className="indoor-sensor-summary__battery-icon" aria-hidden>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="7" width="18" height="10" rx="2" ry="2" />
-                      <line x1="22" y1="11" x2="22" y2="13" />
-                      <path d="M6 11h7" />
-                    </svg>
-                  </span>
-                  <span>Battery {sensorReading?.battery_pct ?? '--'}%</span>
-                </span>
-                <span className={`indoor-sensor-summary__badge ${hasConnectedIndoorSensor ? 'indoor-sensor-summary__badge--live' : ''}`}>
-                  {hasConnectedIndoorSensor ? 'Connected' : 'Setup needed'}
-                </span>
-              </div>
+          {hasConnectedIndoorSensor ? (
+            <IndoorHistoryPanel
+              historyData={indoorHistory}
+              isLoading={isLoadingIndoorHistory}
+              error={indoorHistoryError}
+              selectedRange={indoorHistoryRange}
+              onRangeChange={setIndoorHistoryRange}
+              onRefresh={() => setIndoorHistoryRefreshNonce((n) => n + 1)}
+              token={token}
+              locale="en-GB"
+              timeZone={POLISH_TIMEZONE}
+            />
+          ) : (
+            <div className="indoor-history-empty">
+              <h3>No sensor history yet</h3>
+              <p>Connect and sync a Qingping sensor first, then AirIQ will start building your indoor timeline here automatically.</p>
+              {sensorError ? <p className="indoor-history-empty__error">{sensorError}</p> : null}
+              <button type="button" className="btn btn-primary indoor-history-empty__action" onClick={() => handleAddDevice('sensor')}>
+                Connect sensor
+              </button>
             </div>
-            <p className="indoor-sensor-summary__copy">
-              {hasConnectedIndoorSensor
-                ? `Latest reading from ${sensorStatus?.selected_product_name || 'your Qingping sensor'} is available in AirIQ.`
-                : 'Connect your Qingping sensor once, choose the device, and AirIQ will keep syncing the latest indoor readings for you.'}
-            </p>
-            {sensorError ? (
-              <p className="indoor-sensor-summary__error">{sensorError}</p>
-            ) : null}
-            <div className="indoor-sensor-summary__grid">
-              <div className="indoor-sensor-summary__stat">
-                <span className="indoor-sensor-summary__label">Temperature</span>
-                <span className="indoor-sensor-summary__value">{sensorReading?.temperature_c ?? '--'}<span className="indoor-sensor-summary__unit">C</span></span>
-              </div>
-              <div className="indoor-sensor-summary__stat">
-                <span className="indoor-sensor-summary__label">Humidity</span>
-                <span className="indoor-sensor-summary__value">{sensorReading?.humidity_pct ?? '--'}<span className="indoor-sensor-summary__unit">%</span></span>
-              </div>
-              <div className="indoor-sensor-summary__stat">
-                <span className="indoor-sensor-summary__label">PM2.5</span>
-                <span className="indoor-sensor-summary__value">{sensorReading?.pm2_5_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
-              </div>
-              <div className="indoor-sensor-summary__stat">
-                <span className="indoor-sensor-summary__label">CO2</span>
-                <span className="indoor-sensor-summary__value">{sensorReading?.co2_ppm ?? '--'}<span className="indoor-sensor-summary__unit">ppm</span></span>
-              </div>
-              <div className="indoor-sensor-summary__stat">
-                <span className="indoor-sensor-summary__label">PM10</span>
-                <span className="indoor-sensor-summary__value">{sensorReading?.pm10_ug_m3 ?? '--'}<span className="indoor-sensor-summary__unit">ug/m3</span></span>
-              </div>
-            </div>
-            <div className="indoor-sensor-summary__footer">
-              <span>{sensorStatus?.selected_serial_number || sensorStatus?.selected_wifi_mac || 'Select a Qingping sensor in setup'}</span>
-              <span className="indoor-sensor-summary__footer-right">
-                <span>{indoorStatusPrimary}</span>
-                <span>{indoorStatusSecondary}</span>
-              </span>
-            </div>
-          </div>
-          <div className="dashboard-preview__scale dashboard-preview__scale--indoor-submenu">
-            <p>Air Quality Index (AQI) Scale</p>
-            <div className="dashboard-preview__scale-bar" />
-            <div className="dashboard-preview__scale-labels">
-              <span>Good</span>
-              <span>Moderate</span>
-              <span>Unhealthy for Sensitive</span>
-              <span>Unhealthy</span>
-              <span>Very Unhealthy</span>
-              <span>Hazardous</span>
-            </div>
-            <small>Current: {indoorAqiValue} ({indoorAqiLabel})</small>
-          </div>
+          )}
         </div>
 
       </>) : (<>
@@ -1579,7 +1526,10 @@ export default function App() {
                   {dashboardSuggestionsError && (
                     <p className="dashboard-preview-recs__error">{dashboardSuggestionsError}</p>
                   )}
-                  <SuggestionsPanel suggestions={dashboardSuggestions} />
+                  <SuggestionsPanel
+                    suggestions={dashboardSuggestions}
+                    isLoading={isSuggestionsPanelLoading}
+                  />
                 </>
               ) : recsTab === 'day' ? (
                 <OutdoorDayAdvicePanel
