@@ -60,6 +60,53 @@
   text-align: center;
 }
 
+.suggestions-panel--loading {
+  min-height: 188px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(197, 215, 235, 0.98);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top, rgba(238, 246, 255, 0.94), rgba(248, 251, 255, 0.98) 58%),
+    rgba(255, 255, 255, 0.94);
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.suggestions-panel__loading-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(232, 244, 255, 0.98));
+  border: 1px solid rgba(204, 223, 242, 0.95);
+  box-shadow: 0 10px 24px rgba(26, 68, 121, 0.09);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.suggestions-panel__loading-icon span {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2.5px solid rgba(106, 164, 233, 0.24);
+  border-top-color: #2f8cff;
+  animation: suggestions-panel-spin 0.9s linear infinite;
+}
+
+.suggestions-panel__loading-copy h3 {
+  font-size: 1.02rem;
+  color: #21466f;
+  margin-top: 0.1rem;
+}
+
+.suggestions-panel__loading-copy p {
+  margin-top: 0.34rem;
+  font-size: 0.84rem;
+  color: #6983a1;
+  line-height: 1.5;
+}
+
 .suggestions-panel__empty-icon {
   width: 52px;
   height: 52px;
@@ -93,10 +140,21 @@
   line-height: 1.5;
 }
 
+@keyframes suggestions-panel-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .suggestion-card {
   --suggestion-accent: #4c9dff;
   --suggestion-soft: rgba(226, 241, 255, 0.9);
   --suggestion-border: rgba(205, 224, 244, 0.96);
+  --suggestion-ink: #25507d;
   position: relative;
   border: 1px solid var(--suggestion-border);
   border-left: 4px solid var(--suggestion-accent);
@@ -115,51 +173,39 @@
 }
 
 .suggestion-card--high {
-  --suggestion-accent: #ea7c45;
-  --suggestion-soft: rgba(255, 237, 226, 0.95);
-  --suggestion-border: rgba(244, 216, 198, 0.98);
+  --suggestion-accent: #d95b5b;
+  --suggestion-soft: rgba(255, 235, 235, 0.96);
+  --suggestion-border: rgba(241, 202, 202, 0.98);
+  --suggestion-ink: #983737;
 }
 
 .suggestion-card--medium {
-  --suggestion-accent: #368cf4;
-  --suggestion-soft: rgba(231, 243, 255, 0.96);
-  --suggestion-border: rgba(205, 224, 244, 0.96);
+  --suggestion-accent: #e19a3a;
+  --suggestion-soft: rgba(255, 245, 229, 0.97);
+  --suggestion-border: rgba(243, 223, 189, 0.98);
+  --suggestion-ink: #9a621a;
 }
 
 .suggestion-card--low {
-  --suggestion-accent: #5da78d;
-  --suggestion-soft: rgba(230, 245, 239, 0.96);
-  --suggestion-border: rgba(204, 229, 219, 0.96);
+  --suggestion-accent: #50a477;
+  --suggestion-soft: rgba(232, 245, 237, 0.97);
+  --suggestion-border: rgba(201, 228, 211, 0.98);
+  --suggestion-ink: #2f7450;
 }
 
 .suggestion-card--severity-good {
-  --suggestion-accent: #3ca46c;
-  --suggestion-soft: rgba(229, 245, 235, 0.96);
-  --suggestion-border: rgba(199, 230, 209, 0.96);
 }
 
 .suggestion-card--severity-ok {
-  --suggestion-accent: #4b98e6;
-  --suggestion-soft: rgba(231, 243, 255, 0.96);
-  --suggestion-border: rgba(205, 224, 244, 0.96);
 }
 
 .suggestion-card--severity-caution {
-  --suggestion-accent: #e7a245;
-  --suggestion-soft: rgba(255, 243, 226, 0.96);
-  --suggestion-border: rgba(244, 224, 198, 0.98);
 }
 
 .suggestion-card--severity-warning {
-  --suggestion-accent: #dc7b43;
-  --suggestion-soft: rgba(255, 237, 226, 0.95);
-  --suggestion-border: rgba(244, 216, 198, 0.98);
 }
 
 .suggestion-card--severity-danger {
-  --suggestion-accent: #cb4d4d;
-  --suggestion-soft: rgba(255, 233, 233, 0.96);
-  --suggestion-border: rgba(244, 207, 207, 0.98);
 }
 
 .suggestion-card__topline {
@@ -176,7 +222,7 @@
   gap: 0.45rem;
   border-radius: 999px;
   background: var(--suggestion-soft);
-  color: #315b87;
+  color: var(--suggestion-ink);
   padding: 0.36rem 0.68rem;
   font-size: 0.73rem;
   font-weight: 800;
@@ -232,7 +278,7 @@
 .suggestion-card__tag--severity {
   background: var(--suggestion-soft);
   border-color: var(--suggestion-border);
-  color: #21486f;
+  color: var(--suggestion-ink);
 }
 
 .suggestion-card__section {
