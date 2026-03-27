@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      provenance: false
     env_file:
       - backend/.env
     environment:
@@ -15,6 +16,7 @@ services:
     build:
       context: ./frontend2.0
       dockerfile: Dockerfile
+      provenance: false
     ports:
       - "80:80"
       - "443:443"
