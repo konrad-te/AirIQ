@@ -1829,6 +1829,29 @@
   color: #9ab0c8;
 }
 
+.loc-modal-submit {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0874f8, #02b4ff);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.loc-modal-submit:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.loc-modal-submit:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
 
 .loc-modal-suggestions {
   margin-top: 0.4rem;
