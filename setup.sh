@@ -7,6 +7,19 @@ APP_DIR="$HOME/airiq"
 
 set -e
 
+# ─── 0. Swap (t3.micro only has 1 GB RAM) ─────────────────────────────────────
+echo "--- 0. Ensuring swap ---"
+if ! swapon --show | grep -q /swapfile; then
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab > /dev/null
+    echo "✅ 2 GB swap created and persisted"
+else
+    echo "✅ Swap already active"
+fi
+
 # ─── 1. System packages ───────────────────────────────────────────────────────
 echo "--- 1. Installing system packages ---"
 sudo apt-get update -qq
