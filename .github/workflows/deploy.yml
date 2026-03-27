@@ -1,0 +1,36 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/airiq
+
+            echo "==> Pulling latest code..."
+            git pull origin main
+
+            echo "==> Building frontend..."
+            cd frontend2.0
+            npm ci
+            npm run build
+            cd ..
+
+            echo "==> Restarting containers..."
+            docker compose up -d --build
+
+            echo "==> Done."
