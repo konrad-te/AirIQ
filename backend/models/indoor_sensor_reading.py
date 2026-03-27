@@ -26,7 +26,8 @@ class IndoorSensorReading(Base):
             "provider",
             "provider_device_key",
             "recorded_at",
-            name="uq_indoor_sensor_readings_user_provider_device_time",
+            "source_type",
+            name="uq_indoor_sensor_readings_user_provider_device_time_source",
         ),
     )
 

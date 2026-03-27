@@ -4,15 +4,29 @@ import { MAX_DASHBOARD_SUGGESTIONS } from '../types/suggestions'
 /** @typedef {import('../types/suggestions').Suggestion} Suggestion */
 
 /**
- * @param {{ suggestions?: Suggestion[] | null }} props
+ * @param {{ suggestions?: Suggestion[] | null, isLoading?: boolean }} props
  */
-export default function SuggestionsPanel({ suggestions = [] }) {
+export default function SuggestionsPanel({ suggestions = [], isLoading = false }) {
   const visibleSuggestions = Array.isArray(suggestions)
     ? suggestions.slice(0, MAX_DASHBOARD_SUGGESTIONS)
     : []
   const countLabel = suggestions.length > visibleSuggestions.length
     ? `Showing ${visibleSuggestions.length} of ${suggestions.length}`
     : `${visibleSuggestions.length} total`
+
+  if (isLoading) {
+    return (
+      <div className="suggestions-panel suggestions-panel--loading" aria-live="polite">
+        <div className="suggestions-panel__loading-icon" aria-hidden>
+          <span />
+        </div>
+        <div className="suggestions-panel__loading-copy">
+          <h3>Loading suggestions...</h3>
+          <p>Checking your latest indoor and outdoor conditions.</p>
+        </div>
+      </div>
+    )
+  }
 
   if (visibleSuggestions.length === 0) {
     return (
