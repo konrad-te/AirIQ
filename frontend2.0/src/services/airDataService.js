@@ -127,6 +127,68 @@ export async function getIndoorSensorHistory(token, range = '24h') {
   return response.json()
 }
 
+export async function getSleepHistory(token, range = '30d') {
+  const response = await fetch(
+    `${API_BASE_URL}/api/sleep/history?range=${encodeURIComponent(range)}`,
+    {
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  if (!response.ok) {
+    let detail = `Sleep history request failed with status ${response.status}`
+
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = payload.detail
+      }
+    } catch {
+      // Ignore JSON parse failures and keep the generic message.
+    }
+
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
+export async function importSleepDataFiles(token, files) {
+  const formData = new FormData()
+  Array.from(files ?? []).forEach((file) => {
+    formData.append('files', file)
+  })
+
+  const response = await fetch(`${API_BASE_URL}/api/sleep/import`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    let detail = `Sleep import failed with status ${response.status}`
+
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail)
+      }
+    } catch {
+      // ignore
+    }
+
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
 export async function getHomeSuggestions(token, lat, lon) {
   const response = await fetch(
     `${API_BASE_URL}/api/suggestions/home?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,

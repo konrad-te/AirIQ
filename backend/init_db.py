@@ -21,6 +21,7 @@ REQUIRED_TABLES = {
     "provider_cache_entries",
     "ingest_runs",
     "feedback",
+    "garmin_sleep_summaries",
 }
 
 
