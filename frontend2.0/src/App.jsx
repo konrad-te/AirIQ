@@ -4,6 +4,7 @@ import dashboardBackground from './assets/222.png'
 import logoAiriq from './assets/logo-airiq.svg'
 import runIcon from './assets/run.png'
 import windowIcon from './assets/window.png'
+import sensorEmptyArt from './assets/sensor.png'
 import moonIcon from './assets/moon.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
@@ -14,6 +15,7 @@ import PM25Chart from './components/PM25Chart'
 import SuggestionsPanel from './components/SuggestionsPanel'
 import OutdoorDayAdvicePanel from './components/OutdoorDayAdvicePanel'
 import IndoorHistoryPanel from './components/IndoorHistoryPanel'
+import SleepHistoryPanel from './components/SleepHistoryPanel'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -22,7 +24,7 @@ import SettingsPage from './pages/SettingsPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
-import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
+import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, importSleepDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
 import { addSavedLocation, getSavedLocations, previewAdminSuggestions, removeSavedLocation } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 
@@ -287,6 +289,14 @@ export default function App() {
   const [isLoadingIndoorHistory, setIsLoadingIndoorHistory] = useState(false)
   const [indoorHistoryError, setIndoorHistoryError] = useState('')
   const [indoorHistoryRefreshNonce, setIndoorHistoryRefreshNonce] = useState(0)
+  const [sleepHistoryRange, setSleepHistoryRange] = useState('30d')
+  const [sleepHistory, setSleepHistory] = useState(null)
+  const [isLoadingSleepHistory, setIsLoadingSleepHistory] = useState(false)
+  const [sleepHistoryError, setSleepHistoryError] = useState('')
+  const [sleepHistoryRefreshNonce, setSleepHistoryRefreshNonce] = useState(0)
+  const [isImportingSleepData, setIsImportingSleepData] = useState(false)
+  const [sleepImportNotice, setSleepImportNotice] = useState('')
+  const [sleepImportError, setSleepImportError] = useState('')
   const [dashboardSuggestions, setDashboardSuggestions] = useState([])
   const [dashboardSuggestionsError, setDashboardSuggestionsError] = useState('')
   const [sensorError, setSensorError] = useState('')
@@ -331,6 +341,11 @@ export default function App() {
   const handleOpenIndoor = () => {
     window.history.pushState({}, '', '/indoor')
     setRoute('/indoor')
+  }
+
+  const handleOpenSleep = () => {
+    window.history.pushState({}, '', '/sleep')
+    setRoute('/sleep')
   }
 
   const handleOpenSubscription = () => {
@@ -705,6 +720,73 @@ export default function App() {
   ])
 
   useEffect(() => {
+    if (!token) {
+      setSleepHistory(null)
+      setSleepHistoryError('')
+      setIsLoadingSleepHistory(false)
+      return undefined
+    }
+
+    if (route !== '/sleep') {
+      return undefined
+    }
+
+    let cancelled = false
+
+    const loadSleepHistory = async () => {
+      try {
+        if (!cancelled) {
+          setIsLoadingSleepHistory(true)
+          setSleepHistoryError('')
+        }
+        const payload = await getSleepHistory(token, sleepHistoryRange)
+        if (!cancelled) {
+          setSleepHistory(payload)
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setSleepHistory(null)
+          setSleepHistoryError(loadError instanceof Error ? loadError.message : 'Failed to load sleep history.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingSleepHistory(false)
+        }
+      }
+    }
+
+    loadSleepHistory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, route, sleepHistoryRange, sleepHistoryRefreshNonce])
+
+  const handleSleepImport = async (files) => {
+    if (!token || !files?.length) return
+
+    setIsImportingSleepData(true)
+    setSleepImportError('')
+    setSleepImportNotice('')
+
+    try {
+      const result = await importSleepDataFiles(token, files)
+      const summary = [
+        result.imported ? `${result.imported} new` : null,
+        result.updated ? `${result.updated} updated` : null,
+        result.skipped ? `${result.skipped} skipped` : null,
+      ].filter(Boolean).join(', ')
+
+      setSleepImportNotice(summary ? `Garmin import finished: ${summary}.` : 'Garmin import finished.')
+      setSleepHistoryRefreshNonce((value) => value + 1)
+    } catch (importError) {
+      setSleepImportError(importError instanceof Error ? importError.message : 'Failed to import sleep data.')
+    } finally {
+      setIsImportingSleepData(false)
+    }
+  }
+
+  useEffect(() => {
     const isAdminPreviewActive = Boolean(user?.role === 'admin' && dashboardAdminOverride)
 
     if (!token || (!currentCoords && !isAdminPreviewActive)) {
@@ -1054,8 +1136,8 @@ export default function App() {
     ? new Date(indoorMeasurementAt.getTime() + INDOOR_UPDATE_ESTIMATE_MS)
     : null
   const indoorExpectedNextRefreshTs = indoorExpectedNextUpdateAt?.getTime() ?? 0
-  const indoorAqiValue = hasConnectedIndoorSensor ? 2 : 0
-  const indoorAqiLabel = hasConnectedIndoorSensor ? 'Good' : 'Setup needed'
+  const indoorAqiValue = 2
+  const indoorAqiLabel = 'Good'
   const indoorTitle = sensorStatus?.selected_device_name || 'Living Room'
   const indoorPm25 = dashboardAdminOverride?.indoor_pm25 ?? sensorReading?.pm2_5_ug_m3 ?? '--'
   const indoorPm10 = dashboardAdminOverride?.indoor_pm10 ?? sensorReading?.pm10_ug_m3 ?? '--'
@@ -1067,22 +1149,17 @@ export default function App() {
   const indoorCooldownRemainingMs = Math.max(0, indoorEarliestRefreshAt - nowTs)
   const indoorOnCooldown = indoorCooldownRemainingMs > 0
   const indoorCanRefresh = hasConnectedIndoorSensor && Boolean(token) && !isRefreshingIndoor && indoorCooldownRemainingMs === 0
-  const indoorRefreshButtonLabel = !hasConnectedIndoorSensor
-    ? 'No sensor'
-    : indoorOnCooldown
-      ? `Check again in ${formatElapsedMinutes(indoorCooldownRemainingMs / 60000)}`
-      : 'Check for update'
+  const indoorRefreshButtonLabel = indoorOnCooldown
+    ? `Check again in ${formatElapsedMinutes(indoorCooldownRemainingMs / 60000)}`
+    : 'Check for update'
   const indoorRefreshTooltipMessage = indoorExpectedNextUpdateAt && indoorOnCooldown
     ? `Next sensor update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
     : 'AirIQ will check for a newer sensor reading.'
-  const indoorStatusPrimary = hasConnectedIndoorSensor
-    ? `Latest sensor reading: ${indoorMeasurementLabel}`
-    : 'No indoor sensor connected yet.'
-  const indoorStatusSecondary = hasConnectedIndoorSensor
-    ? (indoorExpectedNextUpdateAt && indoorOnCooldown
+  const indoorStatusPrimary = `Latest sensor reading: ${indoorMeasurementLabel}`
+  const indoorStatusSecondary =
+    indoorExpectedNextUpdateAt && indoorOnCooldown
       ? `Next update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
-      : 'A newer sensor update may be available now.')
-    : 'Connect a sensor to start seeing room data.'
+      : 'A newer sensor update may be available now.'
 
   const activeBackground = route === '/' ? dashboardBackground : heroBackground
 
@@ -1108,6 +1185,12 @@ export default function App() {
             onClick={handleOpenIndoor}
           >
             Sensor History
+          </button>
+          <button
+            className={`nav-link${route === '/sleep' ? ' nav-link--active' : ''}`}
+            onClick={handleOpenSleep}
+          >
+            Sleep Data
           </button>
           <button
             className={`nav-link${route === '/globe' ? ' nav-link--active' : ''}`}
@@ -1218,6 +1301,25 @@ export default function App() {
               </button>
             </div>
           )}
+        </div>
+
+      </>) : route === '/sleep' ? (<>
+
+        <div className="dash-card">
+          <SleepHistoryPanel
+            historyData={sleepHistory}
+            isLoading={isLoadingSleepHistory}
+            error={sleepHistoryError}
+            selectedRange={sleepHistoryRange}
+            onRangeChange={setSleepHistoryRange}
+            onRefresh={() => setSleepHistoryRefreshNonce((value) => value + 1)}
+            onImport={handleSleepImport}
+            importBusy={isImportingSleepData}
+            importNotice={sleepImportNotice}
+            importError={sleepImportError}
+            locale="en-GB"
+            timeZone={POLISH_TIMEZONE}
+          />
         </div>
 
       </>) : (<>
@@ -1402,7 +1504,9 @@ export default function App() {
               </div>
             </article>
 
-            <article className="dashboard-preview-card dashboard-preview-card--indoor">
+            <article
+              className={`dashboard-preview-card dashboard-preview-card--indoor${hasConnectedIndoorSensor ? '' : ' dashboard-preview-card--indoor-waiting'}`}
+            >
               <div className="dashboard-preview-card__top">
                 <span className="dashboard-preview-card__eyebrow">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1411,19 +1515,23 @@ export default function App() {
                   </svg>
                   INDOOR AIR
                 </span>
-                <button type="button" className="dashboard-preview-card__room-select" onClick={() => handleAddDevice('sensor')}>
-                  {hasConnectedIndoorSensor ? `Device: ${sensorStatus?.selected_device_name || indoorTitle}` : 'Connect device'}
-                </button>
+                {hasConnectedIndoorSensor ? (
+                  <button type="button" className="dashboard-preview-card__room-select" onClick={() => handleAddDevice('sensor')}>
+                    Device: {sensorStatus?.selected_device_name || indoorTitle}
+                  </button>
+                ) : (
+                  <span className="dashboard-preview-card__waiting-pill" role="status">
+                    No device linked
+                  </span>
+                )}
               </div>
               <div className="dashboard-preview-card__content">
-                <div className="dashboard-preview-card__ring">
-                  <AqiRing value={indoorAqiValue} label={indoorAqiLabel} maxValue={6} />
-                </div>
-                <div className="dashboard-preview-card__copy">
-                  {hasConnectedIndoorSensor ? '\u00A0' : 'Connect your indoor device to start seeing room data.'}
-                </div>
                 {hasConnectedIndoorSensor ? (
                   <>
+                    <div className="dashboard-preview-card__ring">
+                      <AqiRing value={indoorAqiValue} label={indoorAqiLabel} maxValue={6} />
+                    </div>
+                    <div className="dashboard-preview-card__copy">{'\u00A0'}</div>
                     <div className="dashboard-preview-card__meta-row">
                       <span className="dashboard-preview-card__meta-chip">Battery: {indoorBattery}%</span>
                       <span className="dashboard-preview-card__meta-chip dashboard-preview-card__meta-chip--live">Connected</span>
@@ -1452,36 +1560,59 @@ export default function App() {
                     </div>
                   </>
                 ) : (
-                  <div className="dashboard-preview-card__connect-wrap">
-                    <button type="button" className="dashboard-preview-card__connect-btn" onClick={() => handleAddDevice('sensor')}>
-                      Connect Device
+                  <div className="dashboard-preview-card__indoor-empty">
+                    <div className="dashboard-preview-card__indoor-empty-visual" aria-hidden>
+                      <img
+                        className="dashboard-preview-card__indoor-empty-img"
+                        src={sensorEmptyArt}
+                        alt=""
+                        width={360}
+                        height={360}
+                        decoding="async"
+                      />
+                    </div>
+                    <div className="dashboard-preview-card__indoor-empty-text">
+                      <h3 className="dashboard-preview-card__indoor-empty-title">Room air, at a glance</h3>
+                      <p className="dashboard-preview-card__indoor-empty-desc">
+                        Link a Qingping monitor through AirIQ Home to track PM, CO₂, temperature, and humidity indoors.
+                      </p>
+                    </div>
+                    <button type="button" className="dashboard-preview-card__indoor-empty-cta" onClick={() => handleAddDevice('sensor')}>
+                      Pair indoor sensor
                     </button>
-                    <small>Use your current setup flow for Qingping/AirIQ Home pairing.</small>
                   </div>
                 )}
                 {sensorError && <p className="dashboard-preview-card__error">{sensorError}</p>}
               </div>
-              <div className="dashboard-preview-card__status">
-                <div className="dashboard-preview-card__status-copy">
-                  <span>{indoorStatusPrimary}</span>
-                  <span>{indoorStatusSecondary}</span>
+              {hasConnectedIndoorSensor ? (
+                <div className="dashboard-preview-card__status">
+                  <div className="dashboard-preview-card__status-copy">
+                    <span>{indoorStatusPrimary}</span>
+                    <span>{indoorStatusSecondary}</span>
+                  </div>
+                  <div className={`dashboard-preview-card__refresh-wrap${indoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
+                    <button
+                      type="button"
+                      className="dashboard-preview-card__refresh-btn"
+                      onClick={handleRefreshIndoor}
+                      disabled={!indoorCanRefresh}
+                    >
+                      {isRefreshingIndoor ? 'Checking...' : indoorRefreshButtonLabel}
+                    </button>
+                    {indoorOnCooldown && (
+                      <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
+                        {indoorRefreshTooltipMessage}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className={`dashboard-preview-card__refresh-wrap${indoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
-                  <button
-                    type="button"
-                    className="dashboard-preview-card__refresh-btn"
-                    onClick={handleRefreshIndoor}
-                    disabled={!indoorCanRefresh}
-                  >
-                    {isRefreshingIndoor ? 'Checking...' : indoorRefreshButtonLabel}
-                  </button>
-                  {indoorOnCooldown && (
-                    <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
-                      {indoorRefreshTooltipMessage}
-                    </span>
-                  )}
+              ) : (
+                <div className="dashboard-preview-card__status dashboard-preview-card__status--indoor-waiting">
+                  <span className="dashboard-preview-card__status-waiting-note">
+                    The same pairing flow you use for Qingping / AirIQ Home — secure and local to your account.
+                  </span>
                 </div>
-              </div>
+              )}
             </article>
           </div>
 

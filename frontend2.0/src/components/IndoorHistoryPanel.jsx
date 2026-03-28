@@ -454,7 +454,7 @@ export default function IndoorHistoryPanel({
     try {
       const result = await seedMockIndoorReadings(token, 2)
       setMockNotice(
-        `Stored ${result.inserted} hourly points (~2 months).${
+        `Stored ${result.inserted} mock points (~2 months).${
           result.deleted_previous_mock ? ` Replaced ${result.deleted_previous_mock} prior mock rows.` : ''
         }`,
       )
@@ -568,7 +568,7 @@ export default function IndoorHistoryPanel({
           <summary className="indoor-history-panel__mock-summary">Mock data</summary>
           <div className="indoor-history-panel__mock-body">
             <p className="indoor-history-panel__mock-hint">
-              Synthetic hourly readings for the last ~2 months are written to the database like real sensor data
+              Synthetic 15-minute readings for the last ~2 months are written to the database like real sensor data
               (marked with <code>source_type=mock_indoor</code>). Choose the <strong>60d</strong> range to see the full
               span.
             </p>

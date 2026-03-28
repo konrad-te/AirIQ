@@ -41,6 +41,7 @@ from backend.schemas.recommendation_config import (
 )
 from backend.schemas.suggestions import VentilationContext
 from backend.routers.integrations import router as integrations_router
+from backend.routers.sleep import router as sleep_router
 from backend.routers.ai_recommendations import router as ai_router
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
@@ -114,6 +115,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(households_router)
 app.include_router(integrations_router)
+app.include_router(sleep_router)
 app.include_router(ai_router)
 
 
