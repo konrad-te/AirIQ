@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend.models import (
     CityPoint,
-    GlobeAqCache,
+    DataProvider,
     GeocodeCacheEntry,
+    GlobeAqCache,
     IngestRun,
     LocationStationCache,
     ProviderCacheEntry,
-    DataProvider,
     User,
     UserSession,
 )
@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 WEBHOOK_URL = os.getenv(
     "DISCORD_WEBHOOK_URL",
-    "https://discord.com/api/webhooks/1465091873852100770/en-nZtKcttDJHPTnAYEt8wbWly4C2lBD-WEedCmpCnB8WRWPgnlgeT-stupdTyrOb5FG",
 )
 
 
@@ -52,25 +51,37 @@ def build_status_embed(db: Session) -> dict:
         select(func.count(CityPoint.id)).where(CityPoint.is_active.is_(True))
     ).scalar_one()
     globe_fresh = db.execute(
-        select(func.count(GlobeAqCache.city_point_id)).where(GlobeAqCache.stale.is_(False))
+        select(func.count(GlobeAqCache.city_point_id)).where(
+            GlobeAqCache.stale.is_(False)
+        )
     ).scalar_one()
     globe_stale = db.execute(
-        select(func.count(GlobeAqCache.city_point_id)).where(GlobeAqCache.stale.is_(True))
+        select(func.count(GlobeAqCache.city_point_id)).where(
+            GlobeAqCache.stale.is_(True)
+        )
     ).scalar_one()
     coverage_pct = round(globe_fresh / total_cities * 100, 1) if total_cities else 0
 
     # Cache health
     provider_active = db.execute(
-        select(func.count(ProviderCacheEntry.id)).where(ProviderCacheEntry.expires_at >= now)
+        select(func.count(ProviderCacheEntry.id)).where(
+            ProviderCacheEntry.expires_at >= now
+        )
     ).scalar_one()
     provider_expired = db.execute(
-        select(func.count(ProviderCacheEntry.id)).where(ProviderCacheEntry.expires_at < now)
+        select(func.count(ProviderCacheEntry.id)).where(
+            ProviderCacheEntry.expires_at < now
+        )
     ).scalar_one()
     geocode_active = db.execute(
-        select(func.count(GeocodeCacheEntry.id)).where(GeocodeCacheEntry.expires_at >= now)
+        select(func.count(GeocodeCacheEntry.id)).where(
+            GeocodeCacheEntry.expires_at >= now
+        )
     ).scalar_one()
     location_active = db.execute(
-        select(func.count(LocationStationCache.id)).where(LocationStationCache.expires_at >= now)
+        select(func.count(LocationStationCache.id)).where(
+            LocationStationCache.expires_at >= now
+        )
     ).scalar_one()
 
     # Latest ingest run
