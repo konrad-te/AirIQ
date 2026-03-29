@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import './LoginModal.css'
 
-export default function LoginModal({ isOpen, onClose }) {
+export default function LoginModal({ isOpen, onClose, onForgotPassword }) {
   const { login } = useAuth()
   const mouseDownOnOverlay = useRef(false)
   const [email, setEmail] = useState('')
@@ -104,6 +104,14 @@ export default function LoginModal({ isOpen, onClose }) {
             {isLoading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+
+        {onForgotPassword && (
+          <p className="login-modal-forgot">
+            <button type="button" className="login-modal-forgot-btn" onClick={() => { onClose(); onForgotPassword() }}>
+              Forgot your password?
+            </button>
+          </p>
+        )}
       </div>
     </div>,
     document.body

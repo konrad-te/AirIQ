@@ -6,10 +6,12 @@ from typing import Annotated
 from backend.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from backend.models import Household, HouseholdMember, SavedLocation, User, UserPreference, UserSession
+from backend.models import EmailToken, Household, HouseholdMember, SavedLocation, User, UserPreference, UserSession
 from backend.schemas.auth import (
     DeleteAccountSchema,
+    ForgotPasswordSchema,
     PasswordChangeSchema,
+    ResetPasswordSchema,
     SavedLocationCreateSchema,
     SavedLocationOutSchema,
     TokenSchema,
@@ -22,11 +24,14 @@ from backend.schemas.auth import (
 )
 from backend.security import (
     create_database_token,
+    create_email_token,
     get_current_token,
     get_current_user,
     hash_password,
+    verify_email_token,
     verify_password,
 )
+from backend.services.email_service import send_activation_email, send_password_reset_email
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -93,10 +98,13 @@ def register_user(
         existing.is_active = True
         existing.password_hash = hashed_password
         existing.deactivated_at = None
+        existing.email_verified = False
         if user.display_name:
             existing.display_name = user.display_name.strip()
+        raw_token = create_email_token(existing.id, "activation", db)
         db.commit()
         db.refresh(existing)
+        send_activation_email(existing.email, raw_token, existing.display_name)
         return serialize_registered_user(
             existing,
             reactivated=True,
@@ -146,8 +154,10 @@ def register_user(
             )
         )
 
+        raw_token = create_email_token(new_user.id, "activation", db)
         db.commit()
         db.refresh(new_user)
+        send_activation_email(new_user.email, raw_token, new_user.display_name)
         return serialize_registered_user(new_user)
 
     except IntegrityError:
@@ -439,6 +449,86 @@ def change_password(
     current_user.password_hash = hash_password(data.new_password)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── Email verification & Password reset ──────────────────────────────────────
+
+@router.post("/forgot-password")
+def forgot_password(
+    data: ForgotPasswordSchema,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Always returns 200 to prevent email enumeration."""
+    user = (
+        db.execute(select(User).where(User.email == data.email.strip().lower(), User.is_active.is_(True)))
+        .scalars()
+        .first()
+    )
+    if user:
+        raw_token = create_email_token(user.id, "password_reset", db)
+        db.commit()
+        send_password_reset_email(user.email, raw_token, user.display_name)
+    return {"detail": "If an account with that email exists, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+def reset_password(
+    data: ResetPasswordSchema,
+    db: Session = Depends(get_db),
+) -> dict:
+    tok = verify_email_token(data.token, "password_reset", db)
+    user = db.get(User, tok.user_id)
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account not found.")
+
+    user.password_hash = hash_password(data.new_password)
+
+    # Revoke all active sessions so the user must log in with the new password
+    now = datetime.now(UTC)
+    sessions = (
+        db.execute(
+            select(UserSession).where(
+                UserSession.user_id == user.id,
+                UserSession.revoked_at.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for s in sessions:
+        s.revoked_at = now
+
+    db.commit()
+    return {"detail": "Password has been reset. You can now log in with your new password."}
+
+
+@router.get("/activate")
+def activate_email(
+    token: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    tok = verify_email_token(token, "activation", db)
+    user = db.get(User, tok.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account not found.")
+
+    user.email_verified = True
+    db.commit()
+    return {"detail": "Email verified successfully."}
+
+
+@router.post("/resend-activation")
+def resend_activation(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if current_user.email_verified:
+        return {"detail": "Email is already verified."}
+
+    raw_token = create_email_token(current_user.id, "activation", db)
+    db.commit()
+    send_activation_email(current_user.email, raw_token, current_user.display_name)
+    return {"detail": "Verification email sent."}
 
 
 # ── Saved Locations ───────────────────────────────────────────────────────────
