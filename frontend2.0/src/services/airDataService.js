@@ -156,6 +156,65 @@ export async function getSleepHistory(token, range = '30d') {
   return response.json()
 }
 
+export async function getTrainingHistory(token, range = '90d') {
+  const response = await fetch(`${API_BASE_URL}/api/training/history?range=${encodeURIComponent(range)}`, {
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!response.ok) {
+    let detail = `Training data request failed with status ${response.status}`
+
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = payload.detail
+      }
+    } catch {
+      // Ignore JSON parse failures and keep the generic message.
+    }
+
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
+export async function importTrainingDataFiles(token, files) {
+  const formData = new FormData()
+  Array.from(files ?? []).forEach((file) => {
+    formData.append('files', file)
+  })
+
+  const response = await fetch(`${API_BASE_URL}/api/training/import`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    let detail = `Training import failed with status ${response.status}`
+
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail)
+      }
+    } catch {
+      // ignore
+    }
+
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
 export async function importSleepDataFiles(token, files) {
   const formData = new FormData()
   Array.from(files ?? []).forEach((file) => {

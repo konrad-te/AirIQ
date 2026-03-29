@@ -43,6 +43,7 @@ from backend.schemas.suggestions import VentilationContext
 from backend.routers.integrations import router as integrations_router
 from backend.routers.sleep import router as sleep_router
 from backend.routers.ai_recommendations import router as ai_router
+from backend.routers.training import router as training_router
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
@@ -76,7 +77,11 @@ from backend.main import (
     reverse_geocode_nominatim,
     suggest_addresses_nominatim,
 )
-from backend.routers.integrations import get_qingping_latest_reading
+from backend.routers.integrations import (
+    get_qingping_latest_reading,
+    get_qingping_sync_interval_minutes,
+    sync_all_qingping_integrations,
+)
 
 app = FastAPI(title="AirIQ API")
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -117,6 +122,7 @@ app.include_router(households_router)
 app.include_router(integrations_router)
 app.include_router(sleep_router)
 app.include_router(ai_router)
+app.include_router(training_router)
 
 
 def _to_iso(value: datetime | None) -> str | None:
@@ -412,6 +418,14 @@ def on_startup() -> None:
             max_instances=1,
             coalesce=True,
         )
+        scheduler.add_job(
+            _run_scheduled_qingping_sync,
+            trigger=IntervalTrigger(minutes=get_qingping_sync_interval_minutes()),
+            id="qingping_sync_interval",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         scheduler.start()
 
 
@@ -682,6 +696,14 @@ def _run_account_cleanup() -> None:
             logging.getLogger(__name__).info(
                 "Account cleanup: removed %d deactivated user(s)", removed
             )
+    finally:
+        db.close()
+
+
+def _run_scheduled_qingping_sync() -> None:
+    db = SessionLocal()
+    try:
+        sync_all_qingping_integrations(db)
     finally:
         db.close()
 

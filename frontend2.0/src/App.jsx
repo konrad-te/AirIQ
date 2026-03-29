@@ -16,6 +16,7 @@ import SuggestionsPanel from './components/SuggestionsPanel'
 import OutdoorDayAdvicePanel from './components/OutdoorDayAdvicePanel'
 import IndoorHistoryPanel from './components/IndoorHistoryPanel'
 import SleepHistoryPanel from './components/SleepHistoryPanel'
+import TrainingDataPanel from './components/TrainingDataPanel'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -24,7 +25,7 @@ import SettingsPage from './pages/SettingsPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
-import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, importSleepDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
+import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, getTrainingHistory, importSleepDataFiles, importTrainingDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
 import { addSavedLocation, getSavedLocations, previewAdminSuggestions, removeSavedLocation } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 
@@ -294,6 +295,14 @@ export default function App() {
   const [isLoadingSleepHistory, setIsLoadingSleepHistory] = useState(false)
   const [sleepHistoryError, setSleepHistoryError] = useState('')
   const [sleepHistoryRefreshNonce, setSleepHistoryRefreshNonce] = useState(0)
+  const [trainingPreview, setTrainingPreview] = useState(null)
+  const [isLoadingTrainingPreview, setIsLoadingTrainingPreview] = useState(false)
+  const [trainingPreviewError, setTrainingPreviewError] = useState('')
+  const [trainingPreviewRefreshNonce, setTrainingPreviewRefreshNonce] = useState(0)
+  const [trainingHistoryRange, setTrainingHistoryRange] = useState('90d')
+  const [isImportingTrainingData, setIsImportingTrainingData] = useState(false)
+  const [trainingImportNotice, setTrainingImportNotice] = useState('')
+  const [trainingImportError, setTrainingImportError] = useState('')
   const [isImportingSleepData, setIsImportingSleepData] = useState(false)
   const [sleepImportNotice, setSleepImportNotice] = useState('')
   const [sleepImportError, setSleepImportError] = useState('')
@@ -346,6 +355,11 @@ export default function App() {
   const handleOpenSleep = () => {
     window.history.pushState({}, '', '/sleep')
     setRoute('/sleep')
+  }
+
+  const handleOpenTraining = () => {
+    window.history.pushState({}, '', '/training')
+    setRoute('/training')
   }
 
   const handleOpenSubscription = () => {
@@ -761,6 +775,73 @@ export default function App() {
       cancelled = true
     }
   }, [token, route, sleepHistoryRange, sleepHistoryRefreshNonce])
+
+  useEffect(() => {
+    if (!token) {
+      setTrainingPreview(null)
+      setTrainingPreviewError('')
+      setIsLoadingTrainingPreview(false)
+      return undefined
+    }
+
+    if (route !== '/training') {
+      return undefined
+    }
+
+    let cancelled = false
+
+    const loadTrainingPreview = async () => {
+      try {
+        if (!cancelled) {
+          setIsLoadingTrainingPreview(true)
+          setTrainingPreviewError('')
+        }
+        const payload = await getTrainingHistory(token, trainingHistoryRange)
+        if (!cancelled) {
+          setTrainingPreview(payload)
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setTrainingPreview(null)
+          setTrainingPreviewError(loadError instanceof Error ? loadError.message : 'Failed to load training data.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTrainingPreview(false)
+        }
+      }
+    }
+
+    loadTrainingPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, route, trainingHistoryRange, trainingPreviewRefreshNonce])
+
+  const handleTrainingImport = async (files) => {
+    if (!token || !files?.length) return
+
+    setIsImportingTrainingData(true)
+    setTrainingImportError('')
+    setTrainingImportNotice('')
+
+    try {
+      const result = await importTrainingDataFiles(token, files)
+      const summary = [
+        result.imported ? `${result.imported} new` : null,
+        result.updated ? `${result.updated} updated` : null,
+        result.skipped ? `${result.skipped} skipped` : null,
+      ].filter(Boolean).join(', ')
+
+      setTrainingImportNotice(summary ? `Garmin activity import finished: ${summary}.` : 'Garmin activity import finished.')
+      setTrainingPreviewRefreshNonce((value) => value + 1)
+    } catch (importError) {
+      setTrainingImportError(importError instanceof Error ? importError.message : 'Failed to import training data.')
+    } finally {
+      setIsImportingTrainingData(false)
+    }
+  }
 
   const handleSleepImport = async (files) => {
     if (!token || !files?.length) return
@@ -1193,6 +1274,12 @@ export default function App() {
             Sleep Data
           </button>
           <button
+            className={`nav-link${route === '/training' ? ' nav-link--active' : ''}`}
+            onClick={handleOpenTraining}
+          >
+            Training Data
+          </button>
+          <button
             className={`nav-link${route === '/globe' ? ' nav-link--active' : ''}`}
             onClick={handleOpenGlobe}
           >
@@ -1317,6 +1404,25 @@ export default function App() {
             importBusy={isImportingSleepData}
             importNotice={sleepImportNotice}
             importError={sleepImportError}
+            locale="en-GB"
+            timeZone={POLISH_TIMEZONE}
+          />
+        </div>
+
+      </>) : route === '/training' ? (<>
+
+        <div className="dash-card">
+          <TrainingDataPanel
+            trainingData={trainingPreview}
+            isLoading={isLoadingTrainingPreview}
+            error={trainingPreviewError}
+            selectedRange={trainingHistoryRange}
+            onRangeChange={setTrainingHistoryRange}
+            onImport={handleTrainingImport}
+            importBusy={isImportingTrainingData}
+            importNotice={trainingImportNotice}
+            importError={trainingImportError}
+            onRefresh={() => setTrainingPreviewRefreshNonce((value) => value + 1)}
             locale="en-GB"
             timeZone={POLISH_TIMEZONE}
           />
