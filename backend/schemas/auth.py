@@ -19,6 +19,7 @@ class UserOutSchema(BaseModel):
     email: EmailStr
     display_name: str | None
     is_active: bool
+    email_verified: bool
     role: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -59,6 +60,15 @@ class PasswordChangeSchema(BaseModel):
 
 class DeleteAccountSchema(BaseModel):
     password: str
+
+
+class ForgotPasswordSchema(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordSchema(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class SavedLocationOutSchema(BaseModel):

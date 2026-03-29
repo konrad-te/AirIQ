@@ -1,0 +1,57 @@
+.activate-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #e8f0fe 0%, #f0f4f8 50%, #dce6f2 100%);
+  padding: 1rem;
+}
+
+.activate-page-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow:
+    0 32px 64px rgba(40, 95, 170, 0.18),
+    0 0 0 1px rgba(215, 228, 245, 0.9);
+  text-align: center;
+}
+
+.activate-page-icon {
+  margin-bottom: 1rem;
+}
+
+.activate-page-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 1rem;
+  border: 3px solid rgba(15, 140, 244, 0.15);
+  border-top-color: #0f8cf4;
+  border-radius: 50%;
+  animation: activate-spin 0.7s linear infinite;
+}
+
+@keyframes activate-spin {
+  to { transform: rotate(360deg); }
+}
+
+.activate-page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a3152;
+  margin: 0 0 0.4rem;
+}
+
+.activate-page-subtitle {
+  font-size: 0.9rem;
+  color: #4f6687;
+  margin: 0 0 1.5rem;
+}
+
+.activate-page-btn {
+  width: 100%;
+  padding-block: 0.7rem;
+  font-size: 0.95rem;
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import logoAiriq from '../assets/logo-airiq.svg'
 import landingBg from '../assets/landing2.png'
+import ForgotPasswordModal from '../components/ForgotPasswordModal'
 import LoginModal from '../components/LoginModal'
 import RegisterModal from '../components/RegisterModal'
 import './NewLandingPage.css'
@@ -8,6 +9,7 @@ import './NewLandingPage.css'
 export default function NewLandingPage({ onReactivated }) {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
+  const [isForgotOpen, setIsForgotOpen] = useState(false)
 
   return (
     <div className="new-landing-root" style={{ backgroundImage: `url(${landingBg})` }}>
@@ -35,8 +37,9 @@ export default function NewLandingPage({ onReactivated }) {
         </div>
       </section>
 
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onForgotPassword={() => setIsForgotOpen(true)} />
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onReactivated={onReactivated} />
+      <ForgotPasswordModal isOpen={isForgotOpen} onClose={() => setIsForgotOpen(false)} />
     </div>
   )
 }

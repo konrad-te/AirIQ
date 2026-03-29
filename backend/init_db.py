@@ -5,6 +5,7 @@ from sqlalchemy import inspect, text
 
 REQUIRED_TABLES = {
     "app_settings",
+    "email_tokens",
     "users",
     "user_sessions",
     "households",
