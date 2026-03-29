@@ -1,6 +1,7 @@
 from .base import Base
 from .app_setting import AppSetting
 from .city_point import CityPoint
+from .email_token import EmailToken
 from .saved_location import SavedLocation
 from .data_provider import DataProvider
 from .external_station import ExternalStation
@@ -23,6 +24,7 @@ __all__ = [
     "AppSetting",
     "CityPoint",
     "DataProvider",
+    "EmailToken",
     "ExternalStation",
     "Feedback",
     "GeocodeCacheEntry",

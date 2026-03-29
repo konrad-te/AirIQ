@@ -168,6 +168,47 @@ export async function removeSavedLocation(token, locationId) {
   })
 }
 
+// ── Email verification & Password reset ─────────────────────────────────────
+
+export async function forgotPassword(email) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Request failed.'))
+  return data
+}
+
+export async function resetPassword(token, newPassword) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Password reset failed.'))
+  return data
+}
+
+export async function activateEmail(token) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/activate?token=${encodeURIComponent(token)}`)
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Activation failed.'))
+  return data
+}
+
+export async function resendActivation(token) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/resend-activation`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to resend verification email.'))
+  return data
+}
+
 // ── Feedback ─────────────────────────────────────────────────────────────────
 
 export async function submitFeedback(token, { category, message }) {
