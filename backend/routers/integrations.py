@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import base64
+import logging
 import os
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -23,6 +25,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
+logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class QingpingSyncSummary:
+    attempted: int = 0
+    synced: int = 0
+    failed: int = 0
 
 
 def _qingping_token_url() -> str:
@@ -465,6 +475,94 @@ def _qingping_get(
         ) from exc
 
 
+def get_qingping_sync_interval_minutes() -> int:
+    raw = os.getenv("QINGPING_SYNC_INTERVAL_MINUTES", "5").strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 5
+
+
+def sync_qingping_integration(
+    db: Session,
+    integration: UserQingpingIntegration,
+) -> QingpingLatestReadingResponseSchema:
+    if not integration.selected_device_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Qingping device has been selected yet.",
+        )
+
+    integration = _refresh_qingping_token_if_needed(db=db, integration=integration)
+    synced_at = datetime.now(UTC)
+    try:
+        payload = _qingping_get(
+            integration=integration,
+            url=_qingping_device_data_url(integration.selected_device_id),
+        )
+    except HTTPException:
+        # Fallback for tenants/environments where direct device data endpoint is unavailable.
+        payload = _qingping_get(
+            integration=integration,
+            url=_qingping_devices_url(),
+        )
+
+    integration.last_synced_at = synced_at
+    db.commit()
+    db.refresh(integration)
+
+    normalized, raw_selected_payload = _normalize_reading_payload(
+        integration=integration,
+        payload=payload,
+    )
+    _persist_indoor_sensor_reading(
+        db=db,
+        user_id=integration.user_id,
+        integration=integration,
+        normalized=normalized,
+        raw_payload=raw_selected_payload,
+    )
+    normalized.synced_at = synced_at
+    return normalized
+
+
+def sync_all_qingping_integrations(db: Session) -> QingpingSyncSummary:
+    integrations = (
+        db.execute(
+            select(UserQingpingIntegration).where(
+                UserQingpingIntegration.status == "connected",
+                UserQingpingIntegration.selected_device_id.is_not(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    summary = QingpingSyncSummary()
+    for integration in integrations:
+        summary.attempted += 1
+        try:
+            sync_qingping_integration(db=db, integration=integration)
+            summary.synced += 1
+        except HTTPException as exc:
+            summary.failed += 1
+            logger.warning(
+                "Qingping background sync failed for user_id=%s integration_id=%s: %s",
+                integration.user_id,
+                integration.id,
+                exc.detail,
+            )
+        except Exception:
+            summary.failed += 1
+            logger.exception(
+                "Unexpected Qingping background sync failure for user_id=%s integration_id=%s",
+                integration.user_id,
+                integration.id,
+            )
+
+    return summary
+
+
 @router.post(
     "/qingping/connect",
     response_model=QingpingConnectResponseSchema,
@@ -678,38 +776,4 @@ def get_qingping_latest_reading(
     db: Session = Depends(get_db),
 ) -> QingpingLatestReadingResponseSchema:
     integration = _get_integration_or_404(db=db, user_id=current_user.id)
-
-    if not integration.selected_device_id:
-        raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
-
-    integration = _refresh_qingping_token_if_needed(db=db, integration=integration)
-    synced_at = datetime.now(UTC)
-    try:
-        payload = _qingping_get(
-            integration=integration,
-            url=_qingping_device_data_url(integration.selected_device_id),
-        )
-    except HTTPException:
-        # Fallback for tenants/environments where direct device data endpoint is unavailable.
-        payload = _qingping_get(
-            integration=integration,
-            url=_qingping_devices_url(),
-        )
-
-    integration.last_synced_at = synced_at
-    db.commit()
-    db.refresh(integration)
-
-    normalized, raw_selected_payload = _normalize_reading_payload(
-        integration=integration,
-        payload=payload,
-    )
-    _persist_indoor_sensor_reading(
-        db=db,
-        user_id=current_user.id,
-        integration=integration,
-        normalized=normalized,
-        raw_payload=raw_selected_payload,
-    )
-    normalized.synced_at = synced_at
-    return normalized
+    return sync_qingping_integration(db=db, integration=integration)

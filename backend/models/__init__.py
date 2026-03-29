@@ -6,6 +6,7 @@ from .data_provider import DataProvider
 from .external_station import ExternalStation
 from .feedback import Feedback
 from .garmin_sleep_summary import GarminSleepSummary
+from .garmin_training_activity import GarminTrainingActivity
 from .geocode_cache_entry import GeocodeCacheEntry
 from .globe_aq_cache import GlobeAqCache
 from .household import Household
@@ -27,6 +28,7 @@ __all__ = [
     "ExternalStation",
     "Feedback",
     "GarminSleepSummary",
+    "GarminTrainingActivity",
     "GeocodeCacheEntry",
     "GlobeAqCache",
     "Household",
