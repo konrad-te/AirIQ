@@ -10,7 +10,7 @@ from typing import Annotated
 from backend.database import get_db
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from backend.models import User, UserSession
+from backend.models import EmailToken, User, UserSession
 from pwdlib import PasswordHash
 from sqlalchemy import TextClause, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -202,3 +202,65 @@ def authenticate_user(
 ) -> None:
     verify_token_access(token_str=token, db=db)
     return
+
+
+# ── Email tokens (activation / password reset) ──────────────────────────────
+
+EMAIL_TOKEN_TTL = {
+    "activation": timedelta(hours=24),
+    "password_reset": timedelta(hours=1),
+}
+
+
+def create_email_token(
+    user_id: int,
+    token_type: str,
+    db: Session,
+) -> str:
+    raw = token_urlsafe()
+    now = datetime.now(UTC)
+    ttl = EMAIL_TOKEN_TTL[token_type]
+
+    tok = EmailToken(
+        id=reserve_next_id(db, "email_tokens"),
+        user_id=user_id,
+        token_hash=hash_session_token(raw),
+        token_type=token_type,
+        created_at=now,
+        expires_at=now + ttl,
+    )
+    db.add(tok)
+    db.flush()
+    return raw
+
+
+def verify_email_token(
+    raw_token: str,
+    expected_type: str,
+    db: Session,
+) -> EmailToken:
+    hashed = hash_session_token(raw_token)
+    now = datetime.now(UTC)
+
+    tok = (
+        db.execute(
+            select(EmailToken).where(
+                EmailToken.token_hash == hashed,
+                EmailToken.token_type == expected_type,
+                EmailToken.expires_at >= now,
+                EmailToken.used_at.is_(None),
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    if not tok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token is invalid or has expired.",
+        )
+
+    tok.used_at = now
+    db.flush()
+    return tok

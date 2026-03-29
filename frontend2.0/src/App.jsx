@@ -8,6 +8,8 @@ import moonIcon from './assets/moon.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
 import DeviceSetupModal from './components/DeviceSetupModal'
+import EmailVerificationBanner from './components/EmailVerificationBanner'
+import ForgotPasswordModal from './components/ForgotPasswordModal'
 import LoginModal from './components/LoginModal'
 import RegisterModal from './components/RegisterModal'
 import PM25Chart from './components/PM25Chart'
@@ -19,7 +21,9 @@ import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
+import ActivatePage from './pages/ActivatePage'
 import FarewellPage from './pages/FarewellPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
@@ -263,6 +267,7 @@ export default function App() {
   const { user, token, logout, isLoadingAuth } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
+  const [isForgotOpen, setIsForgotOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isDeviceSetupOpen, setIsDeviceSetupOpen] = useState(false)
   const [route, setRoute] = useState(() => window.location.pathname)
@@ -767,6 +772,14 @@ export default function App() {
     return <FarewellPage onClose={handleBackToLanding} />
   }
 
+  if (route === '/reset-password') {
+    return <ResetPasswordPage onGoToLogin={() => { window.history.pushState({}, '', '/'); setRoute('/') }} />
+  }
+
+  if (route === '/activate') {
+    return <ActivatePage onGoHome={() => { window.history.pushState({}, '', '/'); setRoute('/') }} />
+  }
+
   if (!user) {
     return <NewLandingPage onReactivated={() => { window.history.pushState({}, '', '/welcome-back'); setRoute('/welcome-back') }} />
   }
@@ -1170,6 +1183,8 @@ export default function App() {
       </header>
 
       <main className="dashboard">
+
+      <EmailVerificationBanner />
 
       {route === '/trends' ? (<>
 
@@ -1625,8 +1640,9 @@ export default function App() {
           }
         }}
       />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onForgotPassword={() => setIsForgotOpen(true)} />
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
+      <ForgotPasswordModal isOpen={isForgotOpen} onClose={() => setIsForgotOpen(false)} />
 
       {/* ── Location search / manage popup ── */}
       {isLocationSearchOpen && (
