@@ -1,24 +1,24 @@
+import { useTranslation } from 'react-i18next'
 import './SuggestionsPanel.css'
 
 /** @typedef {import('../types/suggestions').Suggestion} Suggestion */
 
-const PRIORITY_LABELS = {
-  high: 'High priority',
-  medium: 'Medium priority',
-  low: 'Low priority',
+const PRIORITY_LABEL_KEYS = {
+  high: 'suggestion.highPriority',
+  medium: 'suggestion.mediumPriority',
+  low: 'suggestion.lowPriority',
 }
 
-const SEVERITY_LABELS = {
-  good: 'Good',
-  ok: 'Okay',
-  caution: 'Caution',
-  warning: 'Warning',
-  danger: 'Danger',
+const SEVERITY_LABEL_KEYS = {
+  good: 'suggestion.good',
+  ok: 'suggestion.okay',
+  caution: 'suggestion.caution',
+  warning: 'suggestion.warning',
+  danger: 'suggestion.danger',
 }
 
 function formatFamilyLabel(family) {
   if (!family) return null
-
   return family
     .split(/[_-]/)
     .filter(Boolean)
@@ -30,6 +30,7 @@ function formatFamilyLabel(family) {
  * @param {{ suggestion: Suggestion }} props
  */
 export default function SuggestionCard({ suggestion }) {
+  const { t } = useTranslation()
   const {
     category,
     family,
@@ -43,7 +44,9 @@ export default function SuggestionCard({ suggestion }) {
   } = suggestion
 
   const familyLabel = formatFamilyLabel(category || family)
-  const severityLabel = severity ? SEVERITY_LABELS[severity] || formatFamilyLabel(severity) : null
+  const severityLabel = severity
+    ? (SEVERITY_LABEL_KEYS[severity] ? t(SEVERITY_LABEL_KEYS[severity]) : formatFamilyLabel(severity))
+    : null
   const recommendationText = recommendation || primaryReason
   const impactText = typeof impact === 'string' && impact.trim() ? impact : null
 
@@ -52,39 +55,31 @@ export default function SuggestionCard({ suggestion }) {
       <div className="suggestion-card__topline">
         <span className={`suggestion-card__badge suggestion-card__badge--${priority}`}>
           <span className="suggestion-card__badge-dot" aria-hidden />
-          {PRIORITY_LABELS[priority] || 'Suggestion'}
+          {t(PRIORITY_LABEL_KEYS[priority]) || t('suggestion.default')}
         </span>
         {familyLabel && <span className="suggestion-card__family">{familyLabel}</span>}
       </div>
-
       <div className="suggestion-card__body">
         {(severityLabel || shortLabel || reasons.length > 0) && (
           <div className="suggestion-card__tags">
             {severityLabel && (
-              <span className={`suggestion-card__tag suggestion-card__tag--severity suggestion-card__tag--severity-${severity}`}>
-                {severityLabel}
-              </span>
+              <span className={`suggestion-card__tag suggestion-card__tag--severity suggestion-card__tag--severity-${severity}`}>{severityLabel}</span>
             )}
             {shortLabel && (
-              <span className="suggestion-card__tag suggestion-card__tag--label">
-                {shortLabel}
-              </span>
+              <span className="suggestion-card__tag suggestion-card__tag--label">{shortLabel}</span>
             )}
             {reasons.map((reason, index) => (
-              <span key={`${suggestion.id}-tag-${index}`} className="suggestion-card__tag">
-                {reason}
-              </span>
+              <span key={`${suggestion.id}-tag-${index}`} className="suggestion-card__tag">{reason}</span>
             ))}
           </div>
         )}
         <div className="suggestion-card__section">
-          <span className="suggestion-card__section-label">Recommendation</span>
+          <span className="suggestion-card__section-label">{t('suggestion.recommendation')}</span>
           <p className="suggestion-card__section-copy">{recommendationText}</p>
         </div>
-
         {impactText && (
           <div className="suggestion-card__section suggestion-card__section--impact">
-            <span className="suggestion-card__section-label">Why it matters</span>
+            <span className="suggestion-card__section-label">{t('suggestion.whyItMatters')}</span>
             <p className="suggestion-card__section-copy">{impactText}</p>
           </div>
         )}

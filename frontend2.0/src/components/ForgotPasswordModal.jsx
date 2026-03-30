@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { forgotPassword } from '../services/authService'
 import './ForgotPasswordModal.css'
 
 export default function ForgotPasswordModal({ isOpen, onClose }) {
+  const { t } = useTranslation()
   const mouseDownOnOverlay = useRef(false)
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -25,7 +27,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
   const handleSubmit = async (event) => {
     event.preventDefault()
     if (!email.trim()) {
-      setError('Please enter your email address.')
+      setError(t('forgot.errorRequired'))
       return
     }
 
@@ -36,7 +38,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
       await forgotPassword(email.trim())
       setSent(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      setError(err instanceof Error ? err.message : t('forgot.errorGeneric'))
     } finally {
       setIsLoading(false)
     }
@@ -68,22 +70,20 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
                 <polyline points="22,4 12,13 2,4" />
               </svg>
             </div>
-            <h2 id="forgot-modal-title" className="login-modal-title">Check your email</h2>
-            <p className="login-modal-subtitle">
-              If an account exists for <strong>{email}</strong>, we've sent a password reset link. Check your inbox and spam folder.
-            </p>
+            <h2 id="forgot-modal-title" className="login-modal-title">{t('forgot.sentTitle')}</h2>
+            <p className="login-modal-subtitle" dangerouslySetInnerHTML={{ __html: t('forgot.sentMessage', { email }) }} />
             <button type="button" className="btn btn-primary login-modal-submit" onClick={onClose}>
-              Done
+              {t('forgot.done')}
             </button>
           </>
         ) : (
           <>
-            <h2 id="forgot-modal-title" className="login-modal-title">Reset your password</h2>
-            <p className="login-modal-subtitle">Enter your email and we'll send you a reset link.</p>
+            <h2 id="forgot-modal-title" className="login-modal-title">{t('forgot.title')}</h2>
+            <p className="login-modal-subtitle">{t('forgot.subtitle')}</p>
 
             <form className="login-modal-form" onSubmit={handleSubmit} noValidate>
               <div className="login-modal-field">
-                <label htmlFor="forgot-email" className="login-modal-label">Email</label>
+                <label htmlFor="forgot-email" className="login-modal-label">{t('forgot.email')}</label>
                 <input
                   id="forgot-email"
                   type="email"
@@ -103,7 +103,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
               )}
 
               <button type="submit" className="btn btn-primary login-modal-submit" disabled={isLoading}>
-                {isLoading ? 'Sending...' : 'Send reset link'}
+                {isLoading ? t('forgot.submitting') : t('forgot.submit')}
               </button>
             </form>
           </>

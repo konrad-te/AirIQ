@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import './LoginModal.css'
 
 export default function LoginModal({ isOpen, onClose, onForgotPassword }) {
   const { login } = useAuth()
+  const { t } = useTranslation()
   const mouseDownOnOverlay = useRef(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -25,7 +27,7 @@ export default function LoginModal({ isOpen, onClose, onForgotPassword }) {
   const handleSubmit = async (event) => {
     event.preventDefault()
     if (!email.trim() || !password) {
-      setError('Please enter your email and password.')
+      setError(t('login.errorRequired'))
       return
     }
 
@@ -38,7 +40,7 @@ export default function LoginModal({ isOpen, onClose, onForgotPassword }) {
       setPassword('')
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
+      setError(err instanceof Error ? err.message : t('login.errorGeneric'))
     } finally {
       setIsLoading(false)
     }
@@ -62,12 +64,12 @@ export default function LoginModal({ isOpen, onClose, onForgotPassword }) {
           </svg>
         </button>
 
-        <h2 id="login-modal-title" className="login-modal-title">Sign in to AirIQ</h2>
-        <p className="login-modal-subtitle">Track air quality at your locations</p>
+        <h2 id="login-modal-title" className="login-modal-title">{t('login.title')}</h2>
+        <p className="login-modal-subtitle">{t('login.subtitle')}</p>
 
         <form className="login-modal-form" onSubmit={handleSubmit} noValidate>
           <div className="login-modal-field">
-            <label htmlFor="login-email" className="login-modal-label">Email</label>
+            <label htmlFor="login-email" className="login-modal-label">{t('login.email')}</label>
             <input
               id="login-email"
               type="email"
@@ -82,7 +84,7 @@ export default function LoginModal({ isOpen, onClose, onForgotPassword }) {
           </div>
 
           <div className="login-modal-field">
-            <label htmlFor="login-password" className="login-modal-label">Password</label>
+            <label htmlFor="login-password" className="login-modal-label">{t('login.password')}</label>
             <input
               id="login-password"
               type="password"
@@ -101,14 +103,14 @@ export default function LoginModal({ isOpen, onClose, onForgotPassword }) {
           )}
 
           <button type="submit" className="btn btn-primary login-modal-submit" disabled={isLoading}>
-            {isLoading ? 'Signing in...' : 'Sign in'}
+            {isLoading ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
 
         {onForgotPassword && (
           <p className="login-modal-forgot">
             <button type="button" className="login-modal-forgot-btn" onClick={() => { onClose(); onForgotPassword() }}>
-              Forgot your password?
+              {t('login.forgotPassword')}
             </button>
           </p>
         )}

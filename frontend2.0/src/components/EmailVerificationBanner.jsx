@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { resendActivation } from '../services/authService'
 import './EmailVerificationBanner.css'
 
 export default function EmailVerificationBanner() {
+  const { t } = useTranslation()
   const { user, token } = useAuth()
   const [dismissed, setDismissed] = useState(false)
   const [sending, setSending] = useState(false)
@@ -31,8 +33,8 @@ export default function EmailVerificationBanner() {
       </svg>
       <span className="email-verify-banner-text">
         {sent
-          ? 'Verification email sent — check your inbox.'
-          : 'Please verify your email address.'}
+          ? t('emailBanner.verified')
+          : t('emailBanner.unverified')}
       </span>
       {!sent && (
         <button
@@ -41,7 +43,7 @@ export default function EmailVerificationBanner() {
           onClick={handleResend}
           disabled={sending}
         >
-          {sending ? 'Sending...' : 'Resend'}
+          {sending ? t('emailBanner.sending') : t('emailBanner.resend')}
         </button>
       )}
       <button type="button" className="email-verify-banner-close" onClick={() => setDismissed(true)} aria-label="Dismiss">

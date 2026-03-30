@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { registerUser } from '../services/authService'
 import './RegisterModal.css'
 
 export default function RegisterModal({ isOpen, onClose, onReactivated }) {
   const { login } = useAuth()
+  const { t } = useTranslation()
   const mouseDownOnOverlay = useRef(false)
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
@@ -29,19 +31,19 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
     event.preventDefault()
 
     if (!email.trim() || !password) {
-      setError('Email and password are required.')
+      setError(t('register.errorEmailRequired'))
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Please enter a valid email address.')
+      setError(t('register.errorEmailInvalid'))
       return
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match.')
+      setError(t('register.errorPasswordMismatch'))
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+      setError(t('register.errorPasswordLength'))
       return
     }
 
@@ -60,7 +62,7 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
         onReactivated()
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.')
+      setError(err instanceof Error ? err.message : t('register.errorGeneric'))
     } finally {
       setIsLoading(false)
     }
@@ -84,13 +86,13 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
           </svg>
         </button>
 
-        <h2 id="register-modal-title" className="register-modal-title">Create your account</h2>
-        <p className="register-modal-subtitle">Start tracking air quality at your locations</p>
+        <h2 id="register-modal-title" className="register-modal-title">{t('register.title')}</h2>
+        <p className="register-modal-subtitle">{t('register.subtitle')}</p>
 
         <form className="register-modal-form" onSubmit={handleSubmit} noValidate>
           <div className="register-modal-field">
             <label htmlFor="register-display-name" className="register-modal-label">
-              Display name <span className="register-modal-optional">(optional)</span>
+              {t('register.displayName')} <span className="register-modal-optional">{t('register.optional')}</span>
             </label>
             <input
               id="register-display-name"
@@ -98,7 +100,7 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
               className="register-modal-input"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
-              placeholder="Your name"
+              placeholder={t('register.placeholderName')}
               autoComplete="name"
               disabled={isLoading}
               maxLength={120}
@@ -106,14 +108,14 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
           </div>
 
           <div className="register-modal-field">
-            <label htmlFor="register-email" className="register-modal-label">Email</label>
+            <label htmlFor="register-email" className="register-modal-label">{t('register.email')}</label>
             <input
               id="register-email"
               type="email"
               className="register-modal-input"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
+              placeholder={t('register.placeholderEmail')}
               autoComplete="email"
               disabled={isLoading}
               required
@@ -121,14 +123,14 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
           </div>
 
           <div className="register-modal-field">
-            <label htmlFor="register-password" className="register-modal-label">Password</label>
+            <label htmlFor="register-password" className="register-modal-label">{t('register.password')}</label>
             <input
               id="register-password"
               type="password"
               className="register-modal-input"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="At least 8 characters"
+              placeholder={t('register.placeholderPassword')}
               autoComplete="new-password"
               disabled={isLoading}
               required
@@ -136,14 +138,14 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
           </div>
 
           <div className="register-modal-field">
-            <label htmlFor="register-confirm-password" className="register-modal-label">Confirm password</label>
+            <label htmlFor="register-confirm-password" className="register-modal-label">{t('register.confirmPassword')}</label>
             <input
               id="register-confirm-password"
               type="password"
               className="register-modal-input"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="Repeat your password"
+              placeholder={t('register.placeholderConfirm')}
               autoComplete="new-password"
               disabled={isLoading}
               required
@@ -155,7 +157,7 @@ export default function RegisterModal({ isOpen, onClose, onReactivated }) {
           )}
 
           <button type="submit" className="btn btn-primary register-modal-submit" disabled={isLoading}>
-            {isLoading ? 'Creating account...' : 'Create account'}
+            {isLoading ? t('register.submitting') : t('register.submit')}
           </button>
         </form>
       </div>

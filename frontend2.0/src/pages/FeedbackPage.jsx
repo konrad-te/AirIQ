@@ -1,19 +1,21 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import logoAiriq from '../assets/logo-airiq.svg'
 import { useAuth } from '../context/AuthContext'
 import { submitFeedback } from '../services/authService'
 import './FeedbackPage.css'
 
 const CATEGORIES = [
-  { id: 'bug', label: 'Bug report' },
-  { id: 'feature', label: 'Feature request' },
-  { id: 'data', label: 'Air quality data' },
-  { id: 'performance', label: 'Performance' },
-  { id: 'general', label: 'General feedback' },
-  { id: 'other', label: 'Other' },
+  { id: 'bug', labelKey: 'feedback.catBug' },
+  { id: 'feature', labelKey: 'feedback.catFeature' },
+  { id: 'data', labelKey: 'feedback.catData' },
+  { id: 'performance', labelKey: 'feedback.catPerformance' },
+  { id: 'general', labelKey: 'feedback.catGeneral' },
+  { id: 'other', labelKey: 'feedback.catOther' },
 ]
 
 export default function FeedbackPage({ onBack }) {
+  const { t } = useTranslation()
   const { user, token } = useAuth()
   const [category, setCategory] = useState('')
   const [message, setMessage] = useState('')
@@ -23,49 +25,35 @@ export default function FeedbackPage({ onBack }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!category) {
-      setError('Please select a category.')
-      return
-    }
-    if (!message.trim()) {
-      setError('Please write a message before submitting.')
-      return
-    }
-
+    if (!category) { setError(t('feedback.selectCategory')); return }
+    if (!message.trim()) { setError(t('feedback.writeMessage')); return }
     setError('')
     setIsSubmitting(true)
-
     try {
       await submitFeedback(token, { category, message: message.trim() })
       setSubmitted(true)
     } catch {
-      setError('Something went wrong. Please try again.')
+      setError(t('feedback.genericError'))
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleReset = () => {
-    setCategory('')
-    setMessage('')
-    setSubmitted(false)
-    setError('')
-  }
+  const handleReset = () => { setCategory(''); setMessage(''); setSubmitted(false); setError('') }
 
   return (
     <div className="feedback-page">
       <header className="feedback-header">
         <div className="feedback-header-inner">
-          <button type="button" className="feedback-back" onClick={onBack} aria-label="Back to dashboard">
+          <button type="button" className="feedback-back" onClick={onBack} aria-label={t('feedback.backToDashboard')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Back
+            {t('common.back')}
           </button>
           <img src={logoAiriq} alt="AirIQ" className="feedback-logo" />
         </div>
       </header>
-
       <main className="feedback-main">
         <div className="feedback-card">
           {submitted ? (
@@ -76,70 +64,38 @@ export default function FeedbackPage({ onBack }) {
                   <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
               </div>
-              <h2 className="feedback-confirmation-title">Thanks for your feedback!</h2>
-              <p className="feedback-confirmation-body">
-                We've received your message and will look into it. Your input helps us improve AirIQ for everyone.
-              </p>
+              <h2 className="feedback-confirmation-title">{t('feedback.thankYou')}</h2>
+              <p className="feedback-confirmation-body">{t('feedback.receivedMessage')}</p>
               <div className="feedback-confirmation-actions">
-                <button type="button" className="btn btn-primary feedback-btn" onClick={handleReset}>
-                  Send more feedback
-                </button>
-                <button type="button" className="btn btn-ghost feedback-btn" onClick={onBack}>
-                  Back to dashboard
-                </button>
+                <button type="button" className="btn btn-primary feedback-btn" onClick={handleReset}>{t('feedback.sendMore')}</button>
+                <button type="button" className="btn btn-ghost feedback-btn" onClick={onBack}>{t('feedback.backToDashboard')}</button>
               </div>
             </div>
           ) : (
             <>
               <div className="feedback-card-header">
-                <h1 className="feedback-title">Send feedback</h1>
-                <p className="feedback-subtitle">
-                  Let us know what's on your mind{user?.display_name ? `, ${user.display_name}` : ''}.
-                  We read every submission.
-                </p>
+                <h1 className="feedback-title">{t('feedback.title')}</h1>
+                <p className="feedback-subtitle">{t('feedback.subtitle', { name: user?.display_name ? `, ${user.display_name}` : '' })}</p>
               </div>
-
               <form className="feedback-form" onSubmit={handleSubmit} noValidate>
                 <div className="feedback-field">
-                  <label className="feedback-label">Category</label>
+                  <label className="feedback-label">{t('feedback.category')}</label>
                   <div className="feedback-category-grid">
                     {CATEGORIES.map((cat) => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        className={`feedback-category-pill ${category === cat.id ? 'feedback-category-pill--active' : ''}`}
-                        onClick={() => { setCategory(cat.id); setError('') }}
-                      >
-                        {cat.label}
+                      <button key={cat.id} type="button" className={`feedback-category-pill ${category === cat.id ? 'feedback-category-pill--active' : ''}`} onClick={() => { setCategory(cat.id); setError('') }}>
+                        {t(cat.labelKey)}
                       </button>
                     ))}
                   </div>
                 </div>
-
                 <div className="feedback-field">
-                  <label htmlFor="feedback-message" className="feedback-label">Message</label>
-                  <textarea
-                    id="feedback-message"
-                    className="feedback-textarea"
-                    value={message}
-                    onChange={(e) => { setMessage(e.target.value); setError('') }}
-                    placeholder="Describe your feedback in detail..."
-                    rows={6}
-                    disabled={isSubmitting}
-                  />
+                  <label htmlFor="feedback-message" className="feedback-label">{t('feedback.message')}</label>
+                  <textarea id="feedback-message" className="feedback-textarea" value={message} onChange={(e) => { setMessage(e.target.value); setError('') }} placeholder={t('feedback.placeholder')} rows={6} disabled={isSubmitting} />
                   <span className="feedback-char-count">{message.length} / 2000</span>
                 </div>
-
-                {error && (
-                  <p className="feedback-error" role="alert">{error}</p>
-                )}
-
-                <button
-                  type="submit"
-                  className="btn btn-primary feedback-submit"
-                  disabled={isSubmitting || message.length > 2000}
-                >
-                  {isSubmitting ? 'Sending...' : 'Send feedback'}
+                {error && <p className="feedback-error" role="alert">{error}</p>}
+                <button type="submit" className="btn btn-primary feedback-submit" disabled={isSubmitting || message.length > 2000}>
+                  {isSubmitting ? t('feedback.sending') : t('feedback.submit')}
                 </button>
               </form>
             </>

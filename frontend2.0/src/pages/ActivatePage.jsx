@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { activateEmail } from '../services/authService'
 import './ActivatePage.css'
 
 export default function ActivatePage({ onGoHome }) {
+  const { t } = useTranslation()
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState('')
 
@@ -10,20 +12,20 @@ export default function ActivatePage({ onGoHome }) {
     const token = new URLSearchParams(window.location.search).get('token')
     if (!token) {
       setStatus('error')
-      setMessage('Invalid or missing activation link.')
+      setMessage(t('activate.invalidLink'))
       return
     }
 
     activateEmail(token)
       .then((data) => {
         setStatus('success')
-        setMessage(data.detail || 'Email verified successfully.')
+        setMessage(data.detail || t('activate.successDefault'))
       })
       .catch((err) => {
         setStatus('error')
-        setMessage(err instanceof Error ? err.message : 'Activation failed.')
+        setMessage(err instanceof Error ? err.message : t('activate.failedDefault'))
       })
-  }, [])
+  }, [t])
 
   return (
     <div className="activate-page">
@@ -31,10 +33,9 @@ export default function ActivatePage({ onGoHome }) {
         {status === 'loading' && (
           <>
             <div className="activate-page-spinner" />
-            <h1 className="activate-page-title">Verifying your email...</h1>
+            <h1 className="activate-page-title">{t('activate.verifying')}</h1>
           </>
         )}
-
         {status === 'success' && (
           <>
             <div className="activate-page-icon">
@@ -43,14 +44,13 @@ export default function ActivatePage({ onGoHome }) {
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
             </div>
-            <h1 className="activate-page-title">Email verified</h1>
+            <h1 className="activate-page-title">{t('activate.successTitle')}</h1>
             <p className="activate-page-subtitle">{message}</p>
             <button type="button" className="btn btn-primary activate-page-btn" onClick={onGoHome}>
-              Continue to AirIQ
+              {t('activate.continueBtn')}
             </button>
           </>
         )}
-
         {status === 'error' && (
           <>
             <div className="activate-page-icon">
@@ -60,10 +60,10 @@ export default function ActivatePage({ onGoHome }) {
                 <line x1="9" y1="9" x2="15" y2="15" />
               </svg>
             </div>
-            <h1 className="activate-page-title">Verification failed</h1>
+            <h1 className="activate-page-title">{t('activate.failedTitle')}</h1>
             <p className="activate-page-subtitle">{message}</p>
             <button type="button" className="btn btn-primary activate-page-btn" onClick={onGoHome}>
-              Go to AirIQ
+              {t('activate.goToAirIQ')}
             </button>
           </>
         )}
