@@ -18,7 +18,11 @@ from backend.schemas.integrations import (
     QingpingStatusResponseSchema,
 )
 from backend.security import get_current_user
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -469,7 +473,9 @@ def _qingping_get(
     "/qingping/connect",
     response_model=QingpingConnectResponseSchema,
 )
+@limiter.limit("5/minute")
 def connect_qingping(
+    request: Request,
     body: QingpingConnectSchema,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -571,7 +577,9 @@ def get_qingping_status(
     "/qingping/devices",
     response_model=QingpingDevicesResponseSchema,
 )
+@limiter.limit("20/minute")
 def list_qingping_devices(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> QingpingDevicesResponseSchema:
@@ -673,7 +681,9 @@ def select_qingping_device(
     "/qingping/latest-reading",
     response_model=QingpingLatestReadingResponseSchema,
 )
+@limiter.limit("30/minute")
 def get_qingping_latest_reading(
+    request: Request = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> QingpingLatestReadingResponseSchema:

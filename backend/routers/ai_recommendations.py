@@ -11,7 +11,11 @@ except ModuleNotFoundError:
     genai_types = None
 from backend.security import get_current_user
 from backend.models import User
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -99,7 +103,9 @@ Each string must start with an action verb (e.g. "Open windows...", "Avoid...", 
 
 
 @router.post("/recommendation", response_model=RecommendationResponse)
+@limiter.limit("10/minute")
 def get_ai_recommendation(
+    request: Request,
     body: RecommendationRequest,
     current_user: User = Depends(get_current_user),
 ) -> RecommendationResponse:
