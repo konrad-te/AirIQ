@@ -6,6 +6,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+assignment.txt
+assessment.txt
 
 # Node / frontend
 node_modules
