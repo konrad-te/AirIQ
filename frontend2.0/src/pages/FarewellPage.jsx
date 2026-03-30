@@ -1,7 +1,9 @@
+import { useTranslation } from 'react-i18next'
 import logoAiriq from '../assets/logo-airiq.svg'
 import './FarewellPage.css'
 
 export default function FarewellPage({ onClose }) {
+  const { t } = useTranslation()
   return (
     <div className="farewell-page">
       <header className="farewell-header">
@@ -9,7 +11,6 @@ export default function FarewellPage({ onClose }) {
           <img src={logoAiriq} alt="AirIQ" className="farewell-logo" />
         </div>
       </header>
-
       <main className="farewell-main">
         <div className="farewell-card">
           <div className="farewell-icon">
@@ -18,16 +19,10 @@ export default function FarewellPage({ onClose }) {
               <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
           </div>
-          <h1 className="farewell-title">Thank you for using AirIQ</h1>
-          <p className="farewell-body">
-            Your account has been deactivated. Your data will be kept for 30 days
-            in case you change your mind — simply create a new account with the same
-            email to pick up where you left off.
-          </p>
-          <p className="farewell-body">We hope to see you again!</p>
-          <button type="button" className="btn btn-primary farewell-btn" onClick={onClose}>
-            Close
-          </button>
+          <h1 className="farewell-title">{t('farewell.title')}</h1>
+          <p className="farewell-body">{t('farewell.body')}</p>
+          <p className="farewell-body">{t('farewell.body2')}</p>
+          <button type="button" className="btn btn-primary farewell-btn" onClick={onClose}>{t('farewell.close')}</button>
         </div>
       </main>
     </div>

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { getIntlLocale, getIntlTimezone } from './i18n'
 import heroBackground from './assets/123.png'
 import dashboardBackground from './assets/222.png'
 import logoAiriq from './assets/logo-airiq.svg'
@@ -27,7 +29,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
-import { addSavedLocation, getSavedLocations, previewAdminSuggestions, removeSavedLocation } from './services/authService'
+import { addSavedLocation, getPreferences, getSavedLocations, previewAdminSuggestions, removeSavedLocation } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 
 const mockData = {
@@ -101,17 +103,17 @@ function formatRainAmount(value) {
   return `${Math.round(value)} mm`
 }
 
-function formatClockTimestamp(value) {
-  if (!value) return 'No reading yet'
+function formatClockTimestamp(value, locale, timeZone) {
+  if (!value) return null
 
   const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return 'No reading yet'
+  if (Number.isNaN(date.getTime())) return null
 
-  return new Intl.DateTimeFormat(POLISH_LOCALE, {
+  return new Intl.DateTimeFormat(locale || 'en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: POLISH_TIMEZONE,
+    timeZone: timeZone || 'UTC',
     timeZoneName: 'short',
   }).format(date)
 }
@@ -126,8 +128,8 @@ function formatElapsedMinutes(totalMinutes) {
 }
 
 function formatLocationFallbackLabel(lat, lon) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 'Detected current location'
-  return `Detected near ${lat.toFixed(3)}, ${lon.toFixed(3)}`
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  return `${lat.toFixed(3)}, ${lon.toFixed(3)}`
 }
 
 function parseOptionalNumberInput(value) {
@@ -144,42 +146,42 @@ function getWeatherVisual(weatherCode, isDay, windSpeedMs) {
   const hasStrongWind = typeof windSpeedMs === 'number' && windSpeedMs >= 12
 
   if ([95, 96, 99].includes(weatherCode)) {
-    return { kind: 'storm', label: 'Storm' }
+    return { kind: 'storm', labelKey: 'weather.storm' }
   }
 
   if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) {
-    return { kind: 'snow', label: 'Snow' }
+    return { kind: 'snow', labelKey: 'weather.snow' }
   }
 
   if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(weatherCode)) {
-    return { kind: 'rain', label: 'Rain' }
+    return { kind: 'rain', labelKey: 'weather.rain' }
   }
 
   if (hasStrongWind) {
-    return { kind: 'wind', label: 'Windy' }
+    return { kind: 'wind', labelKey: 'weather.windy' }
   }
 
   if ([45, 48].includes(weatherCode)) {
-    return { kind: 'fog', label: 'Foggy' }
+    return { kind: 'fog', labelKey: 'weather.foggy' }
   }
 
   if (weatherCode === 0) {
-    return { kind: isNight ? 'night-clear' : 'sunny', label: isNight ? 'Clear night' : 'Sunny' }
+    return { kind: isNight ? 'night-clear' : 'sunny', labelKey: isNight ? 'weather.clearNight' : 'weather.sunny' }
   }
 
   if ([1, 2].includes(weatherCode)) {
-    return { kind: isNight ? 'night-cloudy' : 'partly-cloudy', label: 'Partly cloudy' }
+    return { kind: isNight ? 'night-cloudy' : 'partly-cloudy', labelKey: 'weather.partlyCloudy' }
   }
 
   if (weatherCode === 3) {
-    return { kind: 'cloudy', label: 'Cloudy' }
+    return { kind: 'cloudy', labelKey: 'weather.cloudy' }
   }
 
   if (typeof weatherCode === 'number') {
-    return { kind: isNight ? 'night-clear' : 'sunny', label: 'Current conditions' }
+    return { kind: isNight ? 'night-clear' : 'sunny', labelKey: 'weather.currentConditions' }
   }
 
-  return { kind: 'sunny', label: '--' }
+  return { kind: 'sunny', labelKey: '' }
 }
 
 function WeatherIcon({ kind }) {
@@ -264,6 +266,9 @@ function WeatherIcon({ kind }) {
 
 
 export default function App() {
+  const { t, i18n } = useTranslation()
+  const intlLocale = getIntlLocale(i18n.language)
+  const intlTimezone = getIntlTimezone()
   const { user, token, logout, isLoadingAuth } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
@@ -420,7 +425,7 @@ export default function App() {
       await loadAirQualityForCoords(pendingLocation.lat, pendingLocation.lon, pendingLocation.label)
       closeLocationModal()
     } catch {
-      setLiveAirError('Failed to load air data for this location.')
+      setLiveAirError(t('location.failedToLoadAirData'))
     } finally {
       setIsLoadingAirData(false)
     }
@@ -429,7 +434,7 @@ export default function App() {
   const loadAirQualityForCoords = async (lat, lon, locationLabel) => {
     setIsLoadingAirData(true)
     setLiveAirError('')
-    setStatusMessage(`Fetching air quality for ${locationLabel.toLowerCase()}...`)
+    setStatusMessage(t('location.fetchingAirQuality', { location: locationLabel.toLowerCase() }))
 
     try {
       const data = await getAirQualityData(lat, lon)
@@ -439,7 +444,7 @@ export default function App() {
       setStatusMessage('')
       upsertSavedLocation(locationLabel, lat, lon)
     } catch (error) {
-      setLiveAirError(error instanceof Error ? error.message : 'Failed to load live air data.')
+      setLiveAirError(error instanceof Error ? error.message : t('location.failedToLoadLiveData'))
     } finally {
       setIsLoadingAirData(false)
     }
@@ -449,7 +454,7 @@ export default function App() {
     event.preventDefault()
     const trimmedAddress = searchAddress.trim()
     if (!trimmedAddress) {
-      setLiveAirError('Enter an address first.')
+      setLiveAirError(t('location.enterAddressFirst'))
       return
     }
 
@@ -464,7 +469,7 @@ export default function App() {
       setPendingLocation({ label: geocoded.address, lat: geocoded.lat, lon: geocoded.lon })
       setLocModalView('confirm')
     } catch (error) {
-      setLiveAirError(error instanceof Error ? error.message : 'Failed to look up that address.')
+      setLiveAirError(error instanceof Error ? error.message : t('location.failedToLookUp'))
     } finally {
       setIsLoadingAirData(false)
     }
@@ -472,19 +477,21 @@ export default function App() {
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
-      setLiveAirError('Geolocation is not supported in this browser.')
+      setLiveAirError(t('location.geolocationUnsupported'))
       return
     }
 
     setIsLoadingAirData(true)
     setLiveAirError('')
-    setCurrentLocationLabel('Detecting your location...')
-    setStatusMessage('Getting your location...')
+    setCurrentLocationLabel(t('location.detecting'))
+    setStatusMessage(t('location.gettingLocation'))
 
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
-        const fallbackLabel = formatLocationFallbackLabel(coords.latitude, coords.longitude)
-        let resolvedLabel = fallbackLabel
+        const coordsLabel = formatLocationFallbackLabel(coords.latitude, coords.longitude)
+        let resolvedLabel = coordsLabel
+          ? t('location.detectedNear', { coords: coordsLabel })
+          : t('location.detectedCurrent')
 
         try {
           const reverse = await reverseGeocodeCoordinates(coords.latitude, coords.longitude)
@@ -505,7 +512,7 @@ export default function App() {
       },
       (error) => {
         setIsLoadingAirData(false)
-        setLiveAirError(error.message || 'Unable to get your location.')
+        setLiveAirError(error.message || t('location.unableToGetLocation'))
         setStatusMessage('')
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
@@ -522,6 +529,18 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!token) {
+      i18n.changeLanguage('en')
+      return
+    }
+    getPreferences(token)
+      .then((prefs) => {
+        i18n.changeLanguage(prefs.language_code || 'en')
+      })
+      .catch(() => {})
+  }, [token, i18n])
+
+  useEffect(() => {
     if (!user) {
       return undefined
     }
@@ -532,7 +551,7 @@ export default function App() {
       try {
         setIsLoadingAirData(true)
         setLiveAirError('')
-        setStatusMessage(`Looking up ${mockData.location}...`)
+        setStatusMessage(t('location.lookingUp', { location: mockData.location }))
         const geocoded = await geocodeAddress(mockData.location)
         const data = await getAirQualityData(geocoded.lat, geocoded.lon)
         if (!cancelled) {
@@ -544,7 +563,7 @@ export default function App() {
         }
       } catch (error) {
         if (!cancelled) {
-          setLiveAirError(error instanceof Error ? error.message : 'Failed to load live air data.')
+          setLiveAirError(error instanceof Error ? error.message : t('location.failedToLoadLiveData'))
         }
       } finally {
         if (!cancelled) {
@@ -644,7 +663,7 @@ export default function App() {
         }
       } catch (error) {
         if (!cancelled) {
-          setSensorError(error instanceof Error ? error.message : 'Failed to load indoor sensor data.')
+          setSensorError(error instanceof Error ? error.message : t('indoor.failedToLoadSensor'))
         }
       }
     }
@@ -685,7 +704,7 @@ export default function App() {
       } catch (error) {
         if (!cancelled) {
           setIndoorHistory(null)
-          setIndoorHistoryError(error instanceof Error ? error.message : 'Failed to load indoor history.')
+          setIndoorHistoryError(error instanceof Error ? error.message : t('indoor.failedToLoadHistory'))
         }
       } finally {
         if (!cancelled) {
@@ -736,7 +755,7 @@ export default function App() {
       } catch (error) {
         if (!cancelled) {
           setDashboardSuggestions([])
-          setDashboardSuggestionsError(error instanceof Error ? error.message : 'Failed to refresh suggestions.')
+          setDashboardSuggestionsError(error instanceof Error ? error.message : t('suggestions.failedToRefresh'))
         }
       } finally {
         if (!cancelled) {
@@ -809,9 +828,9 @@ export default function App() {
   if (route === '/subscription') {
     return (
       <div className="placeholder-page">
-        <button className="btn btn-ghost" onClick={handleBackToLanding}>← Back</button>
-        <h1>My Plan</h1>
-        <p>Coming soon.</p>
+        <button className="btn btn-ghost" onClick={handleBackToLanding}>← {t('nav.back')}</button>
+        <h1>{t('nav.myPlan')}</h1>
+        <p>{t('common.comingSoon')}</p>
       </div>
     )
   }
@@ -890,7 +909,7 @@ export default function App() {
 
     const hasAnyValue = Object.values(payload).some((value) => value != null)
     if (!hasAnyValue) {
-      setDashboardAdminError('Enter at least one test value to preview the dashboard.')
+      setDashboardAdminError(t('dashboard.adminAtLeastOneValue'))
       return
     }
 
@@ -935,7 +954,7 @@ export default function App() {
       const result = await getAiRecommendation(outdoorPayload, indoorPayload, token)
       setAiRecs(result)
     } catch (err) {
-      setAiRecsError(err instanceof Error ? err.message : 'Failed to generate AI recommendations.')
+      setAiRecsError(err instanceof Error ? err.message : t('dashboard.aiError'))
     } finally {
       setAiRecsLoading(false)
     }
@@ -945,30 +964,30 @@ export default function App() {
   const heroPm10 = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
   const heroLocation = currentLocationLabel
   const heroAqiValue = liveAirData?.aqi?.value ?? 0
-  const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? 'Loading' : 'No data')
+  const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? t('common.loading') : t('dashboard.noData'))
   const sourceProvider = liveAirData?.source?.provider
   const sourceMethod = liveAirData?.source?.method
   const isDashboardAdminPreviewActive = Boolean(user?.role === 'admin' && dashboardAdminOverride)
   const sourceProviderLabel = (() => {
-    if (isDashboardAdminPreviewActive) return 'Admin override'
+    if (isDashboardAdminPreviewActive) return t('source.adminOverride')
     if (sourceProvider === 'airly') return 'Airly'
     if (sourceProvider === 'openaq') return 'OpenAQ'
     if (sourceProvider === 'open-meteo') return 'Open-Meteo'
-    if (sourceProvider === 'none') return 'Unavailable'
-    return sourceProvider || 'Unknown'
+    if (sourceProvider === 'none') return t('source.unavailable')
+    return sourceProvider || t('source.unknown')
   })()
   const sourceMethodLabel = sourceMethod === 'point'
-    ? 'Interpolated point'
+    ? t('source.interpolatedPoint')
     : sourceMethod === 'nearest_station'
-      ? 'Nearest station'
+      ? t('source.nearestStation')
       : sourceMethod === 'model'
-        ? 'Model'
+        ? t('source.model')
         : null
   const sourceBadgeLabel = isDashboardAdminPreviewActive
-    ? 'Source: Admin override (Preview)'
+    ? t('source.adminPreview')
     : sourceMethodLabel
-    ? `Source: ${sourceProviderLabel} (${sourceMethodLabel})`
-    : `Source: ${sourceProviderLabel}`
+    ? t('source.label', { provider: sourceProviderLabel, method: sourceMethodLabel })
+    : t('source.labelSimple', { provider: sourceProviderLabel })
   const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
   const sourceDistanceKm = liveAirData?.source?.distance_km
   const sourceTooltipMessage = (() => {
@@ -989,7 +1008,7 @@ export default function App() {
     if (sourceProvider === 'open-meteo' && sourceMethod === 'model') {
       return 'Model estimate means values are forecast/model-based for your area, not measured by a local sensor at your point. Confidence: Lower than nearby station measurements.'
     }
-    return liveSourceMessage || 'Live outdoor air quality based on selected location.'
+    return liveSourceMessage || t('source.liveOutdoor')
   })()
   const weatherCurrent = liveAirData?.current
   const weatherTemperature = dashboardAdminOverride?.outdoor_temperature_c != null
@@ -1013,20 +1032,20 @@ export default function App() {
     weatherCurrent?.is_day,
     weatherCurrent?.wind_speed_ms,
   )
-  const weatherCondition = weatherVisual.label
+  const weatherCondition = weatherVisual.labelKey ? t(weatherVisual.labelKey) : '--'
   const outdoorUpdatedAtRaw = liveAirData?.cache?.created_at
     || liveAirData?.measurement_window?.to
     || liveAirData?.measurement_window?.from
   const outdoorUpdatedDate = outdoorUpdatedAtRaw ? new Date(outdoorUpdatedAtRaw) : null
   const outdoorUpdatedLabel = outdoorUpdatedDate && !Number.isNaN(outdoorUpdatedDate.getTime())
-    ? new Intl.DateTimeFormat(POLISH_LOCALE, {
+    ? new Intl.DateTimeFormat(intlLocale, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
-      timeZone: POLISH_TIMEZONE,
+      timeZone: intlTimezone,
       timeZoneName: 'short',
     }).format(outdoorUpdatedDate)
-    : 'No data timestamp'
+    : t('noDataTimestamp')
   const outdoorCooldownRemainingMs = Math.max(0, outdoorRefreshCooldownUntil - nowTs)
   const outdoorOnCooldown = outdoorCooldownRemainingMs > 0
   const outdoorCanRefresh = Boolean(currentCoords) && !isLoadingAirData && outdoorCooldownRemainingMs === 0
@@ -1055,21 +1074,21 @@ export default function App() {
       setSensorReading(latest)
       setSensorError('')
     } catch (error) {
-      setSensorError(error instanceof Error ? error.message : 'Failed to load indoor sensor data.')
+      setSensorError(error instanceof Error ? error.message : t('indoor.failedToLoadSensor'))
     } finally {
       setIsRefreshingIndoor(false)
     }
   }
   const hasConnectedIndoorSensor = Boolean(sensorStatus?.is_connected && sensorStatus?.selected_device_id)
   const indoorMeasurementAt = sensorReading?.updated_at ? new Date(sensorReading.updated_at) : null
-  const indoorMeasurementLabel = formatClockTimestamp(indoorMeasurementAt)
+  const indoorMeasurementLabel = formatClockTimestamp(indoorMeasurementAt, intlLocale, intlTimezone) || t('noReading')
   const indoorExpectedNextUpdateAt = indoorMeasurementAt
     ? new Date(indoorMeasurementAt.getTime() + INDOOR_UPDATE_ESTIMATE_MS)
     : null
   const indoorExpectedNextRefreshTs = indoorExpectedNextUpdateAt?.getTime() ?? 0
   const indoorAqiValue = hasConnectedIndoorSensor ? 2 : 0
-  const indoorAqiLabel = hasConnectedIndoorSensor ? 'Good' : 'Setup needed'
-  const indoorTitle = sensorStatus?.selected_device_name || 'Living Room'
+  const indoorAqiLabel = hasConnectedIndoorSensor ? t('dashboard.good') : t('dashboard.setupNeeded')
+  const indoorTitle = sensorStatus?.selected_device_name || t('dashboard.livingRoom')
   const indoorPm25 = dashboardAdminOverride?.indoor_pm25 ?? sensorReading?.pm2_5_ug_m3 ?? '--'
   const indoorPm10 = dashboardAdminOverride?.indoor_pm10 ?? sensorReading?.pm10_ug_m3 ?? '--'
   const indoorCo2 = dashboardAdminOverride?.indoor_co2_ppm ?? sensorReading?.co2_ppm ?? '--'
@@ -1081,21 +1100,21 @@ export default function App() {
   const indoorOnCooldown = indoorCooldownRemainingMs > 0
   const indoorCanRefresh = hasConnectedIndoorSensor && Boolean(token) && !isRefreshingIndoor && indoorCooldownRemainingMs === 0
   const indoorRefreshButtonLabel = !hasConnectedIndoorSensor
-    ? 'No sensor'
+    ? t('dashboard.noSensor')
     : indoorOnCooldown
-      ? `Check again in ${formatElapsedMinutes(indoorCooldownRemainingMs / 60000)}`
-      : 'Check for update'
+      ? t('dashboard.checkAgainIn', { time: formatElapsedMinutes(indoorCooldownRemainingMs / 60000) })
+      : t('dashboard.checkForUpdate')
   const indoorRefreshTooltipMessage = indoorExpectedNextUpdateAt && indoorOnCooldown
-    ? `Next sensor update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
-    : 'AirIQ will check for a newer sensor reading.'
+    ? t('dashboard.nextUpdateExpected', { time: formatClockTimestamp(indoorExpectedNextUpdateAt, intlLocale, intlTimezone) || '' })
+    : t('dashboard.checkForNewerReading')
   const indoorStatusPrimary = hasConnectedIndoorSensor
-    ? `Latest sensor reading: ${indoorMeasurementLabel}`
-    : 'No indoor sensor connected yet.'
+    ? t('dashboard.latestSensorReading', { time: indoorMeasurementLabel })
+    : t('dashboard.noIndoorSensor')
   const indoorStatusSecondary = hasConnectedIndoorSensor
     ? (indoorExpectedNextUpdateAt && indoorOnCooldown
-      ? `Next update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
-      : 'A newer sensor update may be available now.')
-    : 'Connect a sensor to start seeing room data.'
+      ? t('dashboard.nextUpdateExpected', { time: formatClockTimestamp(indoorExpectedNextUpdateAt, intlLocale, intlTimezone) || '' })
+      : t('dashboard.newerUpdateAvailable'))
+    : t('dashboard.connectSensorPrompt')
 
   const activeBackground = route === '/' ? dashboardBackground : heroBackground
 
@@ -1114,40 +1133,40 @@ export default function App() {
             className={`nav-link${route === '/' ? ' nav-link--active' : ''}`}
             onClick={handleBackToLanding}
           >
-            Dashboard
+            {t('nav.dashboard')}
           </button>
           <button
             className={`nav-link${route === '/indoor' ? ' nav-link--active' : ''}`}
             onClick={handleOpenIndoor}
           >
-            Sensor History
+            {t('nav.sensorHistory')}
           </button>
           <button
             className={`nav-link${route === '/globe' ? ' nav-link--active' : ''}`}
             onClick={handleOpenGlobe}
           >
-            Global Air Quality
+            {t('nav.globalAirQuality')}
           </button>
           <button
             className={`nav-link${route === '/subscription' ? ' nav-link--active' : ''}`}
             onClick={handleOpenSubscription}
           >
-            My Plan
+            {t('nav.myPlan')}
           </button>
           <button
             className={`nav-link${route === '/feedback' ? ' nav-link--active' : ''}`}
             onClick={handleOpenFeedback}
           >
-            Feedback
+            {t('nav.feedback')}
           </button>
         </nav>
         <div className="nav-actions">
           {user ? (
             <>
               {user.role === 'admin' && (
-                <button className="btn btn-ghost" onClick={handleOpenAdmin}>Admin</button>
+                <button className="btn btn-ghost" onClick={handleOpenAdmin}>{t('nav.admin')}</button>
               )}
-              <button className="nav-bell" aria-label="Notifications">
+              <button className="nav-bell" aria-label={t('nav.notifications')}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                   <path d="M13.73 21a2 2 0 0 1-3.46 0" />
@@ -1165,9 +1184,9 @@ export default function App() {
                   <>
                     <div className="user-menu-backdrop" onClick={() => setIsUserMenuOpen(false)} />
                     <div className="user-menu-dropdown">
-                      <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>Settings</button>
+                      <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>{t('nav.settings')}</button>
                       <div className="user-menu-divider" />
-                      <button className="user-menu-item user-menu-item--logout" onClick={() => { setIsUserMenuOpen(false); logout() }}>Log out</button>
+                      <button className="user-menu-item user-menu-item--logout" onClick={() => { setIsUserMenuOpen(false); logout() }}>{t('nav.logout')}</button>
                     </div>
                   </>
                 )}
@@ -1175,8 +1194,8 @@ export default function App() {
             </>
           ) : (
             <>
-              <button className="btn btn-ghost" onClick={() => setIsLoginOpen(true)}>Log in</button>
-              <button className="btn btn-primary" onClick={() => setIsRegisterOpen(true)}>Get started</button>
+              <button className="btn btn-ghost" onClick={() => setIsLoginOpen(true)}>{t('nav.login')}</button>
+              <button className="btn btn-primary" onClick={() => setIsRegisterOpen(true)}>{t('nav.getStarted')}</button>
             </>
           )}
         </div>
@@ -1190,7 +1209,7 @@ export default function App() {
 
         {/* ══ Trends page ══ */}
         <div className="dash-page-header">
-          <h2 className="dash-page-title">Air Quality Trends</h2>
+          <h2 className="dash-page-title">{t('dashboard.airQualityTrends')}</h2>
           <p className="dash-page-sub">{heroLocation}</p>
         </div>
         <div className="dash-chart-row">
@@ -1198,7 +1217,7 @@ export default function App() {
             history={liveAirData?.history}
             forecast={liveAirData?.forecast}
             currentValue={heroPm25}
-            currentLabel="Now"
+            currentLabel={t('now')}
             unit={mockData.pm25Unit}
             measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
             sourceProvider={sourceProvider}
@@ -1220,16 +1239,16 @@ export default function App() {
               onRangeChange={setIndoorHistoryRange}
               onRefresh={() => setIndoorHistoryRefreshNonce((n) => n + 1)}
               token={token}
-              locale="en-GB"
-              timeZone={POLISH_TIMEZONE}
+              locale={intlLocale}
+              timeZone={intlTimezone}
             />
           ) : (
             <div className="indoor-history-empty">
-              <h3>No sensor history yet</h3>
-              <p>Connect and sync a Qingping sensor first, then AirIQ will start building your indoor timeline here automatically.</p>
+              <h3>{t('indoor.noHistoryTitle')}</h3>
+              <p>{t('indoor.noHistoryDesc')}</p>
               {sensorError ? <p className="indoor-history-empty__error">{sensorError}</p> : null}
               <button type="button" className="btn btn-primary indoor-history-empty__action" onClick={() => handleAddDevice('sensor')}>
-                Connect sensor
+                {t('indoor.connectSensor')}
               </button>
             </div>
           )}
@@ -1242,7 +1261,7 @@ export default function App() {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
               </svg>
-              Locations
+              {t('dashboard.locations')}
               {savedLocations.length > 0 && (
                 <span className="dashboard-locations-btn__count">{savedLocations.length}</span>
               )}
@@ -1253,22 +1272,22 @@ export default function App() {
             <div className={`dashboard-admin-override${isDashboardAdminPreviewActive ? ' dashboard-admin-override--active' : ''}`}>
               <div className="dashboard-admin-override__header">
                 <div>
-                  <p className="dashboard-admin-override__eyebrow">Admin Tools</p>
-                  <h3>Dashboard suggestion preview</h3>
+                  <p className="dashboard-admin-override__eyebrow">{t('dashboard.adminTools')}</p>
+                  <h3>{t('dashboard.adminSuggestionPreview')}</h3>
                 </div>
                 <button
                   type="button"
                   className="dashboard-admin-override__toggle"
                   onClick={() => setIsDashboardAdminToolsOpen((prev) => !prev)}
                 >
-                  {isDashboardAdminToolsOpen ? 'Hide' : 'Show'} tester
+                  {isDashboardAdminToolsOpen ? t('dashboard.adminHideTester') : t('dashboard.adminShowTester')}
                 </button>
               </div>
               <p className="dashboard-admin-override__copy">
-                Override only the values you want to test. Any field left blank will keep the current live dashboard value.
+                {t('dashboard.adminOverrideDesc')}
               </p>
               {isDashboardAdminPreviewActive && (
-                <p className="dashboard-admin-override__status">Preview mode is active. Live dashboard data is unchanged underneath.</p>
+                <p className="dashboard-admin-override__status">{t('dashboard.adminPreviewActive')}</p>
               )}
               {isDashboardAdminToolsOpen && (
                 <>
@@ -1320,13 +1339,13 @@ export default function App() {
                   </div>
                   <div className="dashboard-admin-override__actions">
                     <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleFillDashboardAdminFromLive}>
-                      Fill current values
+                      {t('dashboard.adminFillCurrent')}
                     </button>
                     <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleApplyDashboardAdminOverride}>
-                      Apply preview
+                      {t('dashboard.adminApplyPreview')}
                     </button>
                     <button type="button" className="dashboard-admin-override__btn" onClick={handleClearDashboardAdminOverride}>
-                      Clear preview
+                      {t('dashboard.adminClearPreview')}
                     </button>
                   </div>
                   {dashboardAdminError && <p className="dashboard-admin-override__error">{dashboardAdminError}</p>}
@@ -1342,7 +1361,7 @@ export default function App() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d="M19 18H7a4 4 0 1 1 .6-7.96A5.5 5.5 0 0 1 18 11.5h1a3.5 3.5 0 1 1 0 7Z" />
                   </svg>
-                  OUTDOOR AIR
+                  {t('dashboard.outdoorAir')}
                 </span>
                 <span className="dashboard-preview-card__pill dashboard-preview-card__pill--tooltip">
                   {sourceBadgeLabel}
@@ -1356,49 +1375,49 @@ export default function App() {
                   <AqiRing value={heroAqiValue} label={heroAqiLabel} maxValue={6} />
                 </div>
                 <div className="dashboard-preview-card__copy">
-                  Live outdoor air quality.
+                  {t('dashboard.liveOutdoorAir')}
                 </div>
                 <div className="dashboard-preview-card__meta-row dashboard-preview-card__meta-row--placeholder" aria-hidden>
-                  <span className="dashboard-preview-card__meta-chip">Battery: --</span>
-                  <span className="dashboard-preview-card__meta-chip">Live sync</span>
+                  <span className="dashboard-preview-card__meta-chip">{t('dashboard.batteryPlaceholder')}</span>
+                  <span className="dashboard-preview-card__meta-chip">{t('dashboard.liveSync')}</span>
                 </div>
-                <div className="dashboard-preview-card__metrics-grid dashboard-preview-card__metrics-grid--outdoor">
+                  <div className="dashboard-preview-card__metrics-grid dashboard-preview-card__metrics-grid--outdoor">
                   <div className="dashboard-preview-card__metric-tile">
-                    <strong>PM2.5</strong>
+                    <strong>{t('metrics.pm25')}</strong>
                     <span>{heroPm25} µg/m³</span>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
-                    <strong>PM10</strong>
+                    <strong>{t('metrics.pm10')}</strong>
                     <span>{heroPm10} µg/m³</span>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
-                    <strong>Temp</strong>
+                    <strong>{t('metrics.temp')}</strong>
                     <span>{weatherTemperature}</span>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
-                    <strong>Wind</strong>
+                    <strong>{t('metrics.wind')}</strong>
                     <span>{weatherWind}</span>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
                     <div className="dashboard-preview-card__split-metric">
                       <div className="dashboard-preview-card__split-metric-item dashboard-preview-card__split-metric-item--stack">
-                        <small>Humidity</small>
+                        <small>{t('metrics.humidity')}</small>
                         <span>{weatherHumidity}</span>
                       </div>
                       <div className="dashboard-preview-card__split-metric-item dashboard-preview-card__split-metric-item--stack dashboard-preview-card__split-metric-item--align-end">
-                        <small>Rain</small>
+                        <small>{t('metrics.rain')}</small>
                         <span>{weatherRain}</span>
                       </div>
                     </div>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
-                    <strong>UV Index</strong>
+                    <strong>{t('metrics.uvIndex')}</strong>
                     <span>{weatherUv}</span>
                   </div>
                 </div>
               </div>
               <div className="dashboard-preview-card__status">
-                <span>Updated: {outdoorUpdatedLabel}</span>
+                <span>{t('dashboard.updated', { time: outdoorUpdatedLabel })}</span>
                 <div className={`dashboard-preview-card__refresh-wrap${outdoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
                   <button
                     type="button"
@@ -1406,11 +1425,11 @@ export default function App() {
                     onClick={handleRefreshOutdoor}
                     disabled={!outdoorCanRefresh}
                   >
-                    {isLoadingAirData ? 'Refreshing...' : 'Refresh'}
+                    {isLoadingAirData ? t('dashboard.refreshing') : t('dashboard.refresh')}
                   </button>
                   {outdoorOnCooldown && (
                     <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
-                      You can refresh every 5 minutes only.
+                      {t('dashboard.refreshCooldown')}
                     </span>
                   )}
                 </div>
@@ -1424,10 +1443,10 @@ export default function App() {
                     <path d="m3 10 9-7 9 7" />
                     <path d="M5 9.8V21h14V9.8" />
                   </svg>
-                  INDOOR AIR
+                  {t('dashboard.indoorAir')}
                 </span>
                 <button type="button" className="dashboard-preview-card__room-select" onClick={() => handleAddDevice('sensor')}>
-                  {hasConnectedIndoorSensor ? `Device: ${sensorStatus?.selected_device_name || indoorTitle}` : 'Connect device'}
+                  {hasConnectedIndoorSensor ? t('dashboard.device', { name: sensorStatus?.selected_device_name || indoorTitle }) : t('dashboard.connectDeviceBtn')}
                 </button>
               </div>
               <div className="dashboard-preview-card__content">
@@ -1435,33 +1454,33 @@ export default function App() {
                   <AqiRing value={indoorAqiValue} label={indoorAqiLabel} maxValue={6} />
                 </div>
                 <div className="dashboard-preview-card__copy">
-                  {hasConnectedIndoorSensor ? '\u00A0' : 'Connect your indoor device to start seeing room data.'}
+                  {hasConnectedIndoorSensor ? '\u00A0' : t('dashboard.connectIndoorPrompt')}
                 </div>
                 {hasConnectedIndoorSensor ? (
                   <>
                     <div className="dashboard-preview-card__meta-row">
-                      <span className="dashboard-preview-card__meta-chip">Battery: {indoorBattery}%</span>
-                      <span className="dashboard-preview-card__meta-chip dashboard-preview-card__meta-chip--live">Connected</span>
+                      <span className="dashboard-preview-card__meta-chip">{t('dashboard.battery', { value: indoorBattery })}</span>
+                      <span className="dashboard-preview-card__meta-chip dashboard-preview-card__meta-chip--live">{t('dashboard.connected')}</span>
                     </div>
                     <div className="dashboard-preview-card__metrics-grid">
                       <div className="dashboard-preview-card__metric-tile">
-                        <strong>PM2.5</strong>
+                        <strong>{t('metrics.pm25')}</strong>
                         <span>{indoorPm25} µg/m³</span>
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
-                        <strong>PM10</strong>
+                        <strong>{t('metrics.pm10')}</strong>
                         <span>{indoorPm10} µg/m³</span>
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
-                        <strong>CO2</strong>
+                        <strong>{t('metrics.co2')}</strong>
                         <span>{indoorCo2} ppm</span>
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
-                        <strong>Temp</strong>
+                        <strong>{t('metrics.temp')}</strong>
                         <span>{indoorTemp}°C</span>
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
-                        <strong>Humidity</strong>
+                        <strong>{t('metrics.humidity')}</strong>
                         <span>{indoorHumidity}%</span>
                       </div>
                     </div>
@@ -1469,9 +1488,9 @@ export default function App() {
                 ) : (
                   <div className="dashboard-preview-card__connect-wrap">
                     <button type="button" className="dashboard-preview-card__connect-btn" onClick={() => handleAddDevice('sensor')}>
-                      Connect Device
+                      {t('dashboard.connectDevice')}
                     </button>
-                    <small>Use your current setup flow for Qingping/AirIQ Home pairing.</small>
+                    <small>{t('dashboard.connectDeviceHint')}</small>
                   </div>
                 )}
                 {sensorError && <p className="dashboard-preview-card__error">{sensorError}</p>}
@@ -1488,7 +1507,7 @@ export default function App() {
                     onClick={handleRefreshIndoor}
                     disabled={!indoorCanRefresh}
                   >
-                    {isRefreshingIndoor ? 'Checking...' : indoorRefreshButtonLabel}
+                    {isRefreshingIndoor ? t('dashboard.checking') : indoorRefreshButtonLabel}
                   </button>
                   {indoorOnCooldown && (
                     <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
@@ -1508,21 +1527,21 @@ export default function App() {
                   className={`dashboard-preview-recs__tab${recsTab === 'suggestions' ? ' dashboard-preview-recs__tab--active' : ''}`}
                   onClick={() => setRecsTab('suggestions')}
                 >
-                  Suggestions
+                  {t('dashboard.suggestions')}
                 </button>
                 <button
                   type="button"
                   className={`dashboard-preview-recs__tab${recsTab === 'day' ? ' dashboard-preview-recs__tab--active' : ''}`}
                   onClick={() => setRecsTab('day')}
                 >
-                  Plan for the Day
+                  {t('dashboard.planForDay')}
                 </button>
                 <button
                   type="button"
                   className={`dashboard-preview-recs__tab${recsTab === 'ai' ? ' dashboard-preview-recs__tab--active' : ''}`}
                   onClick={() => setRecsTab('ai')}
                 >
-                  AI Recommendations
+                  {t('dashboard.aiRecommendations')}
                 </button>
               </div>
               <button
@@ -1531,7 +1550,7 @@ export default function App() {
                 onClick={handleRefreshSuggestions}
                 disabled={isRefreshingSuggestions}
               >
-                {isRefreshingSuggestions ? 'Refreshing...' : 'Refresh suggestions'}
+                {isRefreshingSuggestions ? t('dashboard.refreshingSuggestions') : t('dashboard.refreshSuggestions')}
               </button>
             </div>
 
@@ -1550,15 +1569,15 @@ export default function App() {
                 <OutdoorDayAdvicePanel
                   airData={liveAirData}
                   locationLabel={currentLocationLabel}
-                  locale="en-GB"
-                  timeZone={POLISH_TIMEZONE}
+                  locale={intlLocale}
+                  timeZone={intlTimezone}
                 />
               ) : (
                 <div className="dashboard-preview-recs__ai">
-                  <h4>AI Daily Plan</h4>
+                  <h4>{t('dashboard.aiDailyPlan')}</h4>
                   {!aiRecs && !aiRecsLoading && (
                     <p className="dashboard-preview-recs__ai-hint">
-                      Generate personalised outdoor and indoor recommendations powered by Gemini based on your current air quality readings.
+                      {t('dashboard.aiHint')}
                     </p>
                   )}
                   {aiRecsError && <p className="dashboard-preview-recs__ai-error">{aiRecsError}</p>}
@@ -1568,13 +1587,13 @@ export default function App() {
                     onClick={handleGenerateAiRecs}
                     disabled={aiRecsLoading || !liveAirData}
                   >
-                    {aiRecsLoading ? 'Generating…' : aiRecs ? 'Regenerate' : 'Generate Recommendations'}
+                    {aiRecsLoading ? t('dashboard.aiGenerating') : aiRecs ? t('dashboard.aiRegenerate') : t('dashboard.aiGenerate')}
                   </button>
                   {aiRecs && (
                     <div className="ai-recs__cards">
                       {aiRecs.outdoor?.length > 0 && (
                         <div className="ai-recs__card ai-recs__card--outdoor">
-                          <h5 className="ai-recs__card-header">Outdoor</h5>
+                          <h5 className="ai-recs__card-header">{t('dashboard.aiOutdoor')}</h5>
                           <ul className="ai-recs__card-list">
                             {aiRecs.outdoor.map((tip, i) => <li key={i}>{tip}</li>)}
                           </ul>
@@ -1582,7 +1601,7 @@ export default function App() {
                       )}
                       {aiRecs.indoor?.length > 0 && (
                         <div className="ai-recs__card ai-recs__card--indoor">
-                          <h5 className="ai-recs__card-header">Indoor</h5>
+                          <h5 className="ai-recs__card-header">{t('dashboard.aiIndoor')}</h5>
                           <ul className="ai-recs__card-list">
                             {aiRecs.indoor.map((tip, i) => <li key={i}>{tip}</li>)}
                           </ul>
@@ -1592,9 +1611,9 @@ export default function App() {
                   )}
                   {!aiRecs && !aiRecsLoading && (
                     <div className="dashboard-preview-recs__chips">
-                      <span>Sleep timing</span>
-                      <span>Workout windows</span>
-                      <span>Ventilation strategy</span>
+                      <span>{t('dashboard.aiChipSleep')}</span>
+                      <span>{t('dashboard.aiChipWorkout')}</span>
+                      <span>{t('dashboard.aiChipVentilation')}</span>
                     </div>
                   )}
                 </div>
@@ -1611,14 +1630,14 @@ export default function App() {
       <footer className="page-footer">
         <div className="footer-left">
           <img src={logoAiriq} alt="AirIQ" className="footer-logo" />
-          <p className="footer-tagline">Know what you're breathing - and what to do about it.</p>
+          <p className="footer-tagline">{t('footer.tagline')}</p>
         </div>
         <div className="footer-right">
-          <a href="#privacy" className="footer-link">Privacy</a>
+          <a href="#privacy" className="footer-link">{t('footer.privacy')}</a>
           <span className="footer-dot">|</span>
-          <a href="#sources" className="footer-link">Data sources</a>
+          <a href="#sources" className="footer-link">{t('footer.dataSources')}</a>
           <span className="footer-dot">|</span>
-          <a href="#help" className="footer-link">Help</a>
+          <a href="#help" className="footer-link">{t('footer.help')}</a>
         </div>
       </footer>
 
@@ -1636,7 +1655,7 @@ export default function App() {
             setSensorReading(reading)
             setSensorError('')
           } catch (error) {
-            setSensorError(error instanceof Error ? error.message : 'Failed to refresh indoor sensor.')
+            setSensorError(error instanceof Error ? error.message : t('indoor.failedToRefreshSensor'))
           }
         }}
       />
@@ -1655,10 +1674,10 @@ export default function App() {
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                 </svg>
                 <h3 className="loc-modal-title">
-                  {locModalView === 'confirm' ? 'Add location' : 'Locations'}
+                  {locModalView === 'confirm' ? t('location.addLocation') : t('location.locations')}
                 </h3>
               </div>
-              <button className="loc-modal-close" onClick={closeLocationModal} aria-label="Close">
+              <button className="loc-modal-close" onClick={closeLocationModal} aria-label={t('common.close')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
@@ -1691,7 +1710,7 @@ export default function App() {
                             </svg>
                             <span>{loc.label}</span>
                             {currentLocationLabel === loc.label && (
-                              <span className="loc-modal-saved-item__active-badge">Active</span>
+                              <span className="loc-modal-saved-item__active-badge">{t('location.active')}</span>
                             )}
                           </button>
                           <button
@@ -1711,7 +1730,7 @@ export default function App() {
 
                   {savedLocations.length > 0 && (
                     <div className="loc-modal-divider">
-                      <span>add new</span>
+                      <span>{t('location.addNew')}</span>
                     </div>
                   )}
 
@@ -1732,18 +1751,18 @@ export default function App() {
                           }
                         }}
                         className="loc-modal-input"
-                        placeholder="City, address, or postcode…"
+                        placeholder={t('location.searchPlaceholder')}
                         autoFocus
                       />
                       <button type="submit" className="loc-modal-submit" disabled={isLoadingAirData}>
-                        {isLoadingAirData ? 'Loading…' : 'Search'}
+                        {isLoadingAirData ? t('common.loading') : t('common.search')}
                       </button>
                     </form>
 
                     {(isLoadingSuggestions || locationSuggestions.length > 0) && !isLoadingAirData && (
                       <div className="loc-modal-suggestions">
                         {isLoadingSuggestions ? (
-                          <div className="loc-modal-suggestion loc-modal-suggestion--muted">Searching…</div>
+                          <div className="loc-modal-suggestion loc-modal-suggestion--muted">{t('common.searching')}</div>
                         ) : (
                           locationSuggestions.map((suggestion) => (
                             <button
@@ -1764,7 +1783,7 @@ export default function App() {
                   </div>
 
                   <div className="loc-modal-divider">
-                    <span>or</span>
+                    <span>{t('common.or')}</span>
                   </div>
 
                   <button type="button" className="loc-modal-my-location" onClick={handleUseMyLocation}>
@@ -1773,14 +1792,14 @@ export default function App() {
                       <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
                       <path d="m4.93 4.93 2.12 2.12M16.95 16.95l2.12 2.12M16.95 7.05l2.12-2.12M4.93 19.07l2.12-2.12" />
                     </svg>
-                    Use my current location
+                    {t('location.useMyLocation')}
                   </button>
 
                   <div className="loc-modal-location-note">
-                    <p>AirIQ asks your browser or Windows for an estimated location. On desktop or Ethernet it can be a little off.</p>
-                    <p>For the most precise data, enter your address manually.</p>
+                    <p>{t('location.geoNote1')}</p>
+                    <p>{t('location.geoNote2')}</p>
                     {detectedCurrentLocation ? (
-                      <p className="loc-modal-location-note__detected">Detected location: {detectedCurrentLocation}</p>
+                      <p className="loc-modal-location-note__detected">{t('location.detectedLocation', { location: detectedCurrentLocation })}</p>
                     ) : null}
                   </div>
 
@@ -1806,7 +1825,7 @@ export default function App() {
                       onClick={handleConfirmAddLocation}
                       disabled={isLoadingAirData}
                     >
-                      {isLoadingAirData ? 'Adding…' : 'Add location'}
+                      {isLoadingAirData ? t('location.adding') : t('location.addLocation')}
                     </button>
                     <button
                       type="button"
@@ -1814,7 +1833,7 @@ export default function App() {
                       onClick={() => { setPendingLocation(null); setLocModalView('search') }}
                       disabled={isLoadingAirData}
                     >
-                      Back to search
+                      {t('location.backToSearch')}
                     </button>
                   </div>
                   {liveAirError && (
