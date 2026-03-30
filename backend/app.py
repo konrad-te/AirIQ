@@ -6,29 +6,39 @@ from decimal import Decimal
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from backend.database import SessionLocal, get_db
 from backend.dependencies.authorization import (
     get_household_membership,
     require_household_role,
 )
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
-from pydantic import BaseModel, Field
-from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 from backend.init_db import init_db
+from backend.main import (
+    get_air_quality_data,
+    get_lat_lon_nominatim_cached,
+    reverse_geocode_nominatim,
+    suggest_addresses_nominatim,
+)
 from backend.models import (
     CityPoint,
     DataProvider,
-    IndoorSensorReading,
     ExternalStation,
     Feedback,
     GeocodeCacheEntry,
     GlobeAqCache,
     Household,
     HouseholdMember,
+    IndoorSensorReading,
     IngestRun,
     LocationStationCache,
     ProviderCacheEntry,
@@ -36,22 +46,28 @@ from backend.models import (
     UserQingpingIntegration,
     UserSession,
 )
+from backend.routers.ai_recommendations import router as ai_router
 from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
+from backend.routers.integrations import get_qingping_latest_reading
+from backend.routers.integrations import router as integrations_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
 from backend.schemas.recommendation_config import (
     RecommendationConfigSchema,
     RecommendationConfigUpdateSchema,
 )
 from backend.schemas.suggestions import VentilationContext
-from backend.routers.integrations import router as integrations_router
-from backend.routers.ai_recommendations import router as ai_router
 from backend.security import get_current_user
 from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
 from backend.services.indoor_air import (
     evaluate_high_indoor_pm25,
     evaluate_low_indoor_humidity,
+)
+from backend.services.mock_indoor_readings import (
+    delete_mock_indoor_readings,
+    get_user_qingping_device,
+    seed_mock_indoor_readings,
 )
 from backend.services.outdoor_activity import evaluate_outdoor_activity
 from backend.services.recommendation_config import (
@@ -64,22 +80,6 @@ from backend.services.temperature_alert import (
     evaluate_outdoor_temperature,
 )
 from backend.services.ventilation import evaluate_ventilation
-from backend.services.mock_indoor_readings import (
-    delete_mock_indoor_readings,
-    get_user_qingping_device,
-    seed_mock_indoor_readings,
-)
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
-from backend.main import (
-    get_air_quality_data,
-    get_lat_lon_nominatim_cached,
-    reverse_geocode_nominatim,
-    suggest_addresses_nominatim,
-)
-from backend.routers.integrations import get_qingping_latest_reading
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 app = FastAPI(title="AirIQ API")
@@ -104,6 +104,7 @@ INDOOR_HISTORY_RANGE_TO_BUCKET_MINUTES = {
 
 class MockIndoorSeedSchema(BaseModel):
     months: int = Field(default=2, ge=1, le=6)
+
 
 cors_origins = (
     os.getenv("CORS_ORIGINS") or "http://localhost:5173,http://127.0.0.1:5173"
@@ -206,7 +207,11 @@ def _build_indoor_history_payload(
             continue
 
         latest_recorded_at = recorded_at
-        latest_synced_at = reading.created_at.astimezone(UTC) if reading.created_at else latest_synced_at
+        latest_synced_at = (
+            reading.created_at.astimezone(UTC)
+            if reading.created_at
+            else latest_synced_at
+        )
         bucket_key = _floor_datetime_to_bucket(recorded_at, bucket_minutes)
         aggregate = aggregates.setdefault(
             bucket_key,
@@ -236,7 +241,9 @@ def _build_indoor_history_payload(
     points = []
     current_bucket = bucket_start
     while current_bucket <= bucket_end:
-        points.append(_serialize_history_bucket(current_bucket, aggregates.get(current_bucket)))
+        points.append(
+            _serialize_history_bucket(current_bucket, aggregates.get(current_bucket))
+        )
         current_bucket += timedelta(minutes=bucket_minutes)
 
     minutes_since_last_reading = (
@@ -257,7 +264,9 @@ def _build_indoor_history_payload(
         "minutes_since_last_reading": minutes_since_last_reading,
         "device_name": device_name,
         "device_id": device_id,
-        "last_recorded_at": latest_recorded_at.isoformat() if latest_recorded_at else None,
+        "last_recorded_at": latest_recorded_at.isoformat()
+        if latest_recorded_at
+        else None,
         "last_synced_at": latest_synced_at.isoformat() if latest_synced_at else None,
         "points": points,
     }
@@ -269,7 +278,9 @@ def _build_dashboard_suggestions_payload(
     outdoor_data: dict,
     indoor_data: dict | None,
 ) -> dict:
-    outdoor_current = outdoor_data.get("current") if isinstance(outdoor_data, dict) else {}
+    outdoor_current = (
+        outdoor_data.get("current") if isinstance(outdoor_data, dict) else {}
+    )
     outdoor_current = outdoor_current if isinstance(outdoor_current, dict) else {}
     indoor_payload = indoor_data if isinstance(indoor_data, dict) else {}
 
@@ -501,7 +512,9 @@ def get_home_sensor_latest(
 ) -> dict:
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
-    return get_qingping_latest_reading(request=request, current_user=current_user, db=db).model_dump()
+    return get_qingping_latest_reading(
+        request=request, current_user=current_user, db=db
+    ).model_dump()
 
 
 @app.get("/api/sensor/home/history")
@@ -527,7 +540,9 @@ def get_home_sensor_history(
         .first()
     )
     if integration is None or not integration.selected_device_id:
-        raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
+        raise HTTPException(
+            status_code=404, detail="No Qingping device has been selected yet."
+        )
 
     now_utc = datetime.now(UTC)
     start_at = now_utc - INDOOR_HISTORY_RANGE_TO_WINDOW[range_key]
@@ -537,7 +552,8 @@ def get_home_sensor_history(
             .where(
                 IndoorSensorReading.user_id == current_user.id,
                 IndoorSensorReading.provider == "qingping",
-                IndoorSensorReading.provider_device_key == integration.selected_device_id,
+                IndoorSensorReading.provider_device_key
+                == integration.selected_device_id,
                 IndoorSensorReading.recorded_at >= start_at,
             )
             .order_by(IndoorSensorReading.recorded_at.asc())
@@ -570,7 +586,9 @@ def post_mock_indoor_readings(
 
     device = get_user_qingping_device(db, current_user.id)
     if device is None:
-        raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
+        raise HTTPException(
+            status_code=404, detail="No Qingping device has been selected yet."
+        )
 
     device_id, device_name = device
     try:
@@ -605,10 +623,14 @@ def delete_mock_indoor_readings_endpoint(
 
     device = get_user_qingping_device(db, current_user.id)
     if device is None:
-        raise HTTPException(status_code=404, detail="No Qingping device has been selected yet.")
+        raise HTTPException(
+            status_code=404, detail="No Qingping device has been selected yet."
+        )
 
     device_id, _ = device
-    deleted = delete_mock_indoor_readings(db, user_id=current_user.id, device_id=device_id)
+    deleted = delete_mock_indoor_readings(
+        db, user_id=current_user.id, device_id=device_id
+    )
     return {"deleted": deleted}
 
 
@@ -793,7 +815,6 @@ def run_map_ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     }
 
 
-
 @app.get("/api/admin/stats")
 def get_admin_stats(
     admin: User = Depends(require_admin),
@@ -830,7 +851,9 @@ def get_admin_stats(
     total_households = db.execute(select(func.count(Household.id))).scalar_one()
 
     total_members = db.execute(
-        select(func.count(HouseholdMember.id)).where(HouseholdMember.is_active.is_(True))
+        select(func.count(HouseholdMember.id)).where(
+            HouseholdMember.is_active.is_(True)
+        )
     ).scalar_one()
 
     avg_members = round(total_members / total_households, 1) if total_households else 0
@@ -935,9 +958,18 @@ def get_admin_stats(
             "avg_per_user": avg_sessions_per_user,
         },
         "cache_health": {
-            "provider": {"active": provider_cache_active, "expired": provider_cache_expired},
-            "geocode": {"active": geocode_cache_active, "expired": geocode_cache_expired},
-            "location": {"active": location_cache_active, "expired": location_cache_expired},
+            "provider": {
+                "active": provider_cache_active,
+                "expired": provider_cache_expired,
+            },
+            "geocode": {
+                "active": geocode_cache_active,
+                "expired": geocode_cache_expired,
+            },
+            "location": {
+                "active": location_cache_active,
+                "expired": location_cache_expired,
+            },
         },
         "aq_coverage": {
             "total_cities": total_city_points,
@@ -1102,14 +1134,11 @@ def get_admin_feedback(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    rows = (
-        db.execute(
-            select(Feedback, User)
-            .outerjoin(User, User.id == Feedback.user_id)
-            .order_by(Feedback.created_at.desc())
-        )
-        .all()
-    )
+    rows = db.execute(
+        select(Feedback, User)
+        .outerjoin(User, User.id == Feedback.user_id)
+        .order_by(Feedback.created_at.desc())
+    ).all()
     items = [
         FeedbackOutSchema(
             id=fb.id,
