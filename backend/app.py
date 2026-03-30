@@ -11,9 +11,13 @@ from backend.dependencies.authorization import (
     get_household_membership,
     require_household_role,
 )
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 from backend.init_db import init_db
 from backend.models import (
     CityPoint,
@@ -77,7 +81,11 @@ from backend.main import (
 )
 from backend.routers.integrations import get_qingping_latest_reading
 
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 app = FastAPI(title="AirIQ API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 scheduler = BackgroundScheduler(timezone="UTC")
 
 INDOOR_HISTORY_RANGE_TO_WINDOW = {
@@ -436,7 +444,9 @@ def health() -> dict:
 
 
 @app.get("/api/air-quality")
+@limiter.limit("30/minute")
 def get_air_quality(
+    request: Request,
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
 ) -> dict:
@@ -447,7 +457,8 @@ def get_air_quality(
 
 
 @app.get("/api/geocode")
-def geocode_address(address: str = Query(..., min_length=3)) -> dict:
+@limiter.limit("20/minute")
+def geocode_address(request: Request, address: str = Query(..., min_length=3)) -> dict:
     coords = get_lat_lon_nominatim_cached(address)
     if coords is None:
         raise HTTPException(status_code=404, detail="Address not found.")
@@ -457,7 +468,9 @@ def geocode_address(address: str = Query(..., min_length=3)) -> dict:
 
 
 @app.get("/api/geocode/suggest")
+@limiter.limit("30/minute")
 def geocode_suggest(
+    request: Request,
     q: str = Query(..., min_length=2),
     limit: int = Query(5, ge=1, le=10),
 ) -> dict:
@@ -465,7 +478,9 @@ def geocode_suggest(
 
 
 @app.get("/api/geocode/reverse")
+@limiter.limit("20/minute")
 def reverse_geocode(
+    request: Request,
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
 ) -> dict:
@@ -477,14 +492,16 @@ def reverse_geocode(
 
 
 @app.get("/api/sensor/home/latest")
+@limiter.limit("30/minute")
 def get_home_sensor_latest(
+    request: Request,
     response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
-    return get_qingping_latest_reading(current_user=current_user, db=db).model_dump()
+    return get_qingping_latest_reading(request=request, current_user=current_user, db=db).model_dump()
 
 
 @app.get("/api/sensor/home/history")
@@ -539,7 +556,9 @@ def get_home_sensor_history(
 
 
 @app.post("/api/sensor/home/mock-readings")
+@limiter.limit("5/minute")
 def post_mock_indoor_readings(
+    request: Request,
     response: Response,
     body: MockIndoorSeedSchema = MockIndoorSeedSchema(),
     current_user: User = Depends(get_current_user),
@@ -594,7 +613,9 @@ def delete_mock_indoor_readings_endpoint(
 
 
 @app.get("/api/suggestions/home")
+@limiter.limit("20/minute")
 def get_home_suggestions(
+    request: Request,
     response: Response,
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
@@ -610,6 +631,7 @@ def get_home_suggestions(
     indoor_data: dict | None = None
     try:
         indoor_data = get_qingping_latest_reading(
+            request=request,
             current_user=current_user,
             db=db,
         ).model_dump()
@@ -742,7 +764,8 @@ def get_map_markers(db: Session = Depends(get_db)) -> dict:
 
 
 @app.post("/api/map/seed-city-points")
-def seed_map_city_points(db: Session = Depends(get_db)) -> dict:
+@limiter.limit("3/minute")
+def seed_map_city_points(request: Request, db: Session = Depends(get_db)) -> dict:
     result = seed_city_points(db, per_country=4)
     return {
         "ok": True,
@@ -754,7 +777,8 @@ def seed_map_city_points(db: Session = Depends(get_db)) -> dict:
 
 
 @app.post("/api/map/run-ingest")
-def run_map_ingest(db: Session = Depends(get_db)) -> dict:
+@limiter.limit("3/minute")
+def run_map_ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     summary = run_globe_ingest(
         db=db,
         batch_size=40,
@@ -1055,7 +1079,9 @@ def get_admin_debug_overview(db: Session = Depends(get_db)) -> dict:
 
 
 @app.post("/api/feedback", status_code=201)
+@limiter.limit("5/minute")
 def submit_feedback(
+    request: Request,
     body: FeedbackCreateSchema,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

@@ -4,8 +4,12 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from backend.database import get_db
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from backend.models import EmailToken, Household, HouseholdMember, SavedLocation, User, UserPreference, UserSession
 from backend.schemas.auth import (
     DeleteAccountSchema,
@@ -80,7 +84,9 @@ def serialize_registered_user(
     response_model=UserRegisterResponseSchema,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("5/minute")
 def register_user(
+    request: Request,
     user: UserRegisterSchema,
     db: Session = Depends(get_db),
 ) -> dict:
@@ -169,7 +175,9 @@ def register_user(
 
 
 @router.post("/token", response_model=TokenSchema)
+@limiter.limit("10/minute")
 def login(
+    request: Request,
     response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db),
@@ -317,7 +325,9 @@ def revoke_other_sessions(
 # ── Account deletion ─────────────────────────────────────────────────────────
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("3/minute")
 def delete_account(
+    request: Request,
     data: DeleteAccountSchema,
     current_token: UserSession = Depends(get_current_token),
     current_user: User = Depends(get_current_user),
@@ -352,7 +362,9 @@ def delete_account(
 # ── Profile ──────────────────────────────────────────────────────────────────
 
 @router.patch("/me", response_model=UserOutSchema)
+@limiter.limit("10/minute")
 def update_profile(
+    request: Request,
     update: UserUpdateSchema,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -431,7 +443,9 @@ def update_preferences(
 # ── Password ──────────────────────────────────────────────────────────────────
 
 @router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
 def change_password(
+    request: Request,
     data: PasswordChangeSchema,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -454,7 +468,9 @@ def change_password(
 # ── Email verification & Password reset ──────────────────────────────────────
 
 @router.post("/forgot-password")
+@limiter.limit("3/minute")
 def forgot_password(
+    request: Request,
     data: ForgotPasswordSchema,
     db: Session = Depends(get_db),
 ) -> dict:
@@ -472,7 +488,9 @@ def forgot_password(
 
 
 @router.post("/reset-password")
+@limiter.limit("5/minute")
 def reset_password(
+    request: Request,
     data: ResetPasswordSchema,
     db: Session = Depends(get_db),
 ) -> dict:
@@ -503,7 +521,9 @@ def reset_password(
 
 
 @router.get("/activate")
+@limiter.limit("10/minute")
 def activate_email(
+    request: Request,
     token: str,
     db: Session = Depends(get_db),
 ) -> dict:
@@ -518,7 +538,9 @@ def activate_email(
 
 
 @router.post("/resend-activation")
+@limiter.limit("3/minute")
 def resend_activation(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:

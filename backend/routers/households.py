@@ -6,7 +6,11 @@ from backend.dependencies.authorization import (
     get_household_membership,
     require_household_role,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from backend.models import Household, HouseholdMember, User
 from pydantic import BaseModel, EmailStr, Field
 from backend.security import get_current_user
@@ -144,7 +148,9 @@ def list_my_households(
 
 
 @router.post("/{household_id}/members", status_code=201)
+@limiter.limit("10/minute")
 def add_household_member(
+    request: Request,
     payload: HouseholdAddMemberSchema,
     household: Household = Depends(get_current_household),
     membership: HouseholdMember = Depends(require_household_role("owner", "admin")),
