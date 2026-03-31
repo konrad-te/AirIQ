@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 # Configuration
 # ---------------------------
 
-AIRLY_API_KEY = os.getenv("AIRLY_API_KEY") or os.getenv("airly_api")
-OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY") or os.getenv("open_aq")
+AIRLY_API_KEY = os.getenv("AIRLY_API_KEY") or os.getenv("AIRLY_API") or os.getenv("airly_api")
+OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY") or os.getenv("OPEN_AQ") or os.getenv("open_aq")
 
 CACHE_RAW = os.getenv("CACHE_RAW", "0") == "1"
 DEBUG = os.getenv("DEBUG", "0") == "1"
