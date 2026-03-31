@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getIntlLocale, getIntlTimezone } from './i18n'
 import heroBackground from './assets/123.png'
@@ -11,7 +11,6 @@ import moonIcon from './assets/moon.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
 import DeviceSetupModal from './components/DeviceSetupModal'
-import EmailVerificationBanner from './components/EmailVerificationBanner'
 import ForgotPasswordModal from './components/ForgotPasswordModal'
 import LoginModal from './components/LoginModal'
 import RegisterModal from './components/RegisterModal'
@@ -33,7 +32,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
 import { geocodeAddress, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, getSleepInsight, getTrainingHistory, getTrainingInsight, importSleepDataFiles, importTrainingDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
-import { addSavedLocation, getPreferences, getSavedLocations, previewAdminSuggestions, removeSavedLocation, submitSuggestionFeedback, updateUserPlan } from './services/authService'
+import { addSavedLocation, getPreferences, getSavedLocations, previewAdminSuggestions, removeSavedLocation, resendActivation, submitSuggestionFeedback, updateUserPlan } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
 const mockData = {
   location: 'Stockholm, Sweden',
@@ -100,15 +99,15 @@ function formatRainAmount(value) {
   if (value < 10) return `${value.toFixed(1).replace(/\.0$/, '')} mm`
   return `${Math.round(value)} mm`
 }
-function formatClockTimestamp(value) {
+function formatClockTimestamp(value, locale = POLISH_LOCALE, timeZone = POLISH_TIMEZONE) {
   if (!value) return 'No reading yet'
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return 'No reading yet'
-  return new Intl.DateTimeFormat(POLISH_LOCALE, {
+  return new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: timeZone || 'UTC',
+    timeZone: timeZone || POLISH_TIMEZONE,
     timeZoneName: 'short',
   }).format(date)
 }
@@ -122,6 +121,26 @@ function formatElapsedMinutes(totalMinutes) {
 function formatLocationFallbackLabel(lat, lon) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 'Detected current location'
   return `Detected near ${lat.toFixed(3)}, ${lon.toFixed(3)}`
+}
+function getUserDisplayName(user) {
+  const explicitName = typeof user?.display_name === 'string' ? user.display_name.trim() : ''
+  if (explicitName) return explicitName
+  const email = typeof user?.email === 'string' ? user.email.trim() : ''
+  if (!email) return 'User'
+  return email.split('@')[0]
+}
+function getUserTierLabel(user) {
+  if (user?.role === 'admin') return 'Admin'
+  if (user?.plan === 'plus') return 'Premium'
+  return 'Free User'
+}
+function getUserInitials(user) {
+  const source = getUserDisplayName(user)
+  const parts = source.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
+  }
+  return source.slice(0, 2).toUpperCase() || '?'
 }
 function getLatestImportedSleepDate(historyData) {
   const points = Array.isArray(historyData?.points) ? historyData.points : []
@@ -264,11 +283,12 @@ export default function App() {
   const { t, i18n } = useTranslation()
   const intlLocale = getIntlLocale(i18n.language)
   const intlTimezone = getIntlTimezone()
-  const { user, token, logout, isLoadingAuth, updateUser } = useAuth()
+  const { user, token, logout, isLoadingAuth, updateUser, refreshUser } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isForgotOpen, setIsForgotOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isDeviceSetupOpen, setIsDeviceSetupOpen] = useState(false)
   const [route, setRoute] = useState(() => window.location.pathname)
   const [searchAddress, setSearchAddress] = useState(mockData.location)
@@ -353,7 +373,11 @@ export default function App() {
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false)
   const [planUpdateNotice, setPlanUpdateNotice] = useState('')
   const [planUpdateError, setPlanUpdateError] = useState('')
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false)
+  const [isSendingVerificationNotification, setIsSendingVerificationNotification] = useState(false)
+  const [verificationNotificationSent, setVerificationNotificationSent] = useState(false)
   const canAccessPremiumInsights = Boolean(user && (user.role === 'admin' || user.plan === 'plus'))
+  const notificationCount = user && !user.email_verified ? 1 : 0
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
     setRoute('/globe')
@@ -383,8 +407,13 @@ export default function App() {
     setRoute('/training')
   }
   const handleOpenSubscription = () => {
-    window.history.pushState({}, '', '/subscription')
-    setRoute('/subscription')
+    setPlanUpdateNotice('')
+    setPlanUpdateError('')
+    setIsPlanModalOpen(true)
+  }
+  const handleToggleNotifications = () => {
+    setIsUserMenuOpen(false)
+    setIsNotificationsOpen((prev) => !prev)
   }
   const clearSleepInsight = () => {
     setRequestedSleepInsightDate('')
@@ -404,6 +433,22 @@ export default function App() {
   const handleBackToLanding = () => {
     window.history.pushState({}, '', '/')
     setRoute('/')
+  }
+  const handleClosePlanModal = () => {
+    setIsPlanModalOpen(false)
+  }
+  const handleSendVerificationNotification = async () => {
+    if (!token || !user || user.email_verified) return
+    setIsSendingVerificationNotification(true)
+    try {
+      await resendActivation(token)
+      setVerificationNotificationSent(true)
+      await refreshUser?.().catch(() => {})
+    } catch {
+      // Keep the notification visible so the user can retry.
+    } finally {
+      setIsSendingVerificationNotification(false)
+    }
   }
   const handleAccountDeleted = () => {
     window.history.pushState({}, '', '/farewell')
@@ -1200,6 +1245,20 @@ export default function App() {
     dashboardAdminOverride,
     suggestionsRefreshNonce,
   ])
+  useEffect(() => {
+    if (route !== '/subscription') return
+    window.history.replaceState({}, '', '/')
+    setRoute('/')
+    setPlanUpdateNotice('')
+    setPlanUpdateError('')
+    setIsPlanModalOpen(true)
+  }, [route])
+  useEffect(() => {
+    if (user?.email_verified) {
+      setVerificationNotificationSent(false)
+      setIsNotificationsOpen(false)
+    }
+  }, [user?.email_verified])
   if (isLoadingAuth) {
     return null
   }
@@ -1233,28 +1292,9 @@ export default function App() {
   if (route === '/settings') {
     return <SettingsPage onBack={handleBackToLanding} onAccountDeleted={handleAccountDeleted} />
   }
-  if (route === '/subscription') {
-    return (
-      <div className="placeholder-page">
-        <button className="btn btn-ghost" onClick={handleBackToLanding}>â† Back</button>
-        <h1>My Plan</h1>
-        <p>Manage which account tier is active for this user.</p>
-        <div className="plan-selector-section">
-          <PlanSelector
-            currentPlan={user?.plan ?? 'free'}
-            busy={isUpdatingPlan}
-            notice={planUpdateNotice}
-            error={planUpdateError}
-            onPlanChange={handlePlanChange}
-          />
-        </div>
-      </div>
-    )
-  }
-  const userInitials = (() => {
-    const source = user?.display_name || user?.email || ''
-    return source.charAt(0).toUpperCase() || '?'
-  })()
+  const userInitials = getUserInitials(user)
+  const userDisplayName = getUserDisplayName(user)
+  const userTierLabel = getUserTierLabel(user)
   const currentDashboardPreviewBase = {
     outdoor_pm25: liveAirData?.current?.pm25 ?? null,
     outdoor_pm10: liveAirData?.current?.pm10 ?? null,
@@ -1347,6 +1387,88 @@ export default function App() {
   const sourceProvider = liveAirData?.source?.provider
   const sourceMethod = liveAirData?.source?.method
   const isDashboardAdminPreviewActive = Boolean(user?.role === 'admin' && dashboardAdminOverride)
+  const dashboardAdminToolsModal = user?.role === 'admin' && isDashboardAdminToolsOpen ? (
+    <>
+      <div className="plan-modal-backdrop" onClick={() => setIsDashboardAdminToolsOpen(false)} />
+      <div className="plan-modal dashboard-admin-modal" role="dialog" aria-modal="true" aria-label="Dashboard demo tools">
+        <div className="plan-modal__header">
+          <div>
+            <p className="plan-modal__eyebrow">{t('dashboard.adminTools')}</p>
+            <h2 className="plan-modal__title">{t('dashboard.adminSuggestionPreview')}</h2>
+            <p className="plan-modal__copy">{t('dashboard.adminOverrideDesc')}</p>
+          </div>
+          <button type="button" className="plan-modal__close" onClick={() => setIsDashboardAdminToolsOpen(false)} aria-label={t('common.close')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {isDashboardAdminPreviewActive ? (
+          <p className="dashboard-admin-override__status">{t('dashboard.adminPreviewActive')}</p>
+        ) : null}
+        <div className="dashboard-admin-override dashboard-admin-override--modal">
+          <div className="dashboard-admin-override__grid">
+            <label className="dashboard-admin-override__field">
+              <span>Outdoor PM2.5</span>
+              <input name="outdoor_pm25" value={dashboardAdminForm.outdoor_pm25} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="18" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Outdoor PM10</span>
+              <input name="outdoor_pm10" value={dashboardAdminForm.outdoor_pm10} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="30" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Outdoor UV</span>
+              <input name="outdoor_uv_index" value={dashboardAdminForm.outdoor_uv_index} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="6" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Outdoor Temp C</span>
+              <input name="outdoor_temperature_c" value={dashboardAdminForm.outdoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="24" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Outdoor Humidity %</span>
+              <input name="outdoor_humidity_pct" value={dashboardAdminForm.outdoor_humidity_pct} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="55" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Wind km/h</span>
+              <input name="wind_kmh" value={dashboardAdminForm.wind_kmh} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="12" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Indoor CO2 ppm</span>
+              <input name="indoor_co2_ppm" value={dashboardAdminForm.indoor_co2_ppm} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="950" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Indoor Temp C</span>
+              <input name="indoor_temperature_c" value={dashboardAdminForm.indoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="19" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Indoor PM2.5</span>
+              <input name="indoor_pm25" value={dashboardAdminForm.indoor_pm25} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="8" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Indoor PM10</span>
+              <input name="indoor_pm10" value={dashboardAdminForm.indoor_pm10} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="12" />
+            </label>
+            <label className="dashboard-admin-override__field">
+              <span>Indoor Humidity %</span>
+              <input name="indoor_humidity_pct" value={dashboardAdminForm.indoor_humidity_pct} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="35" />
+            </label>
+          </div>
+          <div className="dashboard-admin-override__actions">
+            <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleFillDashboardAdminFromLive}>
+              {t('dashboard.adminFillCurrent')}
+            </button>
+            <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleApplyDashboardAdminOverride}>
+              {t('dashboard.adminApplyPreview')}
+            </button>
+            <button type="button" className="dashboard-admin-override__btn" onClick={handleClearDashboardAdminOverride}>
+              {t('dashboard.adminClearPreview')}
+            </button>
+          </div>
+          {dashboardAdminError ? <p className="dashboard-admin-override__error">{dashboardAdminError}</p> : null}
+        </div>
+      </div>
+    </>
+  ) : null
   const sourceProviderLabel = (() => {
     if (isDashboardAdminPreviewActive) return t('source.adminOverride')
     if (sourceProvider === 'airly') return 'Airly'
@@ -1509,41 +1631,23 @@ export default function App() {
           >
             {t('nav.sensorHistory')}
           </button>
-          <button
-            className={`nav-link${route === '/sleep' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenSleep}
-          >
-            Sleep Data
-          </button>
-          <button
-            className={`nav-link${route === '/training' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenTraining}
-          >
-            Training Data
-          </button>
-          <button
-            className={`nav-link${route === '/sleep' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenSleep}
-          >
-            Sleep Data
-          </button>
-          <button
-            className={`nav-link${route === '/training' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenTraining}
-          >
-            Training Data
-          </button>
+            <button
+              className={`nav-link${route === '/sleep' ? ' nav-link--active' : ''}`}
+              onClick={handleOpenSleep}
+            >
+              Sleep Data
+            </button>
+            <button
+              className={`nav-link${route === '/training' ? ' nav-link--active' : ''}`}
+              onClick={handleOpenTraining}
+            >
+              Training Data
+            </button>
           <button
             className={`nav-link${route === '/globe' ? ' nav-link--active' : ''}`}
             onClick={handleOpenGlobe}
           >
             {t('nav.globalAirQuality')}
-          </button>
-          <button
-            className={`nav-link${route === '/subscription' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenSubscription}
-          >
-            {t('nav.myPlan')}
           </button>
           <button
             className={`nav-link${route === '/feedback' ? ' nav-link--active' : ''}`}
@@ -1556,26 +1660,100 @@ export default function App() {
           {user ? (
             <>
               {user.role === 'admin' && (
-                <button className="btn btn-ghost" onClick={handleOpenAdmin}>{t('nav.admin')}</button>
+                <>
+                  <button
+                    type="button"
+                    className="sleep-history-panel__import-new-btn sleep-history-panel__import-new-btn--demo app-admin-demo-btn"
+                    onClick={() => setIsDashboardAdminToolsOpen(true)}
+                  >
+                    Demo tools
+                  </button>
+                  <button className="btn btn-ghost" onClick={handleOpenAdmin}>{t('nav.admin')}</button>
+                </>
               )}
-              <button className="nav-bell" aria-label={t('nav.notifications')}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-              </button>
+              <div className="notifications-menu">
+                <button className="nav-bell" aria-label={t('nav.notifications')} onClick={handleToggleNotifications}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                  {notificationCount > 0 ? <span className="nav-bell__badge">{notificationCount}</span> : null}
+                </button>
+                {isNotificationsOpen && (
+                  <>
+                    <div className="user-menu-backdrop" onClick={() => setIsNotificationsOpen(false)} />
+                    <div className="notifications-dropdown">
+                      <div className="notifications-dropdown__header">
+                        <span>{t('nav.notifications')}</span>
+                        {notificationCount > 0 ? <strong>{notificationCount}</strong> : null}
+                      </div>
+                      {notificationCount > 0 ? (
+                        <article className="notification-card notification-card--action">
+                          <div className="notification-card__icon" aria-hidden>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="2" y="4" width="20" height="16" rx="2" />
+                              <polyline points="22,4 12,13 2,4" />
+                            </svg>
+                          </div>
+                          <div className="notification-card__copy">
+                            <span className="notification-card__title">Verify your email</span>
+                            <p className="notification-card__text">
+                              {verificationNotificationSent ? 'Verification email sent. Check your inbox.' : 'Please verify your email address to fully activate your account.'}
+                            </p>
+                            {!verificationNotificationSent && (
+                              <button
+                                type="button"
+                                className="notification-card__action"
+                                onClick={handleSendVerificationNotification}
+                                disabled={isSendingVerificationNotification}
+                              >
+                                {isSendingVerificationNotification ? 'Sending...' : 'Resend email'}
+                              </button>
+                            )}
+                          </div>
+                        </article>
+                      ) : (
+                        <div className="notifications-dropdown__empty">
+                          <p>No notifications right now.</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
               <div className="user-menu">
                 <button
                   className="nav-avatar"
-                  onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                  onClick={() => { setIsNotificationsOpen(false); setIsUserMenuOpen((prev) => !prev) }}
                   aria-label="Open user menu"
                 >
-                  {userInitials}
+                  {user?.profile_image_data ? (
+                    <img src={user.profile_image_data} alt={userDisplayName} className="nav-avatar__image" />
+                  ) : (
+                    userInitials
+                  )}
                 </button>
                 {isUserMenuOpen && (
                   <>
                     <div className="user-menu-backdrop" onClick={() => setIsUserMenuOpen(false)} />
                     <div className="user-menu-dropdown">
+                      <div className="user-menu-profile">
+                        <div className="user-menu-profile__avatar">
+                          {user?.profile_image_data ? (
+                            <img src={user.profile_image_data} alt={userDisplayName} className="user-menu-profile__image" />
+                          ) : (
+                            <span>{userInitials}</span>
+                          )}
+                        </div>
+                        <div className="user-menu-profile__copy">
+                          <strong>{userDisplayName}</strong>
+                          <span>{user?.email}</span>
+                          <span className={`user-menu-profile__tier user-menu-profile__tier--${user?.role === 'admin' ? 'admin' : user?.plan === 'plus' ? 'premium' : 'free'}`}>{userTierLabel}</span>
+                        </div>
+                      </div>
+                      <div className="user-menu-divider" />
+                      <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSubscription() }}>Premium</button>
+                      <div className="user-menu-divider" />
                       <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>{t('nav.settings')}</button>
                       <div className="user-menu-divider" />
                       <button className="user-menu-item user-menu-item--logout" onClick={() => { setIsUserMenuOpen(false); logout() }}>{t('nav.logout')}</button>
@@ -1593,8 +1771,6 @@ export default function App() {
         </div>
       </header>
       <main className="dashboard">
-
-      <EmailVerificationBanner />
 
       {route === '/trends' ? (<>
         {/* â•â• Trends page â•â• */}
@@ -1716,91 +1892,14 @@ export default function App() {
               )}
             </button>
           </div>
-          {user.role === 'admin' && (
-            <div className={`dashboard-admin-override${isDashboardAdminPreviewActive ? ' dashboard-admin-override--active' : ''}`}>
-              <div className="dashboard-admin-override__header">
-                <div>
-                  <p className="dashboard-admin-override__eyebrow">{t('dashboard.adminTools')}</p>
-                  <h3>{t('dashboard.adminSuggestionPreview')}</h3>
-                </div>
-                <button
-                  type="button"
-                  className="dashboard-admin-override__toggle"
-                  onClick={() => setIsDashboardAdminToolsOpen((prev) => !prev)}
-                >
-                  {isDashboardAdminToolsOpen ? t('dashboard.adminHideTester') : t('dashboard.adminShowTester')}
-                </button>
-              </div>
-              <p className="dashboard-admin-override__copy">
-                {t('dashboard.adminOverrideDesc')}
-              </p>
-              {isDashboardAdminPreviewActive && (
-                <p className="dashboard-admin-override__status">{t('dashboard.adminPreviewActive')}</p>
-              )}
-              {isDashboardAdminToolsOpen && (
-                <>
-                  <div className="dashboard-admin-override__grid">
-                    <label className="dashboard-admin-override__field">
-                      <span>Outdoor PM2.5</span>
-                      <input name="outdoor_pm25" value={dashboardAdminForm.outdoor_pm25} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="18" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Outdoor PM10</span>
-                      <input name="outdoor_pm10" value={dashboardAdminForm.outdoor_pm10} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="30" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Outdoor UV</span>
-                      <input name="outdoor_uv_index" value={dashboardAdminForm.outdoor_uv_index} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="6" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Outdoor Temp Â°C</span>
-                      <input name="outdoor_temperature_c" value={dashboardAdminForm.outdoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="24" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Outdoor Humidity %</span>
-                      <input name="outdoor_humidity_pct" value={dashboardAdminForm.outdoor_humidity_pct} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="55" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Wind km/h</span>
-                      <input name="wind_kmh" value={dashboardAdminForm.wind_kmh} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="12" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Indoor CO2 ppm</span>
-                      <input name="indoor_co2_ppm" value={dashboardAdminForm.indoor_co2_ppm} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="950" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Indoor Temp Â°C</span>
-                      <input name="indoor_temperature_c" value={dashboardAdminForm.indoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="19" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Indoor PM2.5</span>
-                      <input name="indoor_pm25" value={dashboardAdminForm.indoor_pm25} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="8" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Indoor PM10</span>
-                      <input name="indoor_pm10" value={dashboardAdminForm.indoor_pm10} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="12" />
-                    </label>
-                    <label className="dashboard-admin-override__field">
-                      <span>Indoor Humidity %</span>
-                      <input name="indoor_humidity_pct" value={dashboardAdminForm.indoor_humidity_pct} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="35" />
-                    </label>
-                  </div>
-                  <div className="dashboard-admin-override__actions">
-                    <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleFillDashboardAdminFromLive}>
-                      {t('dashboard.adminFillCurrent')}
-                    </button>
-                    <button type="button" className="dashboard-admin-override__btn dashboard-admin-override__btn--primary" onClick={handleApplyDashboardAdminOverride}>
-                      {t('dashboard.adminApplyPreview')}
-                    </button>
-                    <button type="button" className="dashboard-admin-override__btn" onClick={handleClearDashboardAdminOverride}>
-                      {t('dashboard.adminClearPreview')}
-                    </button>
-                  </div>
-                  {dashboardAdminError && <p className="dashboard-admin-override__error">{dashboardAdminError}</p>}
-                </>
-              )}
+          {user.role === 'admin' && isDashboardAdminPreviewActive ? (
+            <div className="dashboard-admin-preview-status">
+              <span>{t('dashboard.adminPreviewActive')}</span>
+              <button type="button" className="dashboard-admin-preview-status__action" onClick={() => setIsDashboardAdminToolsOpen(true)}>
+                Open demo tools
+              </button>
             </div>
-          )}
+          ) : null}
           <div className="dashboard-preview__cards">
             <article className="dashboard-preview-card">
               <div className="dashboard-preview-card__top">
@@ -2082,6 +2181,36 @@ export default function App() {
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onForgotPassword={() => setIsForgotOpen(true)} />
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
       <ForgotPasswordModal isOpen={isForgotOpen} onClose={() => setIsForgotOpen(false)} />
+      {isPlanModalOpen && (
+        <>
+          <div className="plan-modal-backdrop" onClick={handleClosePlanModal} />
+          <div className="plan-modal" role="dialog" aria-modal="true" aria-label="Premium">
+            <div className="plan-modal__header">
+              <div>
+                <p className="plan-modal__eyebrow">Premium</p>
+                <h2 className="plan-modal__title">Unlock AI insights</h2>
+                <p className="plan-modal__copy">Upgrade this account to Plus to generate AI sleep and training insights.</p>
+              </div>
+              <button type="button" className="plan-modal__close" onClick={handleClosePlanModal} aria-label={t('common.close')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="plan-selector-section">
+              <PlanSelector
+                currentPlan={user?.plan ?? 'free'}
+                busy={isUpdatingPlan}
+                notice={planUpdateNotice}
+                error={planUpdateError}
+                onPlanChange={handlePlanChange}
+                title="Choose your plan"
+              />
+            </div>
+          </div>
+        </>
+      )}
+      {dashboardAdminToolsModal}
 
       {/* ── Location search / manage popup ── */}
       {isLocationSearchOpen && (

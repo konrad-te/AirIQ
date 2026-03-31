@@ -18,6 +18,7 @@ class UserOutSchema(BaseModel):
     id: int
     email: EmailStr
     display_name: str | None
+    profile_image_data: str | None
     is_active: bool
     email_verified: bool
     role: str
@@ -35,6 +36,7 @@ class UserUpdateSchema(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
     email: EmailStr | None = None
     plan: str | None = Field(default=None, pattern="^(free|plus)$")
+    profile_image_data: str | None = Field(default=None, max_length=1_500_000)
 
     model_config = ConfigDict(from_attributes=True)
 

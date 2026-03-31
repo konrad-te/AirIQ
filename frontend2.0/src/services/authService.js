@@ -59,9 +59,10 @@ export async function getCurrentUser(token) {
   return response.json()
 }
 
-export async function updateProfile(token, { display_name, email }) {
+export async function updateProfile(token, { display_name, email, profile_image_data }) {
   const body = { display_name }
   if (email !== undefined) body.email = email
+  if (profile_image_data !== undefined) body.profile_image_data = profile_image_data
   const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

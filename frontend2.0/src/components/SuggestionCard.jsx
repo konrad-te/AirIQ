@@ -36,18 +36,14 @@ function formatFamilyLabel(family) {
  *   feedbackError?: string,
  * }} props
  */
-<<<<<<< HEAD
-export default function SuggestionCard({ suggestion }) {
-  const { t } = useTranslation()
-=======
 export default function SuggestionCard({
-  suggestion,
+  suggestion = {},
   onFeedback = null,
   feedbackVote = '',
   feedbackBusy = false,
   feedbackError = '',
 }) {
->>>>>>> training-data
+  const { t } = useTranslation()
   const {
     category,
     family,
@@ -59,35 +55,43 @@ export default function SuggestionCard({
     primary_reason: primaryReason,
     reasons = [],
   } = suggestion
+  const normalizedPriority = PRIORITY_LABEL_KEYS[priority] ? priority : 'medium'
+  const normalizedSeverity = typeof severity === 'string' && severity.trim() ? severity : null
+  const normalizedReasons = Array.isArray(reasons)
+    ? reasons.filter((reason) => typeof reason === 'string' && reason.trim())
+    : []
 
   const familyLabel = formatFamilyLabel(category || family)
-  const severityLabel = severity
-    ? (SEVERITY_LABEL_KEYS[severity] ? t(SEVERITY_LABEL_KEYS[severity]) : formatFamilyLabel(severity))
+  const severityLabel = normalizedSeverity
+    ? (SEVERITY_LABEL_KEYS[normalizedSeverity] ? t(SEVERITY_LABEL_KEYS[normalizedSeverity]) : formatFamilyLabel(normalizedSeverity))
     : null
   const recommendationText = recommendation || primaryReason
   const impactText = typeof impact === 'string' && impact.trim() ? impact : null
   const feedbackEnabled = typeof onFeedback === 'function'
+  const suggestionId = typeof suggestion.id === 'string' || typeof suggestion.id === 'number'
+    ? suggestion.id
+    : 'suggestion'
 
   return (
-    <article className={`suggestion-card suggestion-card--${priority}${severity ? ` suggestion-card--severity-${severity}` : ''}`}>
+    <article className={`suggestion-card suggestion-card--${normalizedPriority}${normalizedSeverity ? ` suggestion-card--severity-${normalizedSeverity}` : ''}`}>
       <div className="suggestion-card__topline">
-        <span className={`suggestion-card__badge suggestion-card__badge--${priority}`}>
+        <span className={`suggestion-card__badge suggestion-card__badge--${normalizedPriority}`}>
           <span className="suggestion-card__badge-dot" aria-hidden />
-          {t(PRIORITY_LABEL_KEYS[priority]) || t('suggestion.default')}
+          {t(PRIORITY_LABEL_KEYS[normalizedPriority]) || t('suggestion.default')}
         </span>
         {familyLabel && <span className="suggestion-card__family">{familyLabel}</span>}
       </div>
       <div className="suggestion-card__body">
-        {(severityLabel || shortLabel || reasons.length > 0) && (
+        {(severityLabel || shortLabel || normalizedReasons.length > 0) && (
           <div className="suggestion-card__tags">
             {severityLabel && (
-              <span className={`suggestion-card__tag suggestion-card__tag--severity suggestion-card__tag--severity-${severity}`}>{severityLabel}</span>
+              <span className={`suggestion-card__tag suggestion-card__tag--severity suggestion-card__tag--severity-${normalizedSeverity}`}>{severityLabel}</span>
             )}
             {shortLabel && (
               <span className="suggestion-card__tag suggestion-card__tag--label">{shortLabel}</span>
             )}
-            {reasons.map((reason, index) => (
-              <span key={`${suggestion.id}-tag-${index}`} className="suggestion-card__tag">{reason}</span>
+            {normalizedReasons.map((reason, index) => (
+              <span key={`${suggestionId}-tag-${index}`} className="suggestion-card__tag">{reason}</span>
             ))}
           </div>
         )}
