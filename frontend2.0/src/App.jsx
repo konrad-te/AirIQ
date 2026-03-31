@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getIntlLocale, getIntlTimezone } from './i18n'
 import heroBackground from './assets/123.png'
-import dashboardBackground from './assets/222.png'
-import logoAiriq from './assets/logo-airiq.svg'
+import logoAiriq from './assets/airiq_logo2.0.png'
 import runIcon from './assets/run.png'
 import windowIcon from './assets/window.png'
 import sensorEmptyArt from './assets/sensor.png'
 import moonIcon from './assets/moon.png'
+import notisIcon from './assets/notis.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
+import DashboardGlobe from './components/DashboardGlobe'
 import DeviceSetupModal from './components/DeviceSetupModal'
 import ForgotPasswordModal from './components/ForgotPasswordModal'
 import LoginModal from './components/LoginModal'
@@ -31,6 +32,7 @@ import FarewellPage from './pages/FarewellPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
+import { MAX_DASHBOARD_SUGGESTIONS } from './types/suggestions'
 import { geocodeAddress, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, getSleepInsight, getTrainingHistory, getTrainingInsight, importSleepDataFiles, importTrainingDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
 import { addSavedLocation, getPreferences, getSavedLocations, previewAdminSuggestions, removeSavedLocation, resendActivation, submitSuggestionFeedback, updateUserPlan } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
@@ -70,6 +72,7 @@ const POLISH_TIMEZONE = 'Europe/Warsaw'
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000
 const INDOOR_UPDATE_ESTIMATE_MS = 15 * 60 * 1000
 const INDOOR_MANUAL_RETRY_MS = 2 * 60 * 1000
+const ACTIVE_LOCATION_STORAGE_KEY = 'airiq_active_location'
 const DASHBOARD_ADMIN_OVERRIDE_DEFAULTS = {
   outdoor_pm25: '',
   outdoor_pm10: '',
@@ -122,6 +125,26 @@ function formatLocationFallbackLabel(lat, lon) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 'Detected current location'
   return `Detected near ${lat.toFixed(3)}, ${lon.toFixed(3)}`
 }
+function MetricInfoTile({ label, value, tooltipTitle, tooltipBody, tooltipRange, tooltipHint }) {
+  const hasTooltip = Boolean(tooltipTitle || tooltipBody || tooltipRange || tooltipHint)
+  return (
+    <div
+      className={`dashboard-preview-card__metric-tile${hasTooltip ? ' dashboard-preview-card__metric-tile--info' : ''}`}
+      tabIndex={hasTooltip ? 0 : undefined}
+    >
+      <strong>{label}</strong>
+      <span>{value}</span>
+      {hasTooltip ? (
+        <div className="dashboard-preview-card__metric-tooltip" role="tooltip">
+          <strong className="dashboard-preview-card__metric-tooltip-title">{tooltipTitle}</strong>
+          <p>{tooltipBody}</p>
+          {tooltipRange ? <p className="dashboard-preview-card__metric-tooltip-range">{tooltipRange}</p> : null}
+          {tooltipHint ? <p className="dashboard-preview-card__metric-tooltip-hint">{tooltipHint}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 function getUserDisplayName(user) {
   const explicitName = typeof user?.display_name === 'string' ? user.display_name.trim() : ''
   if (explicitName) return explicitName
@@ -168,6 +191,34 @@ function parseOptionalNumberInput(value) {
   if (!trimmed) return null
   const parsed = Number(trimmed)
   return Number.isFinite(parsed) ? parsed : null
+}
+function readStoredActiveLocation() {
+  if (typeof window === 'undefined') return null
+  try {
+    const rawValue = window.localStorage.getItem(ACTIVE_LOCATION_STORAGE_KEY)
+    if (!rawValue) return null
+    const parsed = JSON.parse(rawValue)
+    if (!parsed || typeof parsed !== 'object') return null
+    const label = typeof parsed.label === 'string' ? parsed.label.trim() : ''
+    const lat = Number(parsed.lat)
+    const lon = Number(parsed.lon)
+    if (!label || !Number.isFinite(lat) || !Number.isFinite(lon)) return null
+    return { label, lat, lon }
+  } catch {
+    return null
+  }
+}
+function writeStoredActiveLocation(location) {
+  if (typeof window === 'undefined') return
+  try {
+    if (!location) {
+      window.localStorage.removeItem(ACTIVE_LOCATION_STORAGE_KEY)
+      return
+    }
+    window.localStorage.setItem(ACTIVE_LOCATION_STORAGE_KEY, JSON.stringify(location))
+  } catch {
+    // Ignore storage failures and keep the in-memory selection.
+  }
 }
 function getWeatherVisual(weatherCode, isDay, windSpeedMs) {
   const isNight = isDay === 0
@@ -291,19 +342,18 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isDeviceSetupOpen, setIsDeviceSetupOpen] = useState(false)
   const [route, setRoute] = useState(() => window.location.pathname)
-  const [searchAddress, setSearchAddress] = useState(mockData.location)
-  const [currentLocationLabel, setCurrentLocationLabel] = useState(mockData.location)
+  const [searchAddress, setSearchAddress] = useState(() => readStoredActiveLocation()?.label || mockData.location)
+  const [currentLocationLabel, setCurrentLocationLabel] = useState(() => readStoredActiveLocation()?.label || mockData.location)
   const [liveAirData, setLiveAirData] = useState(null)
   const [liveAirError, setLiveAirError] = useState('')
   const [isLoadingAirData, setIsLoadingAirData] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [locationSuggestions, setLocationSuggestions] = useState([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
-  const [confirmedSearchAddress, setConfirmedSearchAddress] = useState(mockData.location)
+  const [confirmedSearchAddress, setConfirmedSearchAddress] = useState(() => readStoredActiveLocation()?.label || mockData.location)
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false)
   const [pendingLocation, setPendingLocation] = useState(null)
   const [locModalView, setLocModalView] = useState('search')
-  const [recsTab, setRecsTab] = useState('suggestions')
   const [savedLocations, setSavedLocations] = useState([])
   const [sensorStatus, setSensorStatus] = useState(null)
   const [sensorReading, setSensorReading] = useState(null)
@@ -357,7 +407,10 @@ export default function App() {
   const [sleepInsightFeedbackBusy, setSleepInsightFeedbackBusy] = useState({})
   const [sleepInsightFeedbackErrors, setSleepInsightFeedbackErrors] = useState({})
   const [sensorError, setSensorError] = useState('')
-  const [currentCoords, setCurrentCoords] = useState(null)
+  const [currentCoords, setCurrentCoords] = useState(() => {
+    const storedLocation = readStoredActiveLocation()
+    return storedLocation ? { lat: storedLocation.lat, lon: storedLocation.lon } : null
+  })
   const [detectedCurrentLocation, setDetectedCurrentLocation] = useState('')
   const [dashboardAdminForm, setDashboardAdminForm] = useState(DASHBOARD_ADMIN_OVERRIDE_DEFAULTS)
   const [dashboardAdminOverride, setDashboardAdminOverride] = useState(null)
@@ -376,6 +429,7 @@ export default function App() {
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false)
   const [isSendingVerificationNotification, setIsSendingVerificationNotification] = useState(false)
   const [verificationNotificationSent, setVerificationNotificationSent] = useState(false)
+  const activeAirRequestRef = useRef(0)
   const canAccessPremiumInsights = Boolean(user && (user.role === 'admin' || user.plan === 'plus'))
   const notificationCount = user && !user.email_verified ? 1 : 0
   const handleOpenGlobe = () => {
@@ -581,6 +635,15 @@ export default function App() {
       }
     }
   }
+  const applyResolvedLocation = (label, lat, lon, data) => {
+    setLiveAirData(data)
+    setCurrentLocationLabel(label)
+    setCurrentCoords({ lat, lon })
+    setSearchAddress(label)
+    setConfirmedSearchAddress(label)
+    setStatusMessage('')
+    writeStoredActiveLocation({ label, lat, lon })
+  }
   const handleSwitchLocation = (loc) => {
     loadAirQualityForCoords(loc.lat, loc.lon, loc.label)
   }
@@ -628,19 +691,21 @@ export default function App() {
     }
   }
   const loadAirQualityForCoords = async (lat, lon, locationLabel) => {
+    const requestId = activeAirRequestRef.current + 1
+    activeAirRequestRef.current = requestId
     setIsLoadingAirData(true)
     setLiveAirError('')
     setStatusMessage(`Fetching air quality for ${locationLabel.toLowerCase()}...`)
     try {
       const data = await getAirQualityData(lat, lon)
-      setLiveAirData(data)
-      setCurrentLocationLabel(locationLabel)
-      setCurrentCoords({ lat, lon })
-      setStatusMessage('')
+      if (activeAirRequestRef.current !== requestId) return
+      applyResolvedLocation(locationLabel, lat, lon, data)
       upsertSavedLocation(locationLabel, lat, lon)
     } catch (error) {
+      if (activeAirRequestRef.current !== requestId) return
       setLiveAirError(error instanceof Error ? error.message : t('location.failedToLoadLiveData'))
     } finally {
+      if (activeAirRequestRef.current !== requestId) return
       setIsLoadingAirData(false)
     }
   }
@@ -727,30 +792,39 @@ export default function App() {
   }, [token, i18n])
 
   useEffect(() => {
-    if (!user) {
+    if (!token) {
       return undefined
     }
     let cancelled = false
     async function loadInitialAirData() {
+      const requestId = activeAirRequestRef.current + 1
+      activeAirRequestRef.current = requestId
       try {
+        const storedLocation = readStoredActiveLocation()
         setIsLoadingAirData(true)
         setLiveAirError('')
-        setStatusMessage(t('location.lookingUp', { location: mockData.location }))
-        const geocoded = await geocodeAddress(mockData.location)
-        const data = await getAirQualityData(geocoded.lat, geocoded.lon)
-        if (!cancelled) {
-          setLiveAirData(data)
-          setCurrentLocationLabel(geocoded.address)
-          setCurrentCoords({ lat: geocoded.lat, lon: geocoded.lon })
-          setStatusMessage('')
-          upsertSavedLocation(geocoded.address, geocoded.lat, geocoded.lon)
+        if (storedLocation) {
+          setStatusMessage(t('location.lookingUp', { location: storedLocation.label }))
+          const data = await getAirQualityData(storedLocation.lat, storedLocation.lon)
+          if (!cancelled && activeAirRequestRef.current === requestId) {
+            applyResolvedLocation(storedLocation.label, storedLocation.lat, storedLocation.lon, data)
+            upsertSavedLocation(storedLocation.label, storedLocation.lat, storedLocation.lon)
+          }
+        } else {
+          setStatusMessage(t('location.lookingUp', { location: mockData.location }))
+          const geocoded = await geocodeAddress(mockData.location)
+          const data = await getAirQualityData(geocoded.lat, geocoded.lon)
+          if (!cancelled && activeAirRequestRef.current === requestId) {
+            applyResolvedLocation(geocoded.address, geocoded.lat, geocoded.lon, data)
+            upsertSavedLocation(geocoded.address, geocoded.lat, geocoded.lon)
+          }
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && activeAirRequestRef.current === requestId) {
           setLiveAirError(error instanceof Error ? error.message : t('location.failedToLoadLiveData'))
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && activeAirRequestRef.current === requestId) {
           setIsLoadingAirData(false)
         }
       }
@@ -759,7 +833,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [token, t])
   useEffect(() => {
     if (!user) {
       setLocationSuggestions([])
@@ -1259,6 +1333,18 @@ export default function App() {
       setIsNotificationsOpen(false)
     }
   }, [user?.email_verified])
+  const { suggestionsBannerCount, suggestionsBannerCountLabel } = useMemo(() => {
+    const list = Array.isArray(dashboardSuggestions)
+      ? dashboardSuggestions.filter((s) => s && typeof s === 'object')
+      : []
+    const total = list.length
+    const shown = Math.min(total, MAX_DASHBOARD_SUGGESTIONS)
+    const label =
+      total > MAX_DASHBOARD_SUGGESTIONS
+        ? t('suggestions.showingOf', { shown, total })
+        : t('suggestions.total', { count: shown })
+    return { suggestionsBannerCount: shown, suggestionsBannerCountLabel: label }
+  }, [dashboardSuggestions, t])
   if (isLoadingAuth) {
     return null
   }
@@ -1603,17 +1689,17 @@ export default function App() {
     ? `Next sensor update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
     : 'AirIQ will check for a newer sensor reading.'
   const indoorStatusPrimary = `Latest sensor reading: ${indoorMeasurementLabel}`
-  const indoorStatusSecondary =
-    indoorExpectedNextUpdateAt && indoorOnCooldown
-      ? `Next update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
-      : 'A newer sensor update may be available now.'
-  const activeBackground = route === '/' ? dashboardBackground : heroBackground
+  const isDashboard = route === '/'
   return (
-    <div className={`page-root${route === '/' ? ' page-root--dashboard' : ''}`}>
-      <div className="page-root__bg" aria-hidden>
-        <img className="page-root__bg-image" src={activeBackground} alt="" />
-        <div className="page-root__bg-fade" />
-      </div>
+    <div className={`page-root${isDashboard ? ' page-root--dashboard' : ''}`}>
+      {isDashboard ? (
+        <DashboardGlobe lat={currentCoords?.lat} lon={currentCoords?.lon} />
+      ) : (
+        <div className="page-root__bg" aria-hidden>
+          <img className="page-root__bg-image" src={heroBackground} alt="" />
+          <div className="page-root__bg-fade" />
+        </div>
+      )}
       <header className="top-nav">
         <div className="brand">
           <img src={logoAiriq} alt="AirIQ" className="brand-logo" />
@@ -1644,12 +1730,6 @@ export default function App() {
               Training Data
             </button>
           <button
-            className={`nav-link${route === '/globe' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenGlobe}
-          >
-            {t('nav.globalAirQuality')}
-          </button>
-          <button
             className={`nav-link${route === '/feedback' ? ' nav-link--active' : ''}`}
             onClick={handleOpenFeedback}
           >
@@ -1673,10 +1753,7 @@ export default function App() {
               )}
               <div className="notifications-menu">
                 <button className="nav-bell" aria-label={t('nav.notifications')} onClick={handleToggleNotifications}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
+                  <img src={notisIcon} alt="" aria-hidden className="nav-bell__icon" />
                   {notificationCount > 0 ? <span className="nav-bell__badge">{notificationCount}</span> : null}
                 </button>
                 {isNotificationsOpen && (
@@ -1770,7 +1847,7 @@ export default function App() {
           )}
         </div>
       </header>
-      <main className="dashboard">
+      <main className={`dashboard${isDashboard ? ' dashboard--globe' : ''}`}>
 
       {route === '/trends' ? (<>
         {/* â•â• Trends page â•â• */}
@@ -1880,26 +1957,23 @@ export default function App() {
           />
         </div>
       </>) : (<>
-        <section className="dashboard-preview">
-          <div className="dashboard-preview__locations">
+        <section className="dashboard-preview dashboard-preview--globe">
+          <div className="dashboard-preview__globe-top-bar">
             <button type="button" className="dashboard-locations-btn" onClick={openLocationModal}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
               </svg>
-              {t('dashboard.locations')}
-              {savedLocations.length > 0 && (
-                <span className="dashboard-locations-btn__count">{savedLocations.length}</span>
-              )}
+              {currentLocationLabel || t('dashboard.locations')}
             </button>
+            {user.role === 'admin' && isDashboardAdminPreviewActive ? (
+              <div className="dashboard-admin-preview-status">
+                <span>{t('dashboard.adminPreviewActive')}</span>
+                <button type="button" className="dashboard-admin-preview-status__action" onClick={() => setIsDashboardAdminToolsOpen(true)}>
+                  Open demo tools
+                </button>
+              </div>
+            ) : null}
           </div>
-          {user.role === 'admin' && isDashboardAdminPreviewActive ? (
-            <div className="dashboard-admin-preview-status">
-              <span>{t('dashboard.adminPreviewActive')}</span>
-              <button type="button" className="dashboard-admin-preview-status__action" onClick={() => setIsDashboardAdminToolsOpen(true)}>
-                Open demo tools
-              </button>
-            </div>
-          ) : null}
           <div className="dashboard-preview__cards">
             <article className="dashboard-preview-card">
               <div className="dashboard-preview-card__top">
@@ -2065,7 +2139,6 @@ export default function App() {
                 <div className="dashboard-preview-card__status">
                   <div className="dashboard-preview-card__status-copy">
                     <span>{indoorStatusPrimary}</span>
-                    <span>{indoorStatusSecondary}</span>
                   </div>
                   <div className={`dashboard-preview-card__refresh-wrap${indoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
                     <button
@@ -2092,56 +2165,52 @@ export default function App() {
               )}
             </article>
           </div>
-          <section className="dashboard-preview-recs">
-            <div className="dashboard-preview-recs__tabs">
-              <div className="dashboard-preview-recs__tab-group">
-                <button
-                  type="button"
-                  className={`dashboard-preview-recs__tab${recsTab === 'suggestions' ? ' dashboard-preview-recs__tab--active' : ''}`}
-                  onClick={() => setRecsTab('suggestions')}
-                >
-                  {t('dashboard.suggestions')}
-                </button>
-                <button
-                  type="button"
-                  className={`dashboard-preview-recs__tab${recsTab === 'day' ? ' dashboard-preview-recs__tab--active' : ''}`}
-                  onClick={() => setRecsTab('day')}
-                >
-                  {t('dashboard.planForDay')}
-                </button>
-              </div>
+          <div className="dashboard-preview-recs__banners" aria-hidden>
+            <div className="dashboard-preview-recs__banner dashboard-preview-recs__banner--suggestions">
               <button
                 type="button"
-                className="dashboard-preview-recs__refresh"
+                className="dashboard-preview-recs__banner-refresh-btn"
                 onClick={handleRefreshSuggestions}
                 disabled={isRefreshingSuggestions}
+                aria-label={`${t('dashboard.suggestions')}: ${suggestionsBannerCountLabel}. ${t('dashboard.refreshSuggestions')}`}
               >
-                {isRefreshingSuggestions ? t('dashboard.refreshingSuggestions') : t('dashboard.refreshSuggestions')}
+                <span className="dashboard-preview-recs__banner-label">
+                  {t('dashboard.suggestions')}
+                  <span className="dashboard-preview-recs__banner-label-count" aria-hidden>
+                    {suggestionsBannerCount}
+                  </span>
+                </span>
               </button>
             </div>
-            <div className="dashboard-preview-recs__body">
-              {recsTab === 'suggestions' ? (
-                <>
-                  {dashboardSuggestionsError && (
-                    <p className="dashboard-preview-recs__error">{dashboardSuggestionsError}</p>
-                  )}
-                  <SuggestionsPanel
-                    suggestions={dashboardSuggestions}
-                    isLoading={isSuggestionsPanelLoading}
-                    onSuggestionFeedback={isDashboardSuggestionFeedbackEnabled ? handleSuggestionFeedback : null}
-                    feedbackVotes={dashboardSuggestionFeedbackVotes}
-                    feedbackBusy={dashboardSuggestionFeedbackBusy}
-                    feedbackErrors={dashboardSuggestionFeedbackErrors}
-                  />
-                </>
-              ) : recsTab === 'day' ? (
+            <div className="dashboard-preview-recs__banner dashboard-preview-recs__banner--day">
+              <span className="dashboard-preview-recs__banner-label">{t('dashboard.planForDay')}</span>
+            </div>
+          </div>
+          <section className="dashboard-preview-recs" aria-label={t('dashboard.suggestions')}>
+            <div className="dashboard-preview-recs__split">
+              <div className="dashboard-preview-recs__pane dashboard-preview-recs__pane--suggestions">
+                {dashboardSuggestionsError ? (
+                  <p className="dashboard-preview-recs__error">{dashboardSuggestionsError}</p>
+                ) : null}
+                <SuggestionsPanel
+                  variant="globeConsole"
+                  suggestions={dashboardSuggestions}
+                  isLoading={isSuggestionsPanelLoading}
+                  onSuggestionFeedback={isDashboardSuggestionFeedbackEnabled ? handleSuggestionFeedback : null}
+                  feedbackVotes={dashboardSuggestionFeedbackVotes}
+                  feedbackBusy={dashboardSuggestionFeedbackBusy}
+                  feedbackErrors={dashboardSuggestionFeedbackErrors}
+                />
+              </div>
+              <div className="dashboard-preview-recs__pane dashboard-preview-recs__pane--day">
                 <OutdoorDayAdvicePanel
+                  hidePlanEyebrow
                   airData={liveAirData}
                   locationLabel={currentLocationLabel}
                   locale={intlLocale}
                   timeZone={intlTimezone}
                 />
-              ) : null}
+              </div>
             </div>
           </section>
         </section>

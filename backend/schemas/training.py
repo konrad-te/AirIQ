@@ -51,6 +51,7 @@ class TrainingActivitySummarySchema(BaseModel):
 class TrainingHistoryPointSchema(BaseModel):
     calendar_date: str
     activity_count: int
+    has_sleep_data: bool = False
     total_duration_minutes: float
     total_calories: float
     weighted_average_heart_rate: float | None = None

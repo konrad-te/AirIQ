@@ -163,6 +163,7 @@ function buildCalendarDays(monthDate, pointsByDate, selectedDate) {
       label: date.getDate(),
       inCurrentMonth: date.getMonth() === monthDate.getMonth(),
       hasData: Number(point?.activity_count) > 0,
+      hasSleepData: Boolean(point?.has_sleep_data),
       isSelected: key === selectedDate,
     }
   })
@@ -484,6 +485,7 @@ export default function TrainingDataPanel({
                           'sleep-history-panel__calendar-day',
                           day.inCurrentMonth ? '' : 'sleep-history-panel__calendar-day--outside',
                           day.hasData ? 'sleep-history-panel__calendar-day--has-data' : 'sleep-history-panel__calendar-day--no-data',
+                          day.hasSleepData ? 'sleep-history-panel__calendar-day--has-sensor-data' : '',
                           day.isSelected ? 'sleep-history-panel__calendar-day--selected' : '',
                         ].filter(Boolean).join(' ')}
                         disabled={!day.hasData}
@@ -491,15 +493,29 @@ export default function TrainingDataPanel({
                           onSelectInsightDate?.(day.key)
                           setIsCalendarOpen(false)
                         }}
-                        title={day.hasData ? 'Training data available' : 'No training sessions stored'}
+                        title={
+                          day.hasData && day.hasSleepData
+                            ? 'Training and sleep data available'
+                            : day.hasData
+                              ? 'Training data available'
+                              : day.hasSleepData
+                                ? 'Sleep data available, but no training session stored'
+                                : 'No training sessions stored'
+                        }
                       >
                         <span className="sleep-history-panel__calendar-day-label">{day.label}</span>
-                        {day.hasData ? <span className="sleep-history-panel__calendar-markers" aria-hidden><i className="sleep-history-panel__calendar-marker sleep-history-panel__calendar-marker--has-data" /></span> : null}
+                        {(day.hasData || day.hasSleepData) ? (
+                          <span className="sleep-history-panel__calendar-markers" aria-hidden>
+                            {day.hasData ? <i className="sleep-history-panel__calendar-marker sleep-history-panel__calendar-marker--has-data" /> : null}
+                            {day.hasSleepData ? <i className="sleep-history-panel__calendar-marker sleep-history-panel__calendar-marker--has-sensor-data" /> : null}
+                          </span>
+                        ) : null}
                       </button>
                     ))}
                   </div>
                   <div className="sleep-history-panel__calendar-legend">
                     <span><i className="sleep-history-panel__calendar-dot sleep-history-panel__calendar-dot--has-data" />Has training data</span>
+                    <span><i className="sleep-history-panel__calendar-dot sleep-history-panel__calendar-dot--has-sensor-data" />Has sleep data</span>
                     <span><i className="sleep-history-panel__calendar-dot sleep-history-panel__calendar-dot--no-data" />No data</span>
                   </div>
                 </div>

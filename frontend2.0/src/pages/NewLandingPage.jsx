@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import logoAiriq from '../assets/logo-airiq.svg'
+import logoAiriq from '../assets/airiq_logo2.0.png'
 import landingBg from '../assets/landing2.png'
 import ForgotPasswordModal from '../components/ForgotPasswordModal'
 import LoginModal from '../components/LoginModal'
