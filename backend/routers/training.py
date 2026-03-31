@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from backend.database import get_db
-from backend.models import GarminTrainingActivity, User
+from backend.models import GarminSleepSummary, GarminTrainingActivity, User
 from backend.schemas.training import (
     TrainingActivitySummarySchema,
     TrainingHistoryResponseSchema,
@@ -236,8 +236,39 @@ def _activity_calendar_date(record: GarminTrainingActivity) -> date | None:
     return reference_time.date() if reference_time is not None else None
 
 
-def _build_daily_points(rows: list[GarminTrainingActivity]) -> list[TrainingHistoryPointSchema]:
+def _load_sleep_dates(
+    db: Session,
+    *,
+    user_id: int,
+    start_date: date,
+    end_date: date,
+) -> set[date]:
+    if end_date < start_date:
+        return set()
+
+    rows = (
+        db.execute(
+            select(GarminSleepSummary.calendar_date).where(
+                GarminSleepSummary.user_id == user_id,
+                GarminSleepSummary.calendar_date >= start_date,
+                GarminSleepSummary.calendar_date <= end_date,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return set(rows)
+
+
+def _build_daily_points(
+    rows: list[GarminTrainingActivity],
+    *,
+    sleep_dates: set[date] | None = None,
+    fill_start_date: date | None = None,
+    fill_end_date: date | None = None,
+) -> list[TrainingHistoryPointSchema]:
     buckets: dict[date, dict[str, Any]] = {}
+    sleep_dates = sleep_dates or set()
 
     for row in rows:
         calendar_date = _activity_calendar_date(row)
@@ -271,6 +302,23 @@ def _build_daily_points(rows: list[GarminTrainingActivity]) -> list[TrainingHist
         sport_minutes: dict[str, float] = bucket["sport_minutes"]
         sport_minutes[sport_label] = sport_minutes.get(sport_label, 0.0) + duration_minutes
 
+    if fill_start_date is not None and fill_end_date is not None and fill_end_date >= fill_start_date:
+        current_date = fill_start_date
+        while current_date <= fill_end_date:
+            buckets.setdefault(
+                current_date,
+                {
+                    "activity_count": 0,
+                    "total_duration_minutes": 0.0,
+                    "total_calories": 0.0,
+                    "weighted_heart_rate_sum": 0.0,
+                    "weighted_heart_rate_duration": 0.0,
+                    "total_distance_km": 0.0,
+                    "sport_minutes": {},
+                },
+            )
+            current_date += timedelta(days=1)
+
     points: list[TrainingHistoryPointSchema] = []
     for calendar_date in sorted(buckets):
         bucket = buckets[calendar_date]
@@ -286,6 +334,7 @@ def _build_daily_points(rows: list[GarminTrainingActivity]) -> list[TrainingHist
             TrainingHistoryPointSchema(
                 calendar_date=calendar_date.isoformat(),
                 activity_count=bucket["activity_count"],
+                has_sleep_data=calendar_date in sleep_dates,
                 total_duration_minutes=round(bucket["total_duration_minutes"], 1),
                 total_calories=round(bucket["total_calories"], 0),
                 weighted_average_heart_rate=weighted_average_heart_rate,
@@ -300,6 +349,8 @@ def _build_history_response(
     rows: list[GarminTrainingActivity],
     *,
     range_key: str,
+    current_user: User,
+    db: Session,
 ) -> TrainingHistoryResponseSchema:
     total_duration_minutes = 0.0
     total_moving_minutes = 0.0
@@ -357,6 +408,32 @@ def _build_history_response(
     )
 
     latest_row = rows[0] if rows else None
+    today_utc = datetime.now(UTC).date()
+
+    if range_key == "all":
+        training_dates = [_activity_calendar_date(row) for row in rows]
+        training_dates = [item for item in training_dates if item is not None]
+        earliest_sleep_date = db.execute(
+            select(GarminSleepSummary.calendar_date)
+            .where(GarminSleepSummary.user_id == current_user.id)
+            .order_by(GarminSleepSummary.calendar_date.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        candidate_dates = training_dates[:]
+        if earliest_sleep_date is not None:
+            candidate_dates.append(earliest_sleep_date)
+        start_date = min(candidate_dates) if candidate_dates else today_utc
+    else:
+        window = TRAINING_HISTORY_RANGE_TO_WINDOW[range_key] or timedelta(days=0)
+        start_date = (datetime.now(UTC) - window).date()
+
+    sleep_dates = _load_sleep_dates(
+        db,
+        user_id=current_user.id,
+        start_date=start_date,
+        end_date=today_utc,
+    )
+
     return TrainingHistoryResponseSchema(
         range=range_key,
         source_label="Garmin activity import",
@@ -372,7 +449,12 @@ def _build_history_response(
             else None
         ),
         sport_breakdown=sport_breakdown,
-        points=_build_daily_points(rows),
+        points=_build_daily_points(
+            rows,
+            sleep_dates=sleep_dates,
+            fill_start_date=start_date,
+            fill_end_date=today_utc,
+        ),
         activities=[_serialize_activity(row) for row in rows],
     )
 
@@ -499,4 +581,9 @@ def get_training_history(
         .all()
     )
 
-    return _build_history_response(rows, range_key=range_key)
+    return _build_history_response(
+        rows,
+        range_key=range_key,
+        current_user=current_user,
+        db=db,
+    )

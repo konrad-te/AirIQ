@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import logoAiriq from '../assets/logo-airiq.svg'
+import logoAiriq from '../assets/airiq_logo2.0.png'
 import { useAuth } from '../context/AuthContext'
 import {
   deleteSuggestionFeedback,

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import logoAiriq from '../assets/logo-airiq.svg'
+import logoAiriq from '../assets/airiq_logo2.0.png'
 import './FarewellPage.css'
 
 export default function FarewellPage({ onClose }) {

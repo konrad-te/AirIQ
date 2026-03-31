@@ -587,6 +587,7 @@ export default function OutdoorDayAdvicePanel({
   locationLabel,
   locale = DEFAULT_LOCALE,
   timeZone = DEFAULT_TIMEZONE,
+  hidePlanEyebrow = false,
 }) {
   const [planMode, setPlanMode] = useState('today')
 
@@ -718,7 +719,7 @@ export default function OutdoorDayAdvicePanel({
     <section className="outdoor-day-advice" aria-label="Daily outdoor advice">
       <div className="outdoor-day-advice__header">
         <div>
-          <p className="outdoor-day-advice__eyebrow">Plan for the day</p>
+          {hidePlanEyebrow ? null : <p className="outdoor-day-advice__eyebrow">Plan for the day</p>}
           <div className="outdoor-day-advice__mode-switch" role="tablist" aria-label="Plan day selection">
             <button
               type="button"

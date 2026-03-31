@@ -12,6 +12,8 @@ import { MAX_DASHBOARD_SUGGESTIONS } from '../types/suggestions'
  *   feedbackVotes?: Record<string, string>,
  *   feedbackBusy?: Record<string, boolean>,
  *   feedbackErrors?: Record<string, string>,
+ *   headerActions?: import('react').ReactNode,
+ *   variant?: 'default' | 'globeConsole',
  * }} props
  */
 export default function SuggestionsPanel({
@@ -21,6 +23,8 @@ export default function SuggestionsPanel({
   feedbackVotes = {},
   feedbackBusy = {},
   feedbackErrors = {},
+  headerActions = null,
+  variant = 'default',
 }) {
   const { t } = useTranslation()
   const normalizedSuggestions = Array.isArray(suggestions)
@@ -31,15 +35,41 @@ export default function SuggestionsPanel({
     ? t('suggestions.showingOf', { shown: visibleSuggestions.length, total: normalizedSuggestions.length })
     : t('suggestions.total', { count: visibleSuggestions.length })
 
+  const titleBlock =
+    variant === 'globeConsole' ? null : (
+      <div>
+        <p className="suggestions-panel__eyebrow">{t('suggestions.actionFeed')}</p>
+        <h3 className="suggestions-panel__title">{t('suggestions.topSuggestions')}</h3>
+      </div>
+    )
+
+  const headerAside = (
+    <div className="suggestions-panel__header-aside">
+      {headerActions}
+      {!isLoading ? <span className="suggestions-panel__count">{countLabel}</span> : null}
+    </div>
+  )
+
+  const header =
+    variant === 'globeConsole' ? null : (
+      <div className="suggestions-panel__header">
+        {titleBlock}
+        {headerAside}
+      </div>
+    )
+
   if (isLoading) {
     return (
       <div className="suggestions-panel suggestions-panel--loading" aria-live="polite">
-        <div className="suggestions-panel__loading-icon" aria-hidden>
-          <span />
-        </div>
-        <div className="suggestions-panel__loading-copy">
-          <h3>{t('suggestions.loading')}</h3>
-          <p>{t('suggestions.loadingDesc')}</p>
+        {header}
+        <div className="suggestions-panel__loading-body">
+          <div className="suggestions-panel__loading-icon" aria-hidden>
+            <span />
+          </div>
+          <div className="suggestions-panel__loading-copy">
+            <h3>{t('suggestions.loading')}</h3>
+            <p>{t('suggestions.loadingDesc')}</p>
+          </div>
         </div>
       </div>
     )
@@ -48,12 +78,15 @@ export default function SuggestionsPanel({
   if (visibleSuggestions.length === 0) {
     return (
       <div className="suggestions-panel suggestions-panel--empty">
-        <div className="suggestions-panel__empty-icon" aria-hidden>
-          <span />
-        </div>
-        <div className="suggestions-panel__empty-copy">
-          <h3>{t('suggestions.empty')}</h3>
-          <p>{t('suggestions.emptyDesc')}</p>
+        {header}
+        <div className="suggestions-panel__empty-body">
+          <div className="suggestions-panel__empty-icon" aria-hidden>
+            <span />
+          </div>
+          <div className="suggestions-panel__empty-copy">
+            <h3>{t('suggestions.empty')}</h3>
+            <p>{t('suggestions.emptyDesc')}</p>
+          </div>
         </div>
       </div>
     )
@@ -61,13 +94,7 @@ export default function SuggestionsPanel({
 
   return (
     <section className="suggestions-panel" aria-label={t('suggestions.topSuggestions')}>
-      <div className="suggestions-panel__header">
-        <div>
-          <p className="suggestions-panel__eyebrow">{t('suggestions.actionFeed')}</p>
-          <h3 className="suggestions-panel__title">{t('suggestions.topSuggestions')}</h3>
-        </div>
-        <span className="suggestions-panel__count">{countLabel}</span>
-      </div>
+      {header}
       <div className="suggestions-panel__stack">
         {visibleSuggestions.map((suggestion, index) => (
           <SuggestionCard
