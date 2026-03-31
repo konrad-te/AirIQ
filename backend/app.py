@@ -42,6 +42,7 @@ from backend.models import (
     IngestRun,
     LocationStationCache,
     ProviderCacheEntry,
+    SuggestionFeedback,
     User,
     UserQingpingIntegration,
     UserSession,
@@ -52,6 +53,10 @@ from backend.routers.households import router as households_router
 from backend.routers.integrations import get_qingping_latest_reading
 from backend.routers.integrations import router as integrations_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
+from backend.schemas.suggestion_feedback import (
+    SuggestionFeedbackCreateSchema,
+    SuggestionFeedbackOutSchema,
+)
 from backend.schemas.recommendation_config import (
     RecommendationConfigSchema,
     RecommendationConfigUpdateSchema,
@@ -80,8 +85,27 @@ from backend.services.temperature_alert import (
     evaluate_outdoor_temperature,
 )
 from backend.services.ventilation import evaluate_ventilation
+from backend.services.mock_indoor_readings import (
+    delete_mock_indoor_readings,
+    get_user_qingping_device,
+    seed_mock_indoor_readings,
+)
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+from backend.main import (
+    get_air_quality_data,
+    get_lat_lon_nominatim_cached,
+    reverse_geocode_nominatim,
+    suggest_addresses_nominatim,
+)
+from backend.routers.integrations import (
+    get_qingping_latest_reading,
+    get_qingping_sync_interval_minutes,
+    sync_all_qingping_integrations,
+)
+
 app = FastAPI(title="AirIQ API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -123,7 +147,9 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(households_router)
 app.include_router(integrations_router)
+app.include_router(sleep_router)
 app.include_router(ai_router)
+app.include_router(training_router)
 
 
 def _to_iso(value: datetime | None) -> str | None:
@@ -309,6 +335,7 @@ def _build_suggestions_payload_from_context(
     *,
     settings: dict[str, float],
     outdoor_data: dict | None = None,
+    respect_sleep_time_window: bool = True,
 ) -> dict:
     ventilation_suggestion = evaluate_ventilation(ventilation_context)
     outdoor_activity_suggestion = evaluate_outdoor_activity(ventilation_context)
@@ -326,6 +353,7 @@ def _build_suggestions_payload_from_context(
         context=ventilation_context,
         ideal_min=settings["sleep_temp_ideal_min"],
         ideal_max=settings["sleep_temp_ideal_max"],
+        respect_time_window=respect_sleep_time_window,
     )
     indoor_temperature_suggestion = evaluate_indoor_temperature(ventilation_context)
     outdoor_temperature_suggestion = evaluate_outdoor_temperature(ventilation_context)
@@ -378,6 +406,18 @@ def _serialize_ingest_run(run: IngestRun) -> dict:
     }
 
 
+def _sanitize_feedback_payload(value: object) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    return value
+
+
+def _feedback_decimal_to_float(value: Decimal | float | int | None) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
 def _bootstrap_globe_data() -> None:
     db = SessionLocal()
     try:
@@ -425,6 +465,14 @@ def on_startup() -> None:
             _run_account_cleanup,
             trigger=IntervalTrigger(hours=24),
             id="account_cleanup_daily",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        scheduler.add_job(
+            _run_scheduled_qingping_sync,
+            trigger=IntervalTrigger(minutes=get_qingping_sync_interval_minutes()),
+            id="qingping_sync_interval",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -577,19 +625,14 @@ def post_mock_indoor_readings(
     request: Request,
     response: Response,
     body: MockIndoorSeedSchema = MockIndoorSeedSchema(),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Insert synthetic readings (same schema as real Qingping rows) for UI testing."""
+    """Insert synthetic readings for admin demo/testing flows."""
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
 
     device = get_user_qingping_device(db, current_user.id)
-    if device is None:
-        raise HTTPException(
-            status_code=404, detail="No Qingping device has been selected yet."
-        )
-
     device_id, device_name = device
     try:
         return seed_mock_indoor_readings(
@@ -614,7 +657,7 @@ def post_mock_indoor_readings(
 @app.delete("/api/sensor/home/mock-readings")
 def delete_mock_indoor_readings_endpoint(
     response: Response,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """Remove rows previously inserted via POST /api/sensor/home/mock-readings."""
@@ -622,11 +665,6 @@ def delete_mock_indoor_readings_endpoint(
     response.headers["Pragma"] = "no-cache"
 
     device = get_user_qingping_device(db, current_user.id)
-    if device is None:
-        raise HTTPException(
-            status_code=404, detail="No Qingping device has been selected yet."
-        )
-
     device_id, _ = device
     deleted = delete_mock_indoor_readings(
         db, user_id=current_user.id, device_id=device_id
@@ -678,6 +716,7 @@ def preview_admin_suggestions(
     return _build_suggestions_payload_from_context(
         context,
         settings=get_recommendation_config(db),
+        respect_sleep_time_window=False,
     )
 
 
@@ -738,6 +777,14 @@ def _run_account_cleanup() -> None:
             logging.getLogger(__name__).info(
                 "Account cleanup: removed %d deactivated user(s)", removed
             )
+    finally:
+        db.close()
+
+
+def _run_scheduled_qingping_sync() -> None:
+    db = SessionLocal()
+    try:
+        sync_all_qingping_integrations(db)
     finally:
         db.close()
 
@@ -836,7 +883,12 @@ def get_admin_stats(
         )
     ).scalar_one()
 
-    subscribers = 0  # Placeholder until subscription model is implemented
+    subscribers = db.execute(
+        select(func.count(User.id)).where(
+            User.is_active.is_(True),
+            User.plan == "plus",
+        )
+    ).scalar_one()
 
     # ── Registration trend ────────────────────────────────────────────────
     signups_7d = db.execute(
@@ -1154,6 +1206,143 @@ def get_admin_feedback(
     ]
     unread = sum(1 for i in items if not i["is_read"])
     return {"count": len(items), "unread": unread, "items": items}
+
+
+@app.post("/api/suggestion-feedback", status_code=201)
+def submit_suggestion_feedback(
+    body: SuggestionFeedbackCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    suggestion_payload = _sanitize_feedback_payload(body.suggestion) or {}
+    feedback = SuggestionFeedback(
+        user_id=current_user.id,
+        vote=body.vote,
+        suggestion_id=str(suggestion_payload.get("id") or "unknown"),
+        suggestion_family=(
+            str(suggestion_payload.get("family")).strip()
+            if suggestion_payload.get("family") is not None
+            else None
+        ),
+        suggestion_category=(
+            str(suggestion_payload.get("category")).strip()
+            if suggestion_payload.get("category") is not None
+            else None
+        ),
+        suggestion_title=(
+            str(suggestion_payload.get("title")).strip()
+            if suggestion_payload.get("title") is not None
+            else None
+        ),
+        suggestion_short_label=(
+            str(suggestion_payload.get("short_label")).strip()
+            if suggestion_payload.get("short_label") is not None
+            else None
+        ),
+        suggestion_recommendation=(
+            str(suggestion_payload.get("recommendation")).strip()
+            if suggestion_payload.get("recommendation") is not None
+            else None
+        ),
+        suggestion_impact=(
+            str(suggestion_payload.get("impact")).strip()
+            if suggestion_payload.get("impact") is not None
+            else None
+        ),
+        location_label=body.location_label,
+        lat=body.lat,
+        lon=body.lon,
+        source_view=body.source_view,
+        suggestion_payload_json=suggestion_payload or None,
+        context_payload_json=_sanitize_feedback_payload(body.context),
+        settings_payload_json=_sanitize_feedback_payload(body.settings),
+        feedback_text=body.feedback_text.strip() if body.feedback_text and body.feedback_text.strip() else None,
+    )
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+    return {"id": feedback.id, "ok": True}
+
+
+@app.get("/api/admin/suggestion-feedback")
+def get_admin_suggestion_feedback(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    rows = (
+        db.execute(
+            select(SuggestionFeedback, User)
+            .outerjoin(User, User.id == SuggestionFeedback.user_id)
+            .order_by(SuggestionFeedback.created_at.desc())
+        )
+        .all()
+    )
+    items = [
+        SuggestionFeedbackOutSchema(
+            id=feedback.id,
+            user_id=feedback.user_id,
+            user_email=user.email if user else "Deleted user",
+            user_display_name=user.display_name if user else "Deleted user",
+            vote=feedback.vote,
+            suggestion_id=feedback.suggestion_id,
+            suggestion_family=feedback.suggestion_family,
+            suggestion_category=feedback.suggestion_category,
+            suggestion_title=feedback.suggestion_title,
+            suggestion_short_label=feedback.suggestion_short_label,
+            suggestion_recommendation=feedback.suggestion_recommendation,
+            suggestion_impact=feedback.suggestion_impact,
+            location_label=feedback.location_label,
+            lat=_feedback_decimal_to_float(feedback.lat),
+            lon=_feedback_decimal_to_float(feedback.lon),
+            source_view=feedback.source_view,
+            suggestion_payload_json=feedback.suggestion_payload_json if isinstance(feedback.suggestion_payload_json, dict) else None,
+            context_payload_json=feedback.context_payload_json if isinstance(feedback.context_payload_json, dict) else None,
+            settings_payload_json=feedback.settings_payload_json if isinstance(feedback.settings_payload_json, dict) else None,
+            feedback_text=feedback.feedback_text,
+            is_reviewed=feedback.is_reviewed,
+            created_at=feedback.created_at,
+        ).model_dump(mode="json")
+        for feedback, user in rows
+    ]
+    unread = sum(1 for item in items if not item["is_reviewed"])
+    helpful = sum(1 for item in items if item["vote"] == "helpful")
+    not_helpful = sum(1 for item in items if item["vote"] == "not_helpful")
+    return {
+        "count": len(items),
+        "unread": unread,
+        "helpful": helpful,
+        "not_helpful": not_helpful,
+        "items": items,
+    }
+
+
+@app.patch("/api/admin/suggestion-feedback/{feedback_id}")
+def mark_suggestion_feedback_reviewed(
+    feedback_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    _ = admin
+    feedback = db.get(SuggestionFeedback, feedback_id)
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Suggestion feedback not found.")
+    feedback.is_reviewed = True
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/admin/suggestion-feedback/{feedback_id}", status_code=204)
+def delete_suggestion_feedback(
+    feedback_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    _ = admin
+    feedback = db.get(SuggestionFeedback, feedback_id)
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Suggestion feedback not found.")
+    db.delete(feedback)
+    db.commit()
 
 
 @app.patch("/api/admin/feedback/{feedback_id}")

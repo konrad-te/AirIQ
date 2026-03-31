@@ -8,26 +8,111 @@
 }
 
 .globe-back-btn {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  z-index: 10;
-  padding: 0.6rem 1rem;
-  border-radius: 12px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.62rem 0.95rem;
+  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.92);
-  color: #163153;
+  background: rgba(10, 16, 28, 0.42);
+  color: rgba(234, 246, 255, 0.92);
   cursor: pointer;
-  backdrop-filter: blur(10px);
-  font-size: 0.9rem;
-  font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+  user-select: none;
 }
 
 .globe-back-btn:hover {
-  background: #fff;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+  border-color: rgba(165, 240, 255, 0.35);
+  background: rgba(12, 20, 36, 0.55);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 0 26px rgba(56, 189, 248, 0.12);
+}
+
+.globe-back-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.07) inset;
+}
+
+.globe-back-btn:focus-visible {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 0 0 3px rgba(56, 189, 248, 0.22),
+    0 0 26px rgba(168, 85, 247, 0.12);
+}
+
+.globe-back-btn::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(120deg, rgba(56, 189, 248, 0.75), rgba(168, 85, 247, 0.7), rgba(34, 211, 238, 0.65));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.globe-back-btn:hover::before {
+  opacity: 0.85;
+}
+
+.globe-back-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  color: rgba(234, 246, 255, 0.95);
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
+.globe-back-btn__label {
+  padding-right: 0.15rem;
+}
+
+.globe-back-btn--light {
+  border-color: rgba(12, 82, 133, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  color: #163458;
+  box-shadow: 0 10px 28px rgba(17, 76, 143, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.65) inset;
+}
+
+.globe-back-btn--light .globe-back-btn__icon {
+  background: rgba(17, 76, 143, 0.07);
+  color: #0f3d6b;
+  box-shadow: 0 0 0 1px rgba(17, 76, 143, 0.12) inset;
+}
+
+.globe-back-btn--light::before {
+  opacity: 0.55;
 }
 
 /* Error message */

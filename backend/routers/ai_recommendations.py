@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 
 try:
     from google import genai
@@ -9,14 +10,19 @@ try:
 except ModuleNotFoundError:
     genai = None
     genai_types = None
+from backend.database import get_db
 from backend.security import get_current_user
 from backend.models import User
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from backend.schemas.ai import SleepInsightExplanationSchema, SleepInsightResponseSchema, TrainingInsightResponseSchema
+from backend.services.sleep_insights import build_sleep_insight
+from backend.services.training_insights import build_training_insight
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -50,6 +56,18 @@ class RecommendationResponse(BaseModel):
     ok: bool
     outdoor: list[str]
     indoor: list[str]
+
+
+class _SleepInsightExplanationResponse(BaseModel):
+    headline: str
+    summary: str
+    action_items: list[str]
+    training_note: str | None = None
+    caveats: list[str]
+
+
+def _can_access_sleep_insight(user: User) -> bool:
+    return user.role == "admin" or getattr(user, "plan", "free") == "plus"
 
 
 def _build_prompt(outdoor: OutdoorData, indoor: IndoorData | None) -> str:
@@ -100,6 +118,128 @@ Return a JSON object with exactly two keys:
 
 Each string must start with an action verb (e.g. "Open windows...", "Avoid...", "Keep...", "Consider..."). Do not nest arrays. Respond with only the JSON object — no markdown, no extra text.
 """
+
+
+def _build_sleep_insight_prompt(insight: dict[str, object]) -> str:
+    explanation = insight.get("explanation") if isinstance(insight.get("explanation"), dict) else {}
+    findings = insight.get("findings") if isinstance(insight.get("findings"), list) else []
+    actions = insight.get("actions") if isinstance(insight.get("actions"), list) else []
+    training_context = insight.get("training_context") if isinstance(insight.get("training_context"), dict) else {}
+    data_quality = insight.get("data_quality") if isinstance(insight.get("data_quality"), dict) else {}
+    compact_payload = {
+        "date": insight.get("date"),
+        "sleep": insight.get("sleep"),
+        "sleep_quality": insight.get("sleep_quality"),
+        "indoor": insight.get("indoor"),
+        "outdoor": insight.get("outdoor"),
+        "training_context": training_context,
+        "data_quality": data_quality,
+        "findings": findings,
+        "actions": actions,
+        "rule_based_explanation": explanation,
+    }
+    return (
+        "You are explaining a single-night sleep insight for AirIQ.\n"
+        "The backend has already computed the findings. Do not invent new analysis and do not overstate causation.\n"
+        "Treat training only as supporting context, not as the main cause unless the structured findings explicitly say so.\n"
+        "If indoor coverage is limited, say so clearly. If demo seed data is present, mention that this is demo-style data.\n"
+        "When the structured findings mention sleep duration or stage balance, explain the typical adult target range in plain language.\n"
+        "When the structured findings mention recent-night comparisons, preserve that comparison instead of replacing it with a vague statement.\n"
+        "Return valid JSON with exactly these keys:\n"
+        '- \"headline\": one short sentence\n'
+        '- \"summary\": 2-4 clear sentences in plain language\n'
+        '- \"action_items\": an array of up to 3 short action strings\n'
+        '- \"training_note\": a short optional sentence or null\n'
+        '- \"caveats\": an array of 1-3 careful caveat strings\n\n'
+        f"Structured analysis:\n{json.dumps(compact_payload, default=str, ensure_ascii=True)}"
+    )
+
+
+def _generate_sleep_insight_explanation(insight: dict[str, object]) -> SleepInsightExplanationSchema | None:
+    if genai is None or genai_types is None:
+        return None
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+
+    client = genai.Client(api_key=api_key)
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=_build_sleep_insight_prompt(insight),
+            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        payload = json.loads(response.text)
+        parsed = _SleepInsightExplanationResponse.model_validate(payload)
+        return SleepInsightExplanationSchema(
+            source="gemini",
+            headline=parsed.headline,
+            summary=parsed.summary,
+            action_items=parsed.action_items,
+            training_note=parsed.training_note,
+            caveats=parsed.caveats,
+        )
+    except Exception:
+        return None
+
+
+def _build_training_insight_prompt(insight: dict[str, object]) -> str:
+    explanation = insight.get("explanation") if isinstance(insight.get("explanation"), dict) else {}
+    findings = insight.get("findings") if isinstance(insight.get("findings"), list) else []
+    actions = insight.get("actions") if isinstance(insight.get("actions"), list) else []
+    compact_payload = {
+        "date": insight.get("date"),
+        "day": insight.get("day"),
+        "recent_baseline": insight.get("recent_baseline"),
+        "recovery": insight.get("recovery"),
+        "data_quality": insight.get("data_quality"),
+        "findings": findings,
+        "actions": actions,
+        "rule_based_explanation": explanation,
+    }
+    return (
+        "You are explaining a 7-day training and recovery insight for AirIQ.\n"
+        "The backend has already computed the findings. Do not invent new physiology or certainty that is not in the structured analysis.\n"
+        "Focus on what the last 7 days suggest about today's training decision.\n"
+        "Keep the language practical, clear, and presentation-friendly.\n"
+        "When the structured findings mention recent-baseline comparisons, preserve them rather than replacing them with vague coaching language.\n"
+        "If recent sleep or yesterday's rest status is present in the structured payload, keep that logic visible in the explanation.\n"
+        "Return valid JSON with exactly these keys:\n"
+        '- \"headline\": one short sentence\n'
+        '- \"summary\": 2-4 clear sentences in plain language\n'
+        '- \"action_items\": an array of up to 3 short action strings\n'
+        '- \"training_note\": a short optional sentence or null\n'
+        '- \"caveats\": an array of 1-3 careful caveat strings\n\n'
+        f"Structured analysis:\n{json.dumps(compact_payload, default=str, ensure_ascii=True)}"
+    )
+
+
+def _generate_training_insight_explanation(insight: dict[str, object]) -> SleepInsightExplanationSchema | None:
+    if genai is None or genai_types is None:
+        return None
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+
+    client = genai.Client(api_key=api_key)
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=_build_training_insight_prompt(insight),
+            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        payload = json.loads(response.text)
+        parsed = _SleepInsightExplanationResponse.model_validate(payload)
+        return SleepInsightExplanationSchema(
+            source="gemini",
+            headline=parsed.headline,
+            summary=parsed.summary,
+            action_items=parsed.action_items,
+            training_note=parsed.training_note,
+            caveats=parsed.caveats,
+        )
+    except Exception:
+        return None
 
 
 @router.post("/recommendation", response_model=RecommendationResponse)
@@ -155,3 +295,81 @@ def get_ai_recommendation(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Gemini API error: {exc}",
         ) from exc
+
+
+@router.get("/sleep-insight", response_model=SleepInsightResponseSchema)
+def get_sleep_insight(
+    target_date: str = Query(..., alias="date"),
+    lat: float | None = Query(None, ge=-90, le=90),
+    lon: float | None = Query(None, ge=-180, le=180),
+    include_ai: bool = Query(True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SleepInsightResponseSchema:
+    if not _can_access_sleep_insight(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI sleep insight is available on the Plus plan or for admins.",
+        )
+
+    try:
+        parsed_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Date must use YYYY-MM-DD format.") from exc
+
+    try:
+        insight = build_sleep_insight(
+            db,
+            current_user=current_user,
+            target_date=parsed_date,
+            lat=lat,
+            lon=lon,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if include_ai:
+        ai_explanation = _generate_sleep_insight_explanation(insight)
+        if ai_explanation is not None:
+            insight["explanation"] = ai_explanation.model_dump()
+
+    return SleepInsightResponseSchema.model_validate(insight)
+
+
+@router.get("/training-insight", response_model=TrainingInsightResponseSchema)
+def get_training_insight(
+    target_date: str = Query(..., alias="date"),
+    window: str = Query("7d"),
+    include_ai: bool = Query(True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TrainingInsightResponseSchema:
+    if not _can_access_sleep_insight(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI training insight is available on the Plus plan or for admins.",
+        )
+    if window not in {"day", "7d"}:
+        raise HTTPException(status_code=400, detail="Training insight window must be '7d'.")
+
+    try:
+        parsed_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Date must use YYYY-MM-DD format.") from exc
+
+    try:
+        insight = build_training_insight(
+            db,
+            current_user=current_user,
+            target_date=parsed_date,
+            window_mode="7d",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if include_ai:
+        ai_explanation = _generate_training_insight_explanation(insight)
+        if ai_explanation is not None:
+            insight["explanation"] = ai_explanation.model_dump()
+
+    return TrainingInsightResponseSchema.model_validate(insight)

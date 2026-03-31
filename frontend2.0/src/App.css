@@ -862,6 +862,139 @@
   line-height: 1.35;
 }
 
+/* Same content padding as outdoor card so the sensor lines up with the left AQI ring */
+.dashboard-preview-card--indoor-waiting .dashboard-preview-card__content {
+  margin-top: 0;
+  padding-top: 0.1rem;
+  padding-bottom: 0.7rem;
+  gap: 0;
+}
+
+.dashboard-preview-card__waiting-pill {
+  border: 1px solid rgba(216, 230, 245, 0.95);
+  border-radius: 999px;
+  padding: 0.34rem 0.72rem;
+  font-size: 0.78rem;
+  color: #6d86a5;
+  background: rgba(255, 255, 255, 0.72);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.dashboard-preview-card__indoor-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: min(400px, 100%);
+  margin: 0 auto;
+  padding: 0.25rem 0 0.1rem;
+}
+
+.dashboard-preview-card--indoor-waiting .dashboard-preview-card__indoor-empty {
+  padding-top: 0;
+  margin-top: 0;
+  gap: 1.2rem;
+  max-width: 100%;
+}
+
+.dashboard-preview-card--indoor-waiting .dashboard-preview-card__indoor-empty-img {
+  object-position: center top;
+}
+
+.dashboard-preview-card--indoor-waiting .dashboard-preview-card__indoor-empty-visual {
+  margin-top: -1cm;
+}
+
+.dashboard-preview-card--indoor-waiting .dashboard-preview-card__indoor-empty-text {
+  margin-top: -3cm;
+}
+
+.dashboard-preview-card__indoor-empty-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.dashboard-preview-card__indoor-empty-img {
+  width: min(360px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  display: block;
+}
+
+.dashboard-preview-card__indoor-empty-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dashboard-preview-card__indoor-empty-title {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 800;
+  color: #17375a;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.dashboard-preview-card__indoor-empty-desc {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.48;
+  color: #5a7394;
+}
+
+.dashboard-preview-card__indoor-empty-cta {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0d7ef5, #28a6ff);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.58rem 1.4rem;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(13, 126, 245, 0.26);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dashboard-preview-card__indoor-empty-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(13, 126, 245, 0.32);
+}
+
+.dashboard-preview-card__indoor-empty-cta:active {
+  transform: translateY(0);
+}
+
+.dashboard-preview-card__status--indoor-waiting {
+  justify-content: center;
+  text-align: center;
+  padding: 0.52rem 1rem 0.58rem;
+  background: linear-gradient(180deg, #fafdff 0%, #eef5fb 100%);
+  border-top-color: #d9e6f3;
+}
+
+.dashboard-preview-card__status-waiting-note {
+  font-size: 0.77rem;
+  font-weight: 600;
+  color: #6f8aac;
+  line-height: 1.45;
+  max-width: 44ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-preview-card__indoor-empty-cta:hover {
+    transform: none;
+  }
+}
+
 .dashboard-preview-card__error {
   margin-top: 0.55rem;
   background: rgba(225, 88, 88, 0.1);
@@ -3812,6 +3945,11 @@
   color: #1a3152;
 }
 
+.plan-selector-tab:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .plan-selector-tab--active {
   background: linear-gradient(135deg, #0874f8, #02b4ff);
   color: #fff;
@@ -3861,8 +3999,31 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+.plan-selector-cta:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .plan-selector-cta:hover {
   box-shadow: 0 12px 28px rgba(13, 89, 192, 0.5);
+}
+
+.plan-selector-notice,
+.plan-selector-error {
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.plan-selector-notice {
+  color: #1f6f78;
+  font-weight: 600;
+}
+
+.plan-selector-error {
+  color: #b55656;
+  font-weight: 600;
 }
 
 /* Footer */

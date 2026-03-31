@@ -343,12 +343,14 @@ export default function IndoorHistoryPanel({
   onRangeChange,
   onRefresh,
   token,
+  canManageMockData = false,
   locale = 'en-GB',
   timeZone = 'Europe/Warsaw',
 }) {
   const [selectedMetric, setSelectedMetric] = useState('co2_ppm')
   const [metricMenuOpen, setMetricMenuOpen] = useState(false)
   const [hover, setHover] = useState(null)
+  const [isMockModalOpen, setIsMockModalOpen] = useState(false)
   const [mockBusy, setMockBusy] = useState(false)
   const [mockNotice, setMockNotice] = useState('')
   const [mockError, setMockError] = useState('')
@@ -454,7 +456,7 @@ export default function IndoorHistoryPanel({
     try {
       const result = await seedMockIndoorReadings(token, 2)
       setMockNotice(
-        `Stored ${result.inserted} hourly points (~2 months).${
+        `Stored ${result.inserted} mock points (~2 months).${
           result.deleted_previous_mock ? ` Replaced ${result.deleted_previous_mock} prior mock rows.` : ''
         }`,
       )
@@ -483,6 +485,33 @@ export default function IndoorHistoryPanel({
     }
   }, [token, onRefresh])
 
+  const renderMockAdminPanel = () => (
+    <div className="indoor-history-panel__mock-body">
+      <div className="indoor-history-panel__mock-copy">
+        <h3>Indoor history demo tools</h3>
+        <p>
+          Synthetic 15-minute readings for the last ~2 months are written to the database like real sensor data
+          (marked with <code>source_type=mock_indoor</code>). Choose the <strong>60d</strong> range to see the full span.
+        </p>
+      </div>
+      <div className="indoor-history-panel__mock-actions">
+        <button
+          type="button"
+          className="indoor-history-panel__mock-btn indoor-history-panel__mock-btn--primary"
+          disabled={mockBusy}
+          onClick={handleSeedMock}
+        >
+          {mockBusy ? 'Working...' : 'Seed ~2 months'}
+        </button>
+        <button type="button" className="indoor-history-panel__mock-btn" disabled={mockBusy} onClick={handleClearMock}>
+          Clear mock rows
+        </button>
+      </div>
+      {mockNotice ? <p className="indoor-history-panel__mock-notice">{mockNotice}</p> : null}
+      {mockError ? <p className="indoor-history-panel__mock-error">{mockError}</p> : null}
+    </div>
+  )
+
   return (
     <section className="indoor-history-panel">
       <div className="indoor-history-panel__top">
@@ -495,9 +524,20 @@ export default function IndoorHistoryPanel({
           </span>
           <h2 className="indoor-history-panel__page-title">Indoor air history</h2>
         </div>
-        <div className="indoor-history-panel__device-pill">
-          <span className="indoor-history-panel__device-label">Device</span>
-          <span className="indoor-history-panel__device-name">{historyData?.device_name || 'Selected sensor'}</span>
+        <div className="indoor-history-panel__top-actions">
+          <div className="indoor-history-panel__device-pill">
+            <span className="indoor-history-panel__device-label">Device</span>
+            <span className="indoor-history-panel__device-name">{historyData?.device_name || 'Selected sensor'}</span>
+          </div>
+          {token && canManageMockData ? (
+            <button
+              type="button"
+              className="indoor-history-panel__demo-tools-btn"
+              onClick={() => setIsMockModalOpen(true)}
+            >
+              Demo tools
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -563,12 +603,12 @@ export default function IndoorHistoryPanel({
         </div>
       </div>
 
-      {token ? (
+      {false && token && canManageMockData ? (
         <details className="indoor-history-panel__mock-details">
           <summary className="indoor-history-panel__mock-summary">Mock data</summary>
           <div className="indoor-history-panel__mock-body">
             <p className="indoor-history-panel__mock-hint">
-              Synthetic hourly readings for the last ~2 months are written to the database like real sensor data
+              Synthetic 15-minute readings for the last ~2 months are written to the database like real sensor data
               (marked with <code>source_type=mock_indoor</code>). Choose the <strong>60d</strong> range to see the full
               span.
             </p>
@@ -777,6 +817,36 @@ export default function IndoorHistoryPanel({
           </div>
         </>
       )}
+
+      {isMockModalOpen ? (
+        <div className="indoor-history-panel__modal-backdrop" onClick={() => setIsMockModalOpen(false)}>
+          <div
+            className="indoor-history-panel__modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="indoor-history-demo-tools-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="indoor-history-panel__modal-head">
+              <div>
+                <p className="indoor-history-panel__modal-eyebrow">Admin Demo Tools</p>
+                <h3 id="indoor-history-demo-tools-title">Indoor history sensor demo</h3>
+              </div>
+              <button
+                type="button"
+                className="indoor-history-panel__modal-close"
+                onClick={() => setIsMockModalOpen(false)}
+                aria-label="Close demo tools"
+              >
+                x
+              </button>
+            </div>
+            <div className="indoor-history-panel__modal-body">
+              {renderMockAdminPanel()}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

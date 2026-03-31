@@ -14,6 +14,8 @@ from backend.models import IndoorSensorReading, UserQingpingIntegration
 
 MOCK_SOURCE_TYPE = "mock_indoor"
 MOCK_PROVIDER = "qingping"
+FALLBACK_DEVICE_ID_PREFIX = "airiq-demo-sensor"
+FALLBACK_DEVICE_NAME = "AirIQ demo sensor"
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -40,22 +42,24 @@ def seed_mock_indoor_readings(
     device_id: str,
     device_name: str | None,
     months: int = 2,
-    hour_step: int = 1,
+    minute_step: int = 15,
 ) -> dict[str, Any]:
     """
-    Insert hourly (or wider) fake readings for ~30*months days, marked with source_type=mock_indoor.
+    Insert synthetic readings for ~30*months days, marked with source_type=mock_indoor.
     Removes any previous mock rows for this user/device first.
     """
     if months < 1 or months > 6:
         raise ValueError("months must be between 1 and 6")
+    if minute_step < 5 or minute_step > 60:
+        raise ValueError("minute_step must be between 5 and 60")
 
     deleted = delete_mock_indoor_readings(db, user_id=user_id, device_id=device_id)
 
     now_utc = datetime.now(UTC)
     days = min(186, months * 31)
     start = now_utc - timedelta(days=days)
-    # Align to whole hours for stable buckets
-    start = start.replace(minute=0, second=0, microsecond=0)
+    aligned_minute = (start.minute // minute_step) * minute_step
+    start = start.replace(minute=aligned_minute, second=0, microsecond=0)
 
     rng = random.Random()
     co2 = 820.0 + rng.uniform(-80, 80)
@@ -64,7 +68,7 @@ def seed_mock_indoor_readings(
 
     rows: list[IndoorSensorReading] = []
     t = start
-    step = timedelta(hours=hour_step)
+    step = timedelta(minutes=minute_step)
     idx = 0
 
     while t <= now_utc:
@@ -136,7 +140,7 @@ def seed_mock_indoor_readings(
         "inserted": len(rows),
         "from": start.isoformat(),
         "to": now_utc.isoformat(),
-        "hour_step": hour_step,
+        "minute_step": minute_step,
     }
 
 
@@ -148,6 +152,23 @@ def get_user_qingping_device(db: Session, user_id: int) -> tuple[str, str | None
         .scalars()
         .first()
     )
-    if integration is None or not integration.selected_device_id:
-        return None
-    return integration.selected_device_id, integration.selected_device_name
+    if integration is not None and integration.selected_device_id:
+        return integration.selected_device_id, integration.selected_device_name
+
+    latest = (
+        db.execute(
+            select(IndoorSensorReading)
+            .where(
+                IndoorSensorReading.user_id == user_id,
+                IndoorSensorReading.provider == MOCK_PROVIDER,
+            )
+            .order_by(IndoorSensorReading.recorded_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if latest is not None:
+        return latest.provider_device_key, latest.device_name
+
+    return f"{FALLBACK_DEVICE_ID_PREFIX}-{user_id}", FALLBACK_DEVICE_NAME

@@ -3,9 +3,12 @@ from .app_setting import AppSetting
 from .city_point import CityPoint
 from .email_token import EmailToken
 from .saved_location import SavedLocation
+from .suggestion_feedback import SuggestionFeedback
 from .data_provider import DataProvider
 from .external_station import ExternalStation
 from .feedback import Feedback
+from .garmin_sleep_summary import GarminSleepSummary
+from .garmin_training_activity import GarminTrainingActivity
 from .geocode_cache_entry import GeocodeCacheEntry
 from .globe_aq_cache import GlobeAqCache
 from .household import Household
@@ -27,6 +30,8 @@ __all__ = [
     "EmailToken",
     "ExternalStation",
     "Feedback",
+    "GarminSleepSummary",
+    "GarminTrainingActivity",
     "GeocodeCacheEntry",
     "GlobeAqCache",
     "Household",
@@ -36,6 +41,7 @@ __all__ = [
     "LocationStationCache",
     "ProviderCacheEntry",
     "SavedLocation",
+    "SuggestionFeedback",
     "User",
     "UserQingpingIntegration",
     "UserPreference",
