@@ -25,7 +25,8 @@ export default function ActivatePage({ onGoHome }) {
         setStatus('error')
         setMessage(err instanceof Error ? err.message : t('activate.failedDefault'))
       })
-  }, [t])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="activate-page">
