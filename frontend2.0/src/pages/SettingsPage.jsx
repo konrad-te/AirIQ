@@ -270,8 +270,6 @@ function ProfileSection() {
     try {
       const profileImageData = await buildProfileImageData(file)
       const updated = await updateProfile(token, {
-        display_name: displayName || null,
-        email,
         profile_image_data: profileImageData,
       })
       updateUser(updated)
@@ -290,8 +288,6 @@ function ProfileSection() {
     setIsUploadingImage(true)
     try {
       const updated = await updateProfile(token, {
-        display_name: displayName || null,
-        email,
         profile_image_data: '',
       })
       updateUser(updated)
