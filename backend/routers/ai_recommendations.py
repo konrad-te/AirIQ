@@ -187,16 +187,19 @@ def _build_training_insight_prompt(insight: dict[str, object]) -> str:
         "date": insight.get("date"),
         "day": insight.get("day"),
         "recent_baseline": insight.get("recent_baseline"),
+        "recovery": insight.get("recovery"),
         "data_quality": insight.get("data_quality"),
         "findings": findings,
         "actions": actions,
         "rule_based_explanation": explanation,
     }
     return (
-        "You are explaining a single-day training insight for AirIQ.\n"
+        "You are explaining a 7-day training and recovery insight for AirIQ.\n"
         "The backend has already computed the findings. Do not invent new physiology or certainty that is not in the structured analysis.\n"
+        "Focus on what the last 7 days suggest about today's training decision.\n"
         "Keep the language practical, clear, and presentation-friendly.\n"
         "When the structured findings mention recent-baseline comparisons, preserve them rather than replacing them with vague coaching language.\n"
+        "If recent sleep or yesterday's rest status is present in the structured payload, keep that logic visible in the explanation.\n"
         "Return valid JSON with exactly these keys:\n"
         '- \"headline\": one short sentence\n'
         '- \"summary\": 2-4 clear sentences in plain language\n'
@@ -330,7 +333,7 @@ def get_sleep_insight(
 @router.get("/training-insight", response_model=TrainingInsightResponseSchema)
 def get_training_insight(
     target_date: str = Query(..., alias="date"),
-    window: str = Query("day"),
+    window: str = Query("7d"),
     include_ai: bool = Query(True),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -341,7 +344,7 @@ def get_training_insight(
             detail="AI training insight is available on the Plus plan or for admins.",
         )
     if window not in {"day", "7d"}:
-        raise HTTPException(status_code=400, detail="Training insight window must be 'day' or '7d'.")
+        raise HTTPException(status_code=400, detail="Training insight window must be '7d'.")
 
     try:
         parsed_date = datetime.strptime(target_date, "%Y-%m-%d").date()
@@ -353,7 +356,7 @@ def get_training_insight(
             db,
             current_user=current_user,
             target_date=parsed_date,
-            window_mode="7d" if window == "7d" else "day",
+            window_mode="7d",
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

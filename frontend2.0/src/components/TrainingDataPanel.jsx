@@ -278,6 +278,12 @@ export default function TrainingDataPanel({
   ], [selectedInsightPoint, trainingData?.source_label])
   const selectedDayActivities = useMemo(() => activities.filter((activity) => getActivityCalendarDate(activity) === selectedInsightPoint?.calendar_date).slice(0, 6), [activities, selectedInsightPoint?.calendar_date])
   const canGenerateForSelection = canGenerateInsight && typeof onGenerateInsight === 'function' && Boolean(selectedInsightPoint?.calendar_date)
+  const insightTopStats = useMemo(() => !insightData ? [] : [
+    { key: 'active-days', label: 'Active days', value: `${formatNumber(insightData.day?.active_day_count, 0)} / 7` },
+    { key: 'heavy-days', label: 'Heavy days', value: `${formatNumber(insightData.recovery?.heavy_training_days, 0)} / 7` },
+    { key: 'recovery', label: 'Recovery', value: insightData.recovery?.sleep_label || '--' },
+    { key: 'today', label: 'Today', value: insightData.recovery?.recommendation_title || '--' },
+  ], [insightData])
   const selectedInsightHeading = useMemo(() => {
     if (insightData?.day?.start_date && insightData?.day?.end_date) {
       return formatInsightDateRange(insightData.day.start_date, insightData.day.end_date, locale, timeZone)
@@ -513,17 +519,7 @@ export default function TrainingDataPanel({
                 <h3>{selectedInsightHeading}</h3>
               </div>
               <div className="sleep-history-panel__insight-head-meta">
-                {typeof onInsightWindowChange === 'function' ? (
-                  <div className="training-data-panel__insight-mode-group" role="group" aria-label="Training insight window">
-                    <button type="button" className={`training-data-panel__insight-mode-btn${insightWindow === 'day' ? ' training-data-panel__insight-mode-btn--active' : ''}`} onClick={() => onInsightWindowChange('day')}>
-                      Day
-                    </button>
-                    <button type="button" className={`training-data-panel__insight-mode-btn${insightWindow === '7d' ? ' training-data-panel__insight-mode-btn--active' : ''}`} onClick={() => onInsightWindowChange('7d')}>
-                      7-day
-                    </button>
-                  </div>
-                ) : null}
-                <small>{insightWindow === '7d' ? 'Selected date anchors the trailing 7 days.' : 'Click the chart or calendar to analyze another training day.'}</small>
+                <small>Selected date anchors the trailing 7 days and today's recovery advice.</small>
                 {insightData && canGenerateForSelection ? <button type="button" className="sleep-history-panel__insight-action-btn" onClick={onGenerateInsight} disabled={insightLoading}>{insightLoading ? 'Generating...' : 'Regenerate insight'}</button> : null}
               </div>
             </div>
@@ -531,7 +527,7 @@ export default function TrainingDataPanel({
               <div className="sleep-history-panel__insight-state">
                 <div>
                   <h4>AI training insight is part of Plus</h4>
-                  <p>Free accounts can review the training timeline, while Plus and admin accounts can generate an AI explanation for the selected training day.</p>
+                  <p>Free accounts can review the training timeline, while Plus and admin accounts can generate a last-7-days training and recovery insight for the selected date.</p>
                 </div>
                 {typeof onOpenSubscription === 'function' ? <button type="button" className="sleep-history-panel__insight-action-btn" onClick={onOpenSubscription}>Open My Plan</button> : null}
               </div>
@@ -540,7 +536,7 @@ export default function TrainingDataPanel({
                 <div className="indoor-history-panel__spinner" aria-hidden />
                 <div>
                   <h4>Building training insight...</h4>
-                  <p>Summarizing the selected day, recent training baseline, and workload signals.</p>
+                  <p>Summarizing the last 7 days, yesterday's training, and the latest sleep recovery signal.</p>
                 </div>
               </div>
             ) : insightError ? (
@@ -552,17 +548,16 @@ export default function TrainingDataPanel({
               <div className="sleep-history-panel__insight-state">
                 <div>
                   <h4>Generate the insight when you want it</h4>
-                  <p>{insightWindow === '7d' ? 'We will analyze the 7 days ending on the selected date against recent training periods once you press the button.' : 'We will analyze that training day against recent workload, session intensity signals, and daily structure once you press the button.'}</p>
+                  <p>We will analyze the 7 days ending on the selected date, then turn that into a simple recommendation for today based on recent load, yesterday's training, and the latest sleep signal.</p>
                 </div>
                 <button type="button" className="sleep-history-panel__insight-action-btn" onClick={onGenerateInsight} disabled={!canGenerateForSelection}>Generate insight</button>
               </div>
             ) : (
               <>
                 <div className="sleep-history-panel__insight-stats sleep-history-panel__insight-stats--top">
-                  <div className="sleep-history-panel__insight-stat"><span>Sessions</span><strong>{formatNumber(insightData.day?.activity_count, 0)}</strong></div>
-                  <div className="sleep-history-panel__insight-stat"><span>Load</span><strong>{toTitleCase(insightData.day?.load_status || 'moderate')}</strong></div>
-                  <div className="sleep-history-panel__insight-stat"><span>Training time</span><strong>{formatDuration(insightData.day?.total_duration_minutes)}</strong></div>
-                  <div className="sleep-history-panel__insight-stat"><span>Top sport</span><strong>{insightData.day?.primary_sport_label || '--'}</strong></div>
+                  {insightTopStats.map((item) => (
+                    <div key={item.key} className="sleep-history-panel__insight-stat"><span>{item.label}</span><strong>{item.value}</strong></div>
+                  ))}
                 </div>
 
                 <div className="sleep-history-panel__insight-summary">
