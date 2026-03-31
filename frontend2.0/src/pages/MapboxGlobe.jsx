@@ -258,20 +258,11 @@ export default function MapboxGlobe({ onBack }) {
           <p style={{ opacity: 0.8 }}>
             Set <code>VITE_MAPBOX_TOKEN</code> in <code>frontend2.0/.env</code>.
           </p>
-          <button
-            type="button"
-            onClick={onBack}
-            style={{
-              marginTop: '1rem',
-              padding: '0.6rem 1rem',
-              borderRadius: 12,
-              border: '1px solid rgba(162, 186, 214, 0.45)',
-              background: 'rgba(255,255,255,0.85)',
-              color: '#1a3152',
-              cursor: 'pointer',
-            }}
-          >
-            Back to landing
+          <button type="button" onClick={onBack} className="globe-back-btn globe-back-btn--light" style={{ marginTop: '1rem' }}>
+            <span className="globe-back-btn__icon" aria-hidden="true">
+              ←
+            </span>
+            <span className="globe-back-btn__label">Landing</span>
           </button>
         </div>
       </main>
@@ -282,7 +273,10 @@ export default function MapboxGlobe({ onBack }) {
     <main className="globe-page">
       <div style={{ position: 'absolute', left: 12, top: 12, zIndex: 10, display: 'flex', gap: 8 }}>
         <button type="button" onClick={onBack} className="globe-back-btn">
-          {'<- Landing'}
+          <span className="globe-back-btn__icon" aria-hidden="true">
+            ←
+          </span>
+          <span className="globe-back-btn__label">Landing</span>
         </button>
       </div>
 

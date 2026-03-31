@@ -386,6 +386,8 @@ def update_profile(
                 detail="That email is already in use.",
             )
         current_user.email = normalised
+    if update.plan is not None:
+        current_user.plan = update.plan
     db.commit()
     db.refresh(current_user)
     return current_user

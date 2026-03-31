@@ -72,6 +72,17 @@ export async function updateProfile(token, { display_name, email }) {
   return data
 }
 
+export async function updateUserPlan(token, plan) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ plan }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to update plan.'))
+  return data
+}
+
 export async function getPreferences(token) {
   const response = await fetch(`${API_BASE_URL}/api/auth/preferences`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -254,6 +265,48 @@ export async function deleteFeedback(token, feedbackId) {
 }
 
 // ── Admin ────────────────────────────────────────────────────────────────────
+
+export async function submitSuggestionFeedback(token, payload) {
+  const response = await fetch(`${API_BASE_URL}/api/suggestion-feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to submit suggestion feedback.'))
+  return data
+}
+
+export async function getAdminSuggestionFeedback(token) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/suggestion-feedback`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(extractDetail(data, 'Failed to load suggestion feedback.'))
+  return data
+}
+
+export async function markSuggestionFeedbackReviewed(token, feedbackId) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/suggestion-feedback/${feedbackId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(extractDetail(data, 'Failed to update suggestion feedback.'))
+  }
+}
+
+export async function deleteSuggestionFeedback(token, feedbackId) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/suggestion-feedback/${feedbackId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(extractDetail(data, 'Failed to delete suggestion feedback.'))
+  }
+}
 
 export async function getAdminStats(token) {
   const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {

@@ -1,0 +1,624 @@
+.training-data-panel {
+  display: grid;
+  gap: 1.2rem;
+  color: #1a3152;
+}
+
+.training-data-panel--state {
+  align-content: start;
+  text-align: center;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(239, 247, 253, 0.98));
+  border: 1px solid rgba(188, 215, 233, 0.72);
+  padding: 1.2rem;
+}
+
+.training-data-panel--error {
+  background: linear-gradient(180deg, rgba(255, 246, 246, 0.98), rgba(255, 239, 239, 0.98));
+  border-color: rgba(234, 182, 182, 0.72);
+}
+
+.training-data-panel__state-box {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  gap: 0.9rem;
+  border-radius: 22px;
+  border: 1px dashed rgba(193, 214, 231, 0.76);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 1.4rem;
+}
+
+.training-data-panel__spinner {
+  width: 2.4rem;
+  height: 2.4rem;
+  margin: 0 auto 0.8rem;
+  border-radius: 999px;
+  border: 3px solid rgba(43, 124, 143, 0.18);
+  border-top-color: #2b7c8f;
+  animation: training-data-panel-spin 0.9s linear infinite;
+}
+
+.training-data-panel__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.8fr);
+  gap: 1rem;
+  padding: 1.2rem;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top right, rgba(101, 192, 197, 0.2), transparent 34%),
+    linear-gradient(180deg, rgba(245, 251, 252, 0.98), rgba(236, 246, 249, 0.98));
+  border: 1px solid rgba(179, 221, 224, 0.78);
+}
+
+.training-data-panel__hero-copy,
+.training-data-panel__hero-meta,
+.training-data-panel__import,
+.training-data-panel__stat-card,
+.training-data-panel__section,
+.training-data-panel__sport-card,
+.training-data-panel__activity-card {
+  box-shadow: 0 18px 40px rgba(16, 43, 60, 0.08);
+}
+
+.training-data-panel__hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #1f6f78;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.training-data-panel__hero-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  object-fit: contain;
+}
+
+.training-data-panel__hero-copy h2,
+.training-data-panel__hero-copy p,
+.training-data-panel__hero-meta strong,
+.training-data-panel__hero-meta small,
+.training-data-panel__section-head h3 {
+  margin: 0;
+}
+
+.training-data-panel__hero-copy {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.training-data-panel__hero-copy h2 {
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  line-height: 1.1;
+}
+
+.training-data-panel__hero-copy p,
+.training-data-panel__activity-meta,
+.training-data-panel__section-head span {
+  color: #5c789a;
+  line-height: 1.55;
+}
+
+.training-data-panel__hero-meta {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+  padding: 1rem;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(185, 220, 230, 0.72);
+}
+
+.training-data-panel__hero-meta span,
+.training-data-panel__eyebrow,
+.training-data-panel__activity-metrics small,
+.training-data-panel__stat-card span,
+.training-data-panel__stat-card small,
+.training-data-panel__sport-head span {
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.training-data-panel__hero-meta span,
+.training-data-panel__eyebrow,
+.training-data-panel__stat-card span,
+.training-data-panel__stat-card small,
+.training-data-panel__sport-head span,
+.training-data-panel__activity-metrics small {
+  color: #68839d;
+}
+
+.training-data-panel__refresh-btn {
+  justify-self: start;
+  margin-top: 0.4rem;
+  border: none;
+  border-radius: 12px;
+  padding: 0.72rem 1rem;
+  background: linear-gradient(135deg, #1f6f78, #56beae);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.training-data-panel__import {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(242, 250, 251, 0.96), rgba(234, 246, 248, 0.98));
+  border: 1px solid rgba(188, 224, 228, 0.92);
+}
+
+.training-data-panel__import-copy h3,
+.training-data-panel__import-copy p,
+.training-data-panel__import-meta,
+.training-data-panel__import-notice,
+.training-data-panel__import-error {
+  margin: 0;
+}
+
+.training-data-panel__import-copy h3,
+.training-data-panel__modal-head h3,
+.training-data-panel__path {
+  color: #1a3152;
+}
+
+.training-data-panel__import-copy p,
+.training-data-panel__import-meta {
+  color: #5c789a;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.training-data-panel__import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.training-data-panel__file-input {
+  flex: 1 1 300px;
+  min-width: 240px;
+  color: #1a3152;
+  font-size: 0.84rem;
+}
+
+.training-data-panel__file-input::file-selector-button {
+  margin-right: 0.8rem;
+  border: 1px solid rgba(91, 201, 184, 0.5);
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f6f78;
+  border-radius: 12px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.training-data-panel__import-btn,
+.training-data-panel__help-btn {
+  border-radius: 12px;
+  padding: 0.7rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.training-data-panel__import-btn {
+  border: none;
+  background: linear-gradient(135deg, #1f6f78, #56beae);
+  color: #fff;
+}
+
+.training-data-panel__help-btn {
+  border: 1px solid rgba(31, 111, 120, 0.25);
+  background: rgba(255, 255, 255, 0.78);
+  color: #1f6f78;
+}
+
+.training-data-panel__import-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.training-data-panel__import-notice {
+  color: #1f6f78;
+  font-weight: 600;
+}
+
+.training-data-panel__import-error {
+  color: #b55656;
+  font-weight: 600;
+}
+
+.training-data-panel__inline-code {
+  padding: 0.1rem 0.36rem;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1a3152;
+}
+
+.training-data-panel__stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.training-data-panel__stat-card {
+  display: grid;
+  gap: 0.28rem;
+  padding: 1rem;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0.98), rgba(241, 247, 252, 0.98));
+  border: 1px solid rgba(191, 216, 236, 0.7);
+}
+
+.training-data-panel__stat-card strong {
+  font-size: 1.38rem;
+  line-height: 1.1;
+}
+
+.training-data-panel__controls {
+  margin-top: -0.15rem;
+}
+
+.training-data-panel__section {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0.98), rgba(243, 248, 252, 0.98));
+  border: 1px solid rgba(191, 216, 236, 0.72);
+}
+
+.training-data-panel__section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.training-data-panel__section-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.training-data-panel__section-head h3 {
+  font-size: 1.1rem;
+}
+
+.training-data-panel__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.training-data-panel__pager-label {
+  min-width: 5.9rem;
+  text-align: center;
+  color: #3e5d82;
+  font-size: 0.82rem;
+}
+
+.training-data-panel__pager-btn {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(176, 207, 229, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #4f7197;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.training-data-panel__pager-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.training-data-panel__sports-grid,
+.training-data-panel__activity-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.training-data-panel__sports-grid--wide {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.training-data-panel__sport-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(246, 251, 253, 0.98), rgba(236, 246, 250, 0.98));
+  border: 1px solid rgba(184, 222, 227, 0.72);
+}
+
+.training-data-panel__sport-head,
+.training-data-panel__sport-metrics {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.training-data-panel__sport-metrics {
+  color: #1f6f78;
+  font-weight: 800;
+}
+
+.training-data-panel__activity-card {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(194, 216, 236, 0.68);
+}
+
+.training-data-panel__activity-main,
+.training-data-panel__activity-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.training-data-panel__activity-main {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.training-data-panel__activity-title-row {
+  flex: 1 1 320px;
+  align-items: center;
+}
+
+.training-data-panel__activity-title-row h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.training-data-panel__activity-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+  background: rgba(31, 111, 120, 0.1);
+  color: #1f6f78;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.training-data-panel__activity-meta {
+  margin: 0;
+  flex: 1 1 240px;
+}
+
+.training-data-panel__activity-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.training-data-panel__activity-metrics span {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 16px;
+  background: rgba(244, 248, 252, 0.92);
+  border: 1px solid rgba(208, 224, 236, 0.82);
+}
+
+.training-data-panel__activity-metrics strong {
+  font-size: 0.98rem;
+}
+
+.training-data-panel__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(14, 28, 38, 0.42);
+}
+
+.training-data-panel__modal {
+  width: min(760px, 100%);
+  max-height: min(88vh, 900px);
+  overflow: auto;
+  border-radius: 26px;
+  padding: 1.4rem;
+  background: #fff;
+  box-shadow: 0 28px 72px rgba(14, 28, 38, 0.22);
+}
+
+.training-data-panel__modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.training-data-panel__modal-eyebrow {
+  margin: 0 0 0.25rem;
+  color: #1f6f78;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.training-data-panel__modal-close {
+  border: none;
+  background: rgba(236, 247, 244, 0.95);
+  color: #1f6f78;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.training-data-panel__steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.8rem;
+  color: #4b6474;
+  line-height: 1.6;
+}
+
+.training-data-panel__path {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(236, 247, 244, 0.98);
+}
+
+.training-data-panel__modal-note {
+  margin-top: 1rem;
+  color: #5c789a;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+@keyframes training-data-panel-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .training-data-panel__hero,
+  .training-data-panel__stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .training-data-panel__file-input,
+  .training-data-panel__import-btn,
+  .training-data-panel__help-btn {
+    width: 100%;
+  }
+
+  .training-data-panel__activity-main,
+  .training-data-panel__activity-title-row,
+  .training-data-panel__section-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .training-data-panel__activity-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .training-data-panel__modal {
+    padding: 1.05rem;
+    border-radius: 20px;
+  }
+}
+
+.training-data-panel__dashboard {
+  align-items: stretch;
+}
+
+.training-data-panel__insight {
+  min-width: 0;
+}
+
+.training-data-panel__insight-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgba(235, 243, 250, 0.92);
+  border: 1px solid rgba(188, 214, 233, 0.78);
+}
+
+.training-data-panel__insight-mode-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  background: transparent;
+  color: #6280a2;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.training-data-panel__insight-mode-btn--active {
+  background: linear-gradient(135deg, #3e8ae0, #67b8ee);
+  color: #fff;
+}
+
+.training-data-panel__chart-area {
+  fill: url(#trainingHistoryArea);
+}
+
+.training-data-panel__chart-line {
+  stroke: #4fa0db;
+}
+
+.training-data-panel__support-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.training-data-panel__selected-sessions {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem 1.05rem;
+  border-radius: 18px;
+  background: rgba(245, 249, 253, 0.92);
+  border: 1px solid rgba(196, 216, 234, 0.74);
+  color: #2a4465;
+}
+
+.training-data-panel__session-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.training-data-panel__session-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(182, 210, 232, 0.78);
+  color: #527398;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .training-data-panel__support-grid {
+    grid-template-columns: 1fr;
+  }
+}

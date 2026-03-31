@@ -1,0 +1,1139 @@
+.sleep-history-panel__house {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(66, 185, 215, 0.16), rgba(129, 103, 248, 0.14));
+  border: 1px solid rgba(142, 196, 236, 0.5);
+  box-shadow:
+    0 10px 20px rgba(22, 61, 105, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  padding: 0.28rem;
+  overflow: hidden;
+}
+
+.sleep-history-panel__house-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sleep-history-panel .indoor-history-panel__area {
+  fill: url(#sleepHistoryArea);
+}
+
+.sleep-history-panel .indoor-history-panel__line-path {
+  stroke: #5ecfff;
+}
+
+.sleep-history-panel .indoor-history-panel__hover-line {
+  stroke: rgba(94, 207, 255, 0.45);
+}
+
+.sleep-history-panel .indoor-history-panel__tooltip-dot {
+  background: #5ecfff;
+}
+
+.sleep-history-panel .indoor-history-panel__legend-swatch--line {
+  background: linear-gradient(90deg, #89dbff, #5ecfff);
+}
+
+.sleep-history-panel__import {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(243, 250, 249, 0.96), rgba(236, 247, 244, 0.98));
+  border: 1px solid rgba(193, 225, 219, 0.95);
+}
+
+.sleep-history-panel.indoor-history-panel {
+  gap: 0.65rem;
+}
+
+.sleep-history-panel .indoor-history-panel__top {
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 16px;
+  border: 1px solid rgba(203, 221, 242, 0.85);
+  background:
+    radial-gradient(circle at top right, rgba(117, 190, 255, 0.14), transparent 45%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.95), rgba(245, 250, 255, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    0 12px 22px rgba(20, 47, 78, 0.05);
+}
+
+.sleep-history-panel .indoor-history-panel__brand {
+  gap: 0.48rem;
+}
+
+.sleep-history-panel .indoor-history-panel__page-title {
+  font-size: clamp(0.86rem, 1.8vw, 1rem);
+  letter-spacing: 0.08em;
+}
+
+.sleep-history-panel__top-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.sleep-history-panel .indoor-history-panel__device-pill {
+  padding: 0.34rem 0.64rem;
+  border-radius: 999px;
+  border-color: rgba(193, 214, 236, 0.9);
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 0.72rem;
+}
+
+.sleep-history-panel .indoor-history-panel__device-name {
+  max-width: 9.5rem;
+}
+
+.sleep-history-panel__import-launcher {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sleep-history-panel__import-new-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 0.82rem;
+  background: linear-gradient(135deg, #2f82e3, #37c0c4 55%, #5885ff);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 10px 24px rgba(47, 130, 227, 0.26),
+    0 0 0 1px rgba(255, 255, 255, 0.24) inset;
+}
+
+.sleep-history-panel__import-new-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.sleep-history-panel__import-new-btn--demo {
+  background: linear-gradient(135deg, #2c9b92, #52c39a 55%, #7ad6a5);
+  box-shadow:
+    0 10px 24px rgba(44, 155, 146, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.24) inset;
+}
+
+.sleep-history-panel__import-copy h3,
+.sleep-history-panel__mock-admin-copy h3,
+.sleep-history-panel__snapshot strong {
+  color: #1a3152;
+}
+
+.sleep-history-panel__inline-code {
+  padding: 0.1rem 0.36rem;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1a3152;
+}
+
+.sleep-history-panel__import-copy h3,
+.sleep-history-panel__import-copy p,
+.sleep-history-panel__import-meta,
+.sleep-history-panel__import-notice,
+.sleep-history-panel__import-error {
+  margin: 0;
+}
+
+.sleep-history-panel__import-copy p,
+.sleep-history-panel__import-meta,
+.sleep-history-panel__snapshot {
+  color: #5c789a;
+}
+
+.sleep-history-panel__import-copy p {
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.sleep-history-panel__import-actions,
+.sleep-history-panel__snapshot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.sleep-history-panel__file-input {
+  flex: 1 1 300px;
+  min-width: 240px;
+  color: #1a3152;
+  font-size: 0.84rem;
+}
+
+.sleep-history-panel__file-input::file-selector-button {
+  margin-right: 0.8rem;
+  border: 1px solid rgba(91, 201, 184, 0.5);
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f6f78;
+  border-radius: 12px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sleep-history-panel__import-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 0.7rem 1rem;
+  background: linear-gradient(135deg, #1f6f78, #56beae);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sleep-history-panel__help-btn {
+  border: 1px solid rgba(31, 111, 120, 0.25);
+  border-radius: 12px;
+  padding: 0.7rem 1rem;
+  background: rgba(255, 255, 255, 0.78);
+  color: #1f6f78;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sleep-history-panel__import-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sleep-history-panel__import-notice {
+  color: #1f6f78;
+  font-weight: 600;
+}
+
+.sleep-history-panel__import-error {
+  color: #b55656;
+  font-weight: 600;
+}
+
+.sleep-history-panel__tooltip-window {
+  margin-top: 0.28rem;
+  color: #5c789a;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sleep-history-panel__tooltip-stages {
+  margin-top: 0.34rem;
+  color: #3e5a73;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  max-width: 18rem;
+}
+
+.sleep-history-panel__metric-select {
+  border: 1px solid rgba(79, 124, 164, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  color: #1a3152;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.72rem 0.9rem;
+  border-radius: 16px;
+  min-width: 180px;
+}
+
+.sleep-history-panel__selected-day {
+  display: grid;
+  gap: 0.46rem;
+  padding: 0.56rem 0.62rem 0.6rem;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(96, 210, 255, 0.18), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(111, 208, 191, 0.18), transparent 34%),
+    linear-gradient(160deg, rgba(248, 252, 255, 0.98), rgba(238, 245, 252, 0.98));
+  border: 1px solid rgba(196, 216, 238, 0.86);
+  box-shadow:
+    0 24px 44px rgba(20, 48, 78, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.sleep-history-panel__night-dashboard {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1.58fr);
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.sleep-history-panel__selected-day-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.42rem;
+  align-items: stretch;
+}
+
+.sleep-history-panel__selected-day-copy {
+  position: relative;
+  display: grid;
+  gap: 0.24rem;
+}
+
+.sleep-history-panel__selected-day-eyebrow {
+  margin: 0;
+  color: #5e7e9c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sleep-history-panel__calendar-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid rgba(177, 206, 235, 0.88);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 255, 0.94));
+  color: #1a3152;
+  border-radius: 14px;
+  padding: 0.56rem 0.74rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow:
+    0 14px 28px rgba(33, 67, 105, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.sleep-history-panel__calendar-chevron {
+  color: #6182a1;
+  transition: transform 0.16s ease;
+}
+
+.sleep-history-panel__calendar-chevron--open {
+  transform: rotate(180deg);
+}
+
+.sleep-history-panel__calendar-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  left: 0;
+  z-index: 25;
+  width: min(360px, calc(100vw - 3rem));
+  padding: 0.95rem;
+  border-radius: 18px;
+  border: 1px solid rgba(201, 220, 241, 0.96);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 54px rgba(20, 48, 78, 0.16);
+}
+
+.sleep-history-panel__calendar-header,
+.sleep-history-panel__calendar-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.sleep-history-panel__calendar-header {
+  margin-bottom: 0.8rem;
+}
+
+.sleep-history-panel__calendar-header strong {
+  color: #1a3152;
+  font-size: 0.95rem;
+}
+
+.sleep-history-panel__calendar-nav {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(191, 212, 235, 0.9);
+  border-radius: 999px;
+  background: rgba(247, 250, 255, 0.94);
+  color: #44688c;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sleep-history-panel__calendar-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.sleep-history-panel__calendar-weekdays,
+.sleep-history-panel__calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.sleep-history-panel__calendar-weekdays {
+  margin-bottom: 0.45rem;
+}
+
+.sleep-history-panel__calendar-weekdays span {
+  text-align: center;
+  color: #6985a3;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sleep-history-panel__calendar-grid {
+  gap: 0.28rem;
+}
+
+.sleep-history-panel__calendar-day {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 2.45rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #355677;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sleep-history-panel__calendar-day-label {
+  display: inline-block;
+}
+
+.sleep-history-panel__calendar-day--outside {
+  opacity: 0.28;
+}
+
+.sleep-history-panel__calendar-day--has-data {
+  border-color: rgba(165, 215, 204, 0.92);
+  background: rgba(239, 251, 247, 0.96);
+}
+
+.sleep-history-panel__calendar-markers {
+  position: absolute;
+  left: 50%;
+  bottom: 0.28rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  transform: translateX(-50%);
+}
+
+.sleep-history-panel__calendar-marker {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 999px;
+}
+
+.sleep-history-panel__calendar-marker--has-data {
+  background: #42b49e;
+}
+
+.sleep-history-panel__calendar-marker--has-sensor-data {
+  background: #5ecfff;
+}
+
+.sleep-history-panel__calendar-day--no-data {
+  border-color: rgba(219, 228, 239, 0.92);
+  background: rgba(246, 248, 252, 0.96);
+  color: #99adc2;
+  cursor: not-allowed;
+}
+
+.sleep-history-panel__calendar-day--has-sensor-data {
+  box-shadow: inset 0 0 0 1px rgba(94, 207, 255, 0.18);
+}
+
+.sleep-history-panel__calendar-day--selected {
+  border-color: #2d78d6;
+  background: linear-gradient(180deg, #4da0ff, #2d78d6);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(45, 120, 214, 0.24);
+}
+
+.sleep-history-panel__calendar-day--selected .sleep-history-panel__calendar-marker--has-data {
+  background: #fff;
+}
+
+.sleep-history-panel__calendar-day--selected .sleep-history-panel__calendar-marker--has-sensor-data {
+  background: rgba(220, 244, 255, 0.95);
+}
+
+.sleep-history-panel__calendar-legend {
+  margin-top: 0.8rem;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.sleep-history-panel__calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #627f9d;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.sleep-history-panel__calendar-dot {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 999px;
+  background: #cdd8e4;
+}
+
+.sleep-history-panel__calendar-dot--has-data {
+  background: #42b49e;
+}
+
+.sleep-history-panel__calendar-dot--has-sensor-data {
+  background: #5ecfff;
+}
+
+.sleep-history-panel__calendar-dot--no-data {
+  background: #cfd8e2;
+}
+
+.sleep-history-panel__selected-day-duration {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 0.12rem;
+  padding: 0.62rem 0.72rem;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.28), transparent 36%),
+    linear-gradient(155deg, rgba(25, 119, 232, 0.92), rgba(76, 175, 255, 0.82));
+  border: 1px solid rgba(112, 181, 255, 0.6);
+  box-shadow:
+    0 18px 30px rgba(31, 115, 223, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.sleep-history-panel__selected-day-duration span {
+  color: rgba(232, 244, 255, 0.78);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sleep-history-panel__selected-day-duration strong {
+  color: #ffffff;
+  font-size: 1.2rem;
+  letter-spacing: -0.03em;
+}
+
+.sleep-history-panel__selected-day-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.32rem;
+}
+
+.sleep-history-panel__selected-stat {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-height: 0;
+  padding: 0.52rem 0.62rem;
+  border-radius: 12px;
+  border: 1px solid rgba(188, 210, 235, 0.88);
+  border-left: 3px solid rgba(94, 207, 255, 0.55);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 250, 255, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 4px 16px rgba(22, 52, 88, 0.06);
+}
+
+.sleep-history-panel__selected-stat strong {
+  color: #142a45;
+  font-size: 1.08rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  flex-shrink: 0;
+  line-height: 1.15;
+}
+
+.sleep-history-panel__selected-stat span {
+  color: #4a6b8a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.25;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sleep-history-panel__chart-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.1rem;
+}
+
+.sleep-history-panel__range-group {
+  margin-left: 0;
+}
+
+.sleep-history-panel .indoor-history-panel__chart-card {
+  gap: 0.3rem;
+  padding: 0.45rem 0.5rem 0.5rem;
+  border-radius: 16px;
+  border: 1px solid rgba(205, 221, 240, 0.86);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 252, 255, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 10px 20px rgba(22, 47, 78, 0.05);
+}
+
+.sleep-history-panel .indoor-history-panel__chart-shell {
+  border-radius: 10px;
+  border-color: rgba(220, 232, 245, 0.95);
+}
+
+.sleep-history-panel .indoor-history-panel__range-group {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(203, 221, 242, 0.82);
+}
+
+.sleep-history-panel .sleep-history-panel__metric-select {
+  border-color: rgba(202, 221, 241, 0.9);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 0.62rem 0.82rem;
+}
+
+.sleep-history-panel__stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.8rem;
+}
+
+.sleep-history-panel__stage-card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(248, 252, 251, 0.98), rgba(239, 247, 245, 0.98));
+  border: 1px solid rgba(193, 225, 219, 0.72);
+}
+
+.sleep-history-panel__stage-label {
+  color: #5c789a;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sleep-history-panel__stage-value {
+  color: #1a3152;
+  font-size: 1.08rem;
+}
+
+.sleep-history-panel__insight {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.05rem 1.1rem;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(79, 169, 255, 0.16), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(111, 208, 191, 0.12), transparent 30%),
+    linear-gradient(160deg, rgba(248, 252, 255, 0.99), rgba(240, 247, 253, 0.98));
+  border: 1px solid rgba(194, 216, 236, 0.84);
+  box-shadow:
+    0 24px 42px rgba(18, 46, 73, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+.sleep-history-panel__insight-head,
+.sleep-history-panel__insight-summary,
+.sleep-history-panel__insight-head-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sleep-history-panel__insight-head {
+  align-items: flex-start;
+}
+
+.sleep-history-panel__insight-head h3,
+.sleep-history-panel__insight-summary-copy h4,
+.sleep-history-panel__insight-card h5,
+.sleep-history-panel__insight-state h4,
+.sleep-history-panel__insight-state p,
+.sleep-history-panel__insight-summary-copy p,
+.sleep-history-panel__insight-caveats p,
+.sleep-history-panel__insight-empty {
+  margin: 0;
+}
+
+.sleep-history-panel__insight-eyebrow,
+.sleep-history-panel__insight-source,
+.sleep-history-panel__insight-stat span {
+  color: #557898;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.sleep-history-panel__insight-head h3,
+.sleep-history-panel__insight-summary-copy h4,
+.sleep-history-panel__insight-card h5,
+.sleep-history-panel__insight-note strong {
+  color: #1a3152;
+}
+
+.sleep-history-panel__insight-head-meta {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.sleep-history-panel__insight-action-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.56rem 0.9rem;
+  background: linear-gradient(135deg, #2f82e3, #37c0c4 55%, #5885ff);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 10px 24px rgba(47, 130, 227, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.24) inset;
+}
+
+.sleep-history-panel__insight-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.sleep-history-panel__insight-head-meta small {
+  font-size: 0.74rem;
+}
+
+.sleep-history-panel__insight-head-meta small,
+.sleep-history-panel__insight-summary-copy p,
+.sleep-history-panel__insight-note,
+.sleep-history-panel__insight-caveats p,
+.sleep-history-panel__insight-empty,
+.sleep-history-panel__insight-list li span {
+  color: #5c789a;
+  line-height: 1.55;
+}
+
+.sleep-history-panel__mock-admin {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.82rem 0.9rem;
+  border-radius: 18px;
+  border: 1px dashed rgba(126, 174, 213, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 249, 255, 0.92));
+}
+
+.sleep-history-panel__mock-admin-copy {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.sleep-history-panel__mock-admin-copy h3,
+.sleep-history-panel__mock-admin-copy p,
+.sleep-history-panel__mock-admin-notice,
+.sleep-history-panel__mock-admin-error {
+  margin: 0;
+}
+
+.sleep-history-panel__mock-admin-copy p,
+.sleep-history-panel__mock-admin-notice,
+.sleep-history-panel__mock-admin-error {
+  color: #5c789a;
+  line-height: 1.5;
+}
+
+.sleep-history-panel__mock-admin-copy code {
+  padding: 0.08rem 0.34rem;
+  border-radius: 7px;
+  background: rgba(235, 243, 252, 0.9);
+  color: #1a3152;
+}
+
+.sleep-history-panel__mock-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.sleep-history-panel__mock-admin-btn {
+  border: 1px solid rgba(180, 205, 230, 0.95);
+  background: rgba(255, 255, 255, 0.94);
+  color: #3d5a78;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.56rem 0.88rem;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.sleep-history-panel__mock-admin-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sleep-history-panel__mock-admin-btn--primary {
+  border-color: rgba(47, 130, 227, 0.32);
+  background: linear-gradient(135deg, rgba(47, 130, 227, 0.12), rgba(55, 192, 196, 0.18));
+  color: #1e4a7a;
+}
+
+.sleep-history-panel__mock-admin-notice {
+  color: #256f5f;
+  font-weight: 600;
+}
+
+.sleep-history-panel__mock-admin-error {
+  color: #b55656;
+  font-weight: 600;
+}
+
+.sleep-history-panel__insight-summary {
+  align-items: stretch;
+  gap: 0.85rem;
+}
+
+.sleep-history-panel__insight-summary-copy {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.sleep-history-panel__insight-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.48rem;
+}
+
+.sleep-history-panel__insight-stats--top {
+  align-items: stretch;
+}
+
+.sleep-history-panel__insight-stat,
+.sleep-history-panel__insight-card,
+.sleep-history-panel__insight-note,
+.sleep-history-panel__insight-caveats {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(194, 216, 236, 0.84);
+}
+
+.sleep-history-panel__insight-stat {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.62rem 0.7rem;
+  min-height: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(188, 210, 235, 0.88);
+  border-left: 3px solid rgba(94, 207, 255, 0.55);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 250, 255, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 4px 16px rgba(22, 52, 88, 0.06);
+}
+
+.sleep-history-panel__insight-stat strong {
+  color: #142a45;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.sleep-history-panel__insight-stat span {
+  color: #4a6b8a;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+
+.sleep-history-panel__insight-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.sleep-history-panel__insight-card {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem 0.9rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 12px 22px rgba(26, 49, 82, 0.05);
+}
+
+.sleep-history-panel__insight-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.sleep-history-panel__insight-list li {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.sleep-history-panel__insight-list li strong {
+  color: #254b72;
+  font-size: 0.82rem;
+}
+
+.sleep-history-panel__insight-list--actions li {
+  padding-left: 1rem;
+  position: relative;
+}
+
+.sleep-history-panel__insight-list--actions li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  top: 0.02rem;
+  color: #1f6f78;
+  font-weight: 800;
+}
+
+.sleep-history-panel__insight-note,
+.sleep-history-panel__insight-caveats {
+  padding: 0.78rem 0.92rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 10px 20px rgba(26, 49, 82, 0.04);
+}
+
+.sleep-history-panel__insight-caveats {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sleep-history-panel__insight-feedback {
+  padding: 0.82rem 0.92rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(194, 216, 236, 0.84);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 10px 20px rgba(26, 49, 82, 0.04);
+}
+
+.sleep-history-panel__insight-state {
+  display: grid;
+  gap: 0.7rem;
+  place-items: center;
+  text-align: center;
+  min-height: 160px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed rgba(193, 214, 231, 0.84);
+  padding: 1rem;
+}
+
+.sleep-history-panel__insight-state--error {
+  color: #b55656;
+}
+
+.sleep-history-panel__selected-dot {
+  fill: #ffffff;
+  stroke: #5ecfff;
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 4px rgba(94, 207, 255, 0.35));
+}
+
+.sleep-history-panel__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(14, 28, 38, 0.42);
+}
+
+.sleep-history-panel__modal {
+  width: min(760px, 100%);
+  max-height: min(88vh, 900px);
+  overflow: auto;
+  border-radius: 26px;
+  padding: 1.4rem;
+  background: #fff;
+  box-shadow: 0 28px 72px rgba(14, 28, 38, 0.22);
+}
+
+.sleep-history-panel__modal--import {
+  width: min(980px, 100%);
+}
+
+.sleep-history-panel__modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sleep-history-panel__modal-head h3,
+.sleep-history-panel__modal-note {
+  margin: 0;
+}
+
+.sleep-history-panel__modal-head h3,
+.sleep-history-panel__path {
+  color: #1a3152;
+}
+
+.sleep-history-panel__modal-eyebrow {
+  margin: 0 0 0.25rem;
+  color: #1f6f78;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sleep-history-panel__modal-close {
+  border: none;
+  background: rgba(236, 247, 244, 0.95);
+  color: #1f6f78;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sleep-history-panel__steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.8rem;
+  color: #4b6474;
+  line-height: 1.6;
+}
+
+.sleep-history-panel__path {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(236, 247, 244, 0.98);
+}
+
+.sleep-history-panel__modal-note {
+  margin-top: 1rem;
+  color: #5c789a;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .sleep-history-panel .indoor-history-panel__top {
+    padding: 0.45rem 0.48rem;
+  }
+
+  .sleep-history-panel__top-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .sleep-history-panel__night-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .sleep-history-panel__selected-day-head {
+    grid-template-columns: 1fr;
+  }
+
+  .sleep-history-panel__selected-day-duration {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sleep-history-panel__selected-day-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .sleep-history-panel__calendar-popover {
+    width: min(100%, calc(100vw - 2.5rem));
+  }
+
+  .sleep-history-panel__import-launcher {
+    justify-content: stretch;
+  }
+
+  .sleep-history-panel__import-new-btn {
+    width: 100%;
+  }
+
+  .sleep-history-panel__chart-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+  }
+
+  .sleep-history-panel__range-group {
+    justify-content: center;
+  }
+
+  .sleep-history-panel__insight-head,
+  .sleep-history-panel__insight-summary,
+  .sleep-history-panel__insight-grid,
+  .sleep-history-panel__insight-head-meta {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sleep-history-panel__insight-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sleep-history-panel__metric-select,
+  .sleep-history-panel__import-btn,
+  .sleep-history-panel__help-btn,
+  .sleep-history-panel__mock-admin-btn,
+  .sleep-history-panel__insight-action-btn {
+    width: 100%;
+  }
+
+  .sleep-history-panel__modal {
+    padding: 1.05rem;
+    border-radius: 20px;
+  }
+}
