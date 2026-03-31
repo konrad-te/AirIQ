@@ -240,7 +240,6 @@ function ProfileSection() {
 function PreferencesSection() {
   const { t, i18n } = useTranslation()
   const { token } = useAuth()
-  const [theme, setTheme] = useState('light')
   const [language, setLanguage] = useState('')
   const [timezone, setTimezone] = useState('')
   const [loading, setLoading] = useState(true)
@@ -251,7 +250,6 @@ function PreferencesSection() {
   useEffect(() => {
     getPreferences(token)
       .then((prefs) => {
-        setTheme(prefs.theme ?? 'light')
         setLanguage(prefs.language_code ?? '')
         setTimezone(prefs.timezone ?? '')
       })
@@ -265,7 +263,7 @@ function PreferencesSection() {
     setError('')
     setSuccess(false)
     try {
-      await updatePreferences(token, { theme, language_code: language || null, timezone: timezone || null })
+      await updatePreferences(token, { language_code: language || null, timezone: timezone || null })
       i18n.changeLanguage(language || 'en')
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -283,19 +281,6 @@ function PreferencesSection() {
       <h2 className="settings-section-title">{t('settings.preferences')}</h2>
       <p className="settings-section-desc">{t('settings.preferencesDesc')}</p>
       <form className="settings-form" onSubmit={handleSave}>
-        <div className="settings-field">
-          <span className="settings-label">{t('settings.theme')}</span>
-          <div className="settings-theme-toggle">
-            <button type="button" className={`settings-theme-btn ${theme === 'light' ? 'settings-theme-btn--active' : ''}`} onClick={() => setTheme('light')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
-              {t('settings.light')}
-            </button>
-            <button type="button" className={`settings-theme-btn ${theme === 'dark' ? 'settings-theme-btn--active' : ''}`} onClick={() => setTheme('dark')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
-              {t('settings.dark')}
-            </button>
-          </div>
-        </div>
         <div className="settings-field">
           <label htmlFor="s-language" className="settings-label">{t('settings.language')}</label>
           <select id="s-language" className="settings-select" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={saving}>
