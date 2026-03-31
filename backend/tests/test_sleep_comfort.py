@@ -22,7 +22,7 @@ class SleepComfortRecommendationTests(unittest.TestCase):
             context=VentilationContext(indoor_temperature_c=22),
             ideal_min=16,
             ideal_max=20,
-            now_utc=datetime(2026, 1, 10, 18, 0, tzinfo=UTC),
+            now_utc=datetime(2026, 1, 10, 19, 0, tzinfo=UTC),
         )
 
         self.assertIsNotNone(suggestion)
@@ -49,7 +49,7 @@ class SleepComfortRecommendationTests(unittest.TestCase):
             context=VentilationContext(indoor_temperature_c=19),
             ideal_min=16,
             ideal_max=20,
-            now_utc=datetime(2026, 1, 10, 18, 0, tzinfo=UTC),
+            now_utc=datetime(2026, 1, 10, 19, 0, tzinfo=UTC),
         )
 
         self.assertIsNotNone(suggestion)
@@ -73,10 +73,49 @@ class SleepComfortRecommendationTests(unittest.TestCase):
             context=VentilationContext(),
             ideal_min=16,
             ideal_max=20,
-            now_utc=datetime(2026, 1, 10, 18, 0, tzinfo=UTC),
+            now_utc=datetime(2026, 1, 10, 19, 0, tzinfo=UTC),
         )
 
         self.assertIsNone(suggestion)
+
+    def test_sleep_recommendation_is_hidden_before_evening(self) -> None:
+        outdoor_data = {
+            "forecast": [
+                {"time": "2026-01-10T21:00:00Z", "temperature_c": 6},
+                {"time": "2026-01-11T00:00:00Z", "temperature_c": 4},
+                {"time": "2026-01-11T03:00:00Z", "temperature_c": 3},
+            ]
+        }
+
+        suggestion = evaluate_sleep_temperature(
+            outdoor_data=outdoor_data,
+            context=VentilationContext(indoor_temperature_c=19),
+            ideal_min=16,
+            ideal_max=20,
+            now_utc=datetime(2026, 1, 10, 9, 18, tzinfo=UTC),
+        )
+
+        self.assertIsNone(suggestion)
+
+    def test_sleep_recommendation_can_ignore_time_window_for_preview(self) -> None:
+        outdoor_data = {
+            "forecast": [
+                {"time": "2026-01-10T21:00:00Z", "temperature_c": 6},
+                {"time": "2026-01-11T00:00:00Z", "temperature_c": 4},
+                {"time": "2026-01-11T03:00:00Z", "temperature_c": 3},
+            ]
+        }
+
+        suggestion = evaluate_sleep_temperature(
+            outdoor_data=outdoor_data,
+            context=VentilationContext(indoor_temperature_c=19),
+            ideal_min=16,
+            ideal_max=20,
+            now_utc=datetime(2026, 1, 10, 9, 18, tzinfo=UTC),
+            respect_time_window=False,
+        )
+
+        self.assertIsNotNone(suggestion)
 
 
 if __name__ == "__main__":

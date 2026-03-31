@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -10,6 +10,7 @@ from backend.models import GarminTrainingActivity, User
 from backend.schemas.training import (
     TrainingActivitySummarySchema,
     TrainingHistoryResponseSchema,
+    TrainingHistoryPointSchema,
     TrainingImportFileResultSchema,
     TrainingImportResponseSchema,
     TrainingSportSummarySchema,
@@ -230,6 +231,71 @@ def _serialize_activity(record: GarminTrainingActivity) -> TrainingActivitySumma
     )
 
 
+def _activity_calendar_date(record: GarminTrainingActivity) -> date | None:
+    reference_time = record.start_time_local or record.start_time_gmt
+    return reference_time.date() if reference_time is not None else None
+
+
+def _build_daily_points(rows: list[GarminTrainingActivity]) -> list[TrainingHistoryPointSchema]:
+    buckets: dict[date, dict[str, Any]] = {}
+
+    for row in rows:
+        calendar_date = _activity_calendar_date(row)
+        if calendar_date is None:
+            continue
+
+        duration_minutes = _to_float(row.duration_minutes) or 0.0
+        calories = _activity_display_calories(row) or 0.0
+        avg_hr = _to_float(row.average_heart_rate)
+        distance_km = _to_float(row.distance_km) or 0.0
+        sport_key, sport_label = _label_for_sport(row)
+        bucket = buckets.setdefault(
+            calendar_date,
+            {
+                "activity_count": 0,
+                "total_duration_minutes": 0.0,
+                "total_calories": 0.0,
+                "weighted_heart_rate_sum": 0.0,
+                "weighted_heart_rate_duration": 0.0,
+                "total_distance_km": 0.0,
+                "sport_minutes": {},
+            },
+        )
+        bucket["activity_count"] += 1
+        bucket["total_duration_minutes"] += duration_minutes
+        bucket["total_calories"] += calories
+        bucket["total_distance_km"] += distance_km
+        if avg_hr is not None and duration_minutes > 0:
+            bucket["weighted_heart_rate_sum"] += avg_hr * duration_minutes
+            bucket["weighted_heart_rate_duration"] += duration_minutes
+        sport_minutes: dict[str, float] = bucket["sport_minutes"]
+        sport_minutes[sport_label] = sport_minutes.get(sport_label, 0.0) + duration_minutes
+
+    points: list[TrainingHistoryPointSchema] = []
+    for calendar_date in sorted(buckets):
+        bucket = buckets[calendar_date]
+        sport_minutes: dict[str, float] = bucket["sport_minutes"]
+        primary_sport_label = max(sport_minutes.items(), key=lambda item: item[1])[0] if sport_minutes else None
+        weighted_average_heart_rate = (
+            round(bucket["weighted_heart_rate_sum"] / bucket["weighted_heart_rate_duration"], 1)
+            if bucket["weighted_heart_rate_duration"] > 0
+            else None
+        )
+        total_distance_km = round(bucket["total_distance_km"], 1) if bucket["total_distance_km"] > 0 else None
+        points.append(
+            TrainingHistoryPointSchema(
+                calendar_date=calendar_date.isoformat(),
+                activity_count=bucket["activity_count"],
+                total_duration_minutes=round(bucket["total_duration_minutes"], 1),
+                total_calories=round(bucket["total_calories"], 0),
+                weighted_average_heart_rate=weighted_average_heart_rate,
+                total_distance_km=total_distance_km,
+                primary_sport_label=primary_sport_label,
+            )
+        )
+    return points
+
+
 def _build_history_response(
     rows: list[GarminTrainingActivity],
     *,
@@ -306,6 +372,7 @@ def _build_history_response(
             else None
         ),
         sport_breakdown=sport_breakdown,
+        points=_build_daily_points(rows),
         activities=[_serialize_activity(row) for row in rows],
     )
 

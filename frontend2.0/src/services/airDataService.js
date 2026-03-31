@@ -36,30 +36,6 @@ export async function suggestAddresses(query, limit = 5) {
   return response.json()
 }
 
-export async function getAiRecommendation(outdoorData, indoorData, token) {
-  const response = await fetch(`${API_BASE_URL}/api/ai/recommendation`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ outdoor: outdoorData, indoor: indoorData }),
-  })
-
-  if (!response.ok) {
-    let detail = `AI request failed with status ${response.status}`
-    try {
-      const payload = await response.json()
-      if (payload?.detail) detail = payload.detail
-    } catch {
-      // ignore
-    }
-    throw new Error(detail)
-  }
-
-  return response.json()
-}
-
 export async function reverseGeocodeCoordinates(lat, lon) {
   const response = await fetch(
     `${API_BASE_URL}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
@@ -156,6 +132,44 @@ export async function getSleepHistory(token, range = '30d') {
   return response.json()
 }
 
+export async function getSleepInsight(token, date, options = {}) {
+  const params = new URLSearchParams({ date })
+
+  if (typeof options.includeAi === 'boolean') {
+    params.set('include_ai', String(options.includeAi))
+  }
+  if (typeof options.lat === 'number') {
+    params.set('lat', String(options.lat))
+  }
+  if (typeof options.lon === 'number') {
+    params.set('lon', String(options.lon))
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/ai/sleep-insight?${params.toString()}`, {
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!response.ok) {
+    let detail = `Sleep insight request failed with status ${response.status}`
+
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = payload.detail
+      }
+    } catch {
+      // Ignore JSON parse failures and keep the generic message.
+    }
+
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
 export async function getTrainingHistory(token, range = '90d') {
   const response = await fetch(`${API_BASE_URL}/api/training/history?range=${encodeURIComponent(range)}`, {
     cache: 'no-store',
@@ -166,6 +180,41 @@ export async function getTrainingHistory(token, range = '90d') {
 
   if (!response.ok) {
     let detail = `Training data request failed with status ${response.status}`
+
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        detail = payload.detail
+      }
+    } catch {
+      // Ignore JSON parse failures and keep the generic message.
+    }
+
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
+export async function getTrainingInsight(token, date, options = {}) {
+  const params = new URLSearchParams({ date })
+
+  if (typeof options.includeAi === 'boolean') {
+    params.set('include_ai', String(options.includeAi))
+  }
+  if (options.window === '7d' || options.window === 'day') {
+    params.set('window', options.window)
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/ai/training-insight?${params.toString()}`, {
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!response.ok) {
+    let detail = `Training insight request failed with status ${response.status}`
 
     try {
       const payload = await response.json()

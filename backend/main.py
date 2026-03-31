@@ -24,6 +24,7 @@ OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY") or os.getenv("open_aq")
 
 CACHE_RAW = os.getenv("CACHE_RAW", "0") == "1"
 DEBUG = os.getenv("DEBUG", "0") == "1"
+USE_ENV_HTTP_PROXIES = os.getenv("USE_ENV_HTTP_PROXIES", "0") == "1"
 
 NOMINATIM_USER_AGENT = (
     os.getenv("NOMINATIM_USER_AGENT")
@@ -108,6 +109,88 @@ def _to_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _http_get(url: str, **kwargs: Any) -> requests.Response:
+    if USE_ENV_HTTP_PROXIES:
+        return requests.get(url, **kwargs)
+
+    with requests.Session() as session:
+        session.trust_env = False
+        return session.get(url, **kwargs)
+
+
+def _extract_error_detail(response: requests.Response | None) -> str | None:
+    if response is None:
+        return None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+
+    if isinstance(payload, dict):
+        for key in ("message", "detail", "error", "description"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+    body = response.text.strip()
+    return body[:160] if body else None
+
+
+def _describe_request_error(provider_label: str, exc: Exception) -> str:
+    if isinstance(exc, RuntimeError):
+        return str(exc)
+
+    if isinstance(exc, requests.HTTPError):
+        response = exc.response
+        status_code = response.status_code if response is not None else None
+        detail = _extract_error_detail(response)
+        if status_code == 429:
+            return (
+                f"{provider_label} rate limited"
+                + (f": {detail}" if detail else "")
+            )
+        if status_code == 401:
+            return (
+                f"{provider_label} unauthorized"
+                + (f": {detail}" if detail else "")
+            )
+        if status_code is not None:
+            return (
+                f"{provider_label} HTTP {status_code}"
+                + (f": {detail}" if detail else "")
+            )
+
+    return f"{provider_label} request failed: {exc}"
+
+
+def _attach_upstream_failures(
+    norm: dict[str, Any],
+    failures: list[str],
+) -> dict[str, Any]:
+    if not failures or not isinstance(norm, dict):
+        return norm
+
+    unique_failures = list(dict.fromkeys(item.strip() for item in failures if item))
+    if not unique_failures:
+        return norm
+
+    source = dict(norm.get("source") or {})
+    base_message = source.get("message") or "Fallback source used."
+    base_user_message = (
+        source.get("user_message")
+        or source.get("message")
+        or "Using fallback air quality data."
+    )
+    source["message"] = f"{base_message} Upstream issues: {'; '.join(unique_failures)}."
+    source["user_message"] = (
+        f"{base_user_message} Airly is temporarily unavailable, so fallback data is shown."
+    )
+    source["upstream_failures"] = unique_failures
+    norm["source"] = source
+    return norm
 
 
 def _parse_iso_utc(value: str | None) -> datetime | None:
@@ -733,7 +816,7 @@ def fetch_airly_point(lat: float, lon: float) -> dict[str, Any]:
     if not AIRLY_API_KEY:
         return {}
 
-    response = requests.get(
+    response = _http_get(
         AIRLY_POINT_URL,
         headers=AIRLY_HEADERS,
         params={"lat": lat, "lng": lon},
@@ -750,7 +833,7 @@ def fetch_airly_nearest(
     if not AIRLY_API_KEY:
         return {}
 
-    response = requests.get(
+    response = _http_get(
         AIRLY_NEAREST_URL,
         headers=AIRLY_HEADERS,
         params={"lat": lat, "lng": lon, "maxDistanceKM": max_distance_km},
@@ -777,7 +860,7 @@ def fetch_openaq_latest_nearby(
         "sort": "distance",
     }
 
-    response = requests.get(
+    response = _http_get(
         OPENAQ_LATEST_URL, headers=headers, params=params, timeout=12
     )
     if response.status_code == 401:
@@ -882,7 +965,7 @@ def fetch_openmeteo_air_quality(lat: float, lon: float) -> dict[str, Any] | None
         "forecast_days": 2,
     }
 
-    response = requests.get(OPENMETEO_AQ_URL, params=params, timeout=12)
+    response = _http_get(OPENMETEO_AQ_URL, params=params, timeout=12)
     response.raise_for_status()
     data = response.json()
 
@@ -1002,7 +1085,7 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
         "forecast_days": 2,
     }
 
-    response = requests.get(OPENMETEO_WEATHER_URL, params=params, timeout=12)
+    response = _http_get(OPENMETEO_WEATHER_URL, params=params, timeout=12)
     response.raise_for_status()
     data = response.json()
 
@@ -1417,7 +1500,7 @@ def get_lat_lon_nominatim_cached(address: str) -> tuple[float, float] | None:
 
         try:
             time.sleep(1.2)
-            response = requests.get(
+            response = _http_get(
                 NOMINATIM_URL,
                 params=params,
                 headers=headers,
@@ -1483,7 +1566,7 @@ def suggest_addresses_nominatim(address: str, limit: int = 5) -> list[dict[str, 
 
     try:
         time.sleep(0.35)
-        response = requests.get(
+        response = _http_get(
             NOMINATIM_URL,
             params=params,
             headers=headers,
@@ -1525,7 +1608,7 @@ def reverse_geocode_nominatim(lat: float, lon: float) -> dict[str, Any] | None:
 
     try:
         time.sleep(0.35)
-        response = requests.get(
+        response = _http_get(
             NOMINATIM_REVERSE_URL,
             params=params,
             headers=headers,
@@ -1552,6 +1635,8 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
     coord_key = _coord_key(lat, lon)
 
     with _db_session() as db:
+        upstream_failures: list[str] = []
+
         if AIRLY_API_KEY:
             airly_point_variant = "default"
             airly_point_cache_key = _build_provider_cache_key(
@@ -1573,6 +1658,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
             try:
                 raw_point = fetch_airly_point(lat, lon)
             except requests.RequestException as exc:
+                upstream_failures.append(_describe_request_error("Airly point", exc))
                 if DEBUG:
                     print(f"DEBUG: Airly /point failed: {exc}")
                 raw_point = {}
@@ -1624,6 +1710,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                     max_distance_km=AIRLY_NEAREST_MAX_DISTANCE_KM,
                 )
             except requests.RequestException as exc:
+                upstream_failures.append(_describe_request_error("Airly nearest", exc))
                 if DEBUG:
                     print(f"DEBUG: Airly /nearest failed: {exc}")
 
@@ -1711,6 +1798,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 radius_km=OPENAQ_MAX_DISTANCE_KM,
             )
         except (requests.RequestException, RuntimeError) as exc:
+            upstream_failures.append(_describe_request_error("OpenAQ", exc))
             if DEBUG:
                 print(f"DEBUG: OpenAQ failed: {exc}")
 
@@ -1729,6 +1817,10 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 variant_key=openaq_variant,
                 payload_json=station_payload,
                 ttl_seconds=TTL_STATION,
+            )
+            normalized_openaq = _attach_upstream_failures(
+                normalized_openaq,
+                upstream_failures,
             )
             return prepare_normalized_response(db, lat, lon, normalized_openaq)
 
@@ -1749,6 +1841,10 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
 
         normalized_model = _get_openmeteo_model_cached(db, lat, lon)
         if normalized_model and normalized_has_data(normalized_model):
+            normalized_model = _attach_upstream_failures(
+                normalized_model,
+                upstream_failures,
+            )
             return prepare_normalized_response(db, lat, lon, normalized_model)
 
         empty = {
@@ -1794,6 +1890,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                 "created_at": _utc_now().isoformat(),
             },
         }
+        empty = _attach_upstream_failures(empty, upstream_failures)
         return _finalize_normalized(empty)
 
 

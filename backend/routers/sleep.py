@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 import json
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from backend.database import get_db
-from backend.models import GarminSleepSummary, User
+from backend.models import GarminSleepSummary, IndoorSensorReading, User
 from backend.schemas.sleep import (
     SleepHistoryResponseSchema,
     SleepImportFileResultSchema,
@@ -16,6 +17,7 @@ from backend.services.garmin_sleep import (
     normalize_garmin_sleep_entry,
     serialize_sleep_history_point,
 )
+from backend.services.sleep_insights import _resolve_sensor_device, _window_for_sleep
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -111,6 +113,54 @@ def _apply_summary_fields(record: GarminSleepSummary, normalized: dict[str, Any]
             merged_payload = {}
         merged_payload[payload_key] = incoming_payload
         record.raw_payload_json = merged_payload
+
+
+def _build_sleep_indoor_counts(
+    db: Session,
+    *,
+    user_id: int,
+    rows: list[GarminSleepSummary],
+) -> dict[date, int]:
+    windows: list[tuple[date, datetime, datetime]] = []
+    for row in rows:
+        start_at, end_at = _window_for_sleep(row)
+        if start_at is None or end_at is None or end_at < start_at:
+            continue
+        windows.append((row.calendar_date, start_at, end_at))
+
+    if not windows:
+        return {}
+
+    device_id, _ = _resolve_sensor_device(db, user_id=user_id)
+    if not device_id:
+        return {}
+
+    earliest_start = min(start_at for _, start_at, _ in windows)
+    latest_end = max(end_at for _, _, end_at in windows)
+    reading_times = (
+        db.execute(
+            select(IndoorSensorReading.recorded_at)
+            .where(
+                IndoorSensorReading.user_id == user_id,
+                IndoorSensorReading.provider == "qingping",
+                IndoorSensorReading.provider_device_key == device_id,
+                IndoorSensorReading.recorded_at >= earliest_start,
+                IndoorSensorReading.recorded_at <= latest_end,
+            )
+            .order_by(IndoorSensorReading.recorded_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+    if not reading_times:
+        return {}
+
+    counts: dict[date, int] = {}
+    for calendar_date, start_at, end_at in windows:
+        left_index = bisect_left(reading_times, start_at)
+        right_index = bisect_right(reading_times, end_at)
+        counts[calendar_date] = max(0, right_index - left_index)
+    return counts
 
 
 @router.post("/import", response_model=SleepImportResponseSchema)
@@ -234,6 +284,7 @@ def get_sleep_history(
         .scalars()
         .all()
     )
+    indoor_counts_by_date = _build_sleep_indoor_counts(db, user_id=current_user.id, rows=rows)
     by_date = {row.calendar_date: row for row in rows}
 
     points = []
@@ -246,6 +297,8 @@ def get_sleep_history(
                     "time": datetime.combine(current_day, time(hour=12, tzinfo=UTC)),
                     "calendar_date": current_day.isoformat(),
                     "sample_count": 0,
+                    "indoor_sample_count": 0,
+                    "has_indoor_sensor_data": False,
                     "sleep_start_at": None,
                     "sleep_end_at": None,
                     "sleep_duration_minutes": None,
@@ -267,7 +320,11 @@ def get_sleep_history(
                 }
             )
         else:
-            points.append(serialize_sleep_history_point(row))
+            point = serialize_sleep_history_point(row)
+            indoor_sample_count = indoor_counts_by_date.get(row.calendar_date, 0)
+            point["indoor_sample_count"] = indoor_sample_count
+            point["has_indoor_sensor_data"] = indoor_sample_count > 0
+            points.append(point)
         current_day += timedelta(days=1)
 
     latest_row = rows[-1] if rows else None

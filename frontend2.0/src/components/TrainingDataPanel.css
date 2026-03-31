@@ -288,8 +288,45 @@
   gap: 1rem;
 }
 
+.training-data-panel__section-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .training-data-panel__section-head h3 {
   font-size: 1.1rem;
+}
+
+.training-data-panel__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.training-data-panel__pager-label {
+  min-width: 5.9rem;
+  text-align: center;
+  color: #3e5d82;
+  font-size: 0.82rem;
+}
+
+.training-data-panel__pager-btn {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(176, 207, 229, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #4f7197;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.training-data-panel__pager-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .training-data-panel__sports-grid,
@@ -502,5 +539,86 @@
   .training-data-panel__modal {
     padding: 1.05rem;
     border-radius: 20px;
+  }
+}
+
+.training-data-panel__dashboard {
+  align-items: stretch;
+}
+
+.training-data-panel__insight {
+  min-width: 0;
+}
+
+.training-data-panel__insight-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgba(235, 243, 250, 0.92);
+  border: 1px solid rgba(188, 214, 233, 0.78);
+}
+
+.training-data-panel__insight-mode-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  background: transparent;
+  color: #6280a2;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.training-data-panel__insight-mode-btn--active {
+  background: linear-gradient(135deg, #3e8ae0, #67b8ee);
+  color: #fff;
+}
+
+.training-data-panel__chart-area {
+  fill: url(#trainingHistoryArea);
+}
+
+.training-data-panel__chart-line {
+  stroke: #4fa0db;
+}
+
+.training-data-panel__support-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.training-data-panel__selected-sessions {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem 1.05rem;
+  border-radius: 18px;
+  background: rgba(245, 249, 253, 0.92);
+  border: 1px solid rgba(196, 216, 234, 0.74);
+  color: #2a4465;
+}
+
+.training-data-panel__session-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.training-data-panel__session-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(182, 210, 232, 0.78);
+  color: #527398;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .training-data-panel__support-grid {
+    grid-template-columns: 1fr;
   }
 }

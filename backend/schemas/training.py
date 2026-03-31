@@ -48,6 +48,16 @@ class TrainingActivitySummarySchema(BaseModel):
     distance_km: float | None = None
 
 
+class TrainingHistoryPointSchema(BaseModel):
+    calendar_date: str
+    activity_count: int
+    total_duration_minutes: float
+    total_calories: float
+    weighted_average_heart_rate: float | None = None
+    total_distance_km: float | None = None
+    primary_sport_label: str | None = None
+
+
 class TrainingHistoryResponseSchema(BaseModel):
     range: str
     source_label: str
@@ -60,4 +70,5 @@ class TrainingHistoryResponseSchema(BaseModel):
     weighted_average_heart_rate: float | None = None
     latest_activity_at: datetime | None = None
     sport_breakdown: list[TrainingSportSummarySchema]
+    points: list[TrainingHistoryPointSchema]
     activities: list[TrainingActivitySummarySchema]

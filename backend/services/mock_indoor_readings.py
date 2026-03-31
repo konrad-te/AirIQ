@@ -14,6 +14,8 @@ from backend.models import IndoorSensorReading, UserQingpingIntegration
 
 MOCK_SOURCE_TYPE = "mock_indoor"
 MOCK_PROVIDER = "qingping"
+FALLBACK_DEVICE_ID_PREFIX = "airiq-demo-sensor"
+FALLBACK_DEVICE_NAME = "AirIQ demo sensor"
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -150,6 +152,23 @@ def get_user_qingping_device(db: Session, user_id: int) -> tuple[str, str | None
         .scalars()
         .first()
     )
-    if integration is None or not integration.selected_device_id:
-        return None
-    return integration.selected_device_id, integration.selected_device_name
+    if integration is not None and integration.selected_device_id:
+        return integration.selected_device_id, integration.selected_device_name
+
+    latest = (
+        db.execute(
+            select(IndoorSensorReading)
+            .where(
+                IndoorSensorReading.user_id == user_id,
+                IndoorSensorReading.provider == MOCK_PROVIDER,
+            )
+            .order_by(IndoorSensorReading.recorded_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if latest is not None:
+        return latest.provider_device_key, latest.device_name
+
+    return f"{FALLBACK_DEVICE_ID_PREFIX}-{user_id}", FALLBACK_DEVICE_NAME

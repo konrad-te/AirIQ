@@ -23,6 +23,10 @@ class User(Base):
             "position('@' in email) > 1",
             name="ck_users_email_format",
         ),
+        CheckConstraint(
+            "plan IN ('free','plus')",
+            name="ck_users_plan",
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -47,6 +51,12 @@ class User(Base):
         String(20),
         nullable=False,
         server_default=text("'user'"),
+    )
+
+    plan: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=text("'free'"),
     )
 
     is_active: Mapped[bool] = mapped_column(
