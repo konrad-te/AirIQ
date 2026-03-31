@@ -52,7 +52,8 @@ OPENMETEO_FUTURE_HOURS = 24
 
 AIRLY_POINT_URL = "https://airapi.airly.eu/v2/measurements/point"
 AIRLY_NEAREST_URL = "https://airapi.airly.eu/v2/measurements/nearest"
-OPENAQ_LATEST_URL = "https://api.openaq.org/v3/latest"
+OPENAQ_LOCATIONS_URL = "https://api.openaq.org/v3/locations"
+OPENAQ_CACHE_VARIANT = "v2"
 OPENMETEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OPENMETEO_WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
@@ -463,6 +464,17 @@ def _airly_values_to_dict(values: Any) -> dict[str, Any]:
     return out
 
 
+def _value_from_aliases(values: dict[str, Any], *aliases: str) -> Any:
+    if not isinstance(values, dict):
+        return None
+
+    for alias in aliases:
+        if alias in values and values.get(alias) is not None:
+            return values.get(alias)
+
+    return None
+
+
 def _normalize_airly_timeseries(series: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
 
@@ -476,8 +488,8 @@ def _normalize_airly_timeseries(series: Any) -> list[dict[str, Any]]:
         values = _airly_values_to_dict(item.get("values"))
         row = {
             "time": item.get("fromDateTime") or item.get("tillDateTime"),
-            "pm25": _to_float(values.get("PM25")),
-            "pm10": _to_float(values.get("PM10")),
+            "pm25": _to_float(_value_from_aliases(values, "PM25", "PM2.5", "PM_25")),
+            "pm10": _to_float(_value_from_aliases(values, "PM10", "PM_10")),
             "temperature_c": _to_float(values.get("TEMPERATURE")),
             "apparent_temperature_c": None,
             "humidity_pct": _to_float(values.get("HUMIDITY")),
@@ -661,8 +673,8 @@ def normalize_airly(raw: dict[str, Any], source: dict[str, Any]) -> dict[str, An
 
     normalized = {
         "current": {
-            "pm25": _to_float(values.get("PM25")),
-            "pm10": _to_float(values.get("PM10")),
+            "pm25": _to_float(_value_from_aliases(values, "PM25", "PM2.5", "PM_25")),
+            "pm10": _to_float(_value_from_aliases(values, "PM10", "PM_10")),
             "temperature_c": _to_float(values.get("TEMPERATURE")),
             "apparent_temperature_c": None,
             "humidity_pct": _to_float(values.get("HUMIDITY")),
@@ -852,16 +864,82 @@ def fetch_openaq_latest_nearby(
     if not OPENAQ_API_KEY:
         return None
 
-    headers = {"X-API-Key": OPENAQ_API_KEY}
-    params = {
-        "coordinates": f"{lat},{lon}",
-        "radius": int(radius_km * 1000),
-        "limit": 50,
-        "sort": "distance",
-    }
+    def _normalize_openaq_parameter_name(value: Any) -> str | None:
+        if isinstance(value, dict):
+            value = value.get("name") or value.get("displayName")
+        if not value:
+            return None
 
+        normalized = str(value).strip().lower().replace(".", "").replace("_", "")
+        if normalized == "pm25":
+            return "pm25"
+        if normalized == "pm10":
+            return "pm10"
+        return None
+
+    def _extract_sensor_parameter_map(location: dict[str, Any]) -> dict[int, str]:
+        sensor_parameter_map: dict[int, str] = {}
+        sensor_groups: list[Any] = [location.get("sensors")]
+
+        instruments = location.get("instruments")
+        if isinstance(instruments, list):
+            for instrument in instruments:
+                if isinstance(instrument, dict):
+                    sensor_groups.append(instrument.get("sensors"))
+
+        for sensors in sensor_groups:
+            if not isinstance(sensors, list):
+                continue
+
+            for sensor in sensors:
+                if not isinstance(sensor, dict):
+                    continue
+
+                sensor_id = sensor.get("id")
+                if sensor_id is None:
+                    continue
+
+                parameter_name = _normalize_openaq_parameter_name(
+                    sensor.get("parameter")
+                )
+                if parameter_name is None:
+                    continue
+
+                try:
+                    sensor_parameter_map[int(sensor_id)] = parameter_name
+                except (TypeError, ValueError):
+                    continue
+
+        return sensor_parameter_map
+
+    def _extract_measurement_time(value: Any) -> datetime | None:
+        if isinstance(value, dict):
+            return _parse_iso_utc(value.get("utc") or value.get("local"))
+        if isinstance(value, str):
+            return _parse_iso_utc(value)
+        return None
+
+    def _format_iso_utc(value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        return (
+            value.astimezone(timezone.utc)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+
+    headers = {"X-API-Key": OPENAQ_API_KEY}
+    search_radius_m = max(1, min(int(radius_km * 1000), 25_000))
     response = _http_get(
-        OPENAQ_LATEST_URL, headers=headers, params=params, timeout=12
+        OPENAQ_LOCATIONS_URL,
+        headers=headers,
+        params={
+            "coordinates": f"{lat},{lon}",
+            "radius": search_radius_m,
+            "limit": 25,
+        },
+        timeout=12,
     )
     if response.status_code == 401:
         raise RuntimeError(
@@ -874,36 +952,102 @@ def fetch_openaq_latest_nearby(
     if not isinstance(results, list) or not results:
         return None
 
+    candidates: list[dict[str, Any]] = []
+
     for location in results:
         if not isinstance(location, dict):
             continue
 
         coords = location.get("coordinates") or {}
-        lat2 = coords.get("latitude")
-        lon2 = coords.get("longitude")
+        lat2 = _to_float(coords.get("latitude"))
+        lon2 = _to_float(coords.get("longitude"))
         if lat2 is None or lon2 is None:
             continue
 
-        measurements = location.get("measurements") or []
+        distance_km = haversine_km(lat, lon, lat2, lon2)
+        if distance_km > radius_km:
+            continue
+
+        sensor_parameter_map = _extract_sensor_parameter_map(location)
+        if not sensor_parameter_map:
+            continue
+
+        location_id = location.get("id")
+        if location_id is None:
+            continue
+
+        candidates.append(
+            {
+                "distance_km": distance_km,
+                "lat": lat2,
+                "lon": lon2,
+                "location": location,
+                "location_id": location_id,
+                "sensor_parameter_map": sensor_parameter_map,
+            }
+        )
+
+    for candidate in sorted(candidates, key=lambda item: item["distance_km"]):
+        latest_response = _http_get(
+            f"{OPENAQ_LOCATIONS_URL}/{candidate['location_id']}/latest",
+            headers=headers,
+            params={"limit": 100},
+            timeout=12,
+        )
+        if latest_response.status_code == 401:
+            raise RuntimeError(
+                "OpenAQ unauthorized: check OPENAQ_API_KEY in .env (or old open_aq fallback)."
+            )
+        latest_response.raise_for_status()
+
+        latest_payload = latest_response.json()
+        latest_results = latest_payload.get("results") or []
+        if not isinstance(latest_results, list) or not latest_results:
+            continue
+
         pm25 = None
         pm10 = None
+        matched_times: list[datetime] = []
 
-        for measurement in measurements:
+        for measurement in latest_results:
             if not isinstance(measurement, dict):
                 continue
-            parameter = (measurement.get("parameter") or "").lower()
+
+            parameter_name = _normalize_openaq_parameter_name(
+                measurement.get("parameter")
+            )
+            if parameter_name is None:
+                sensor_id = measurement.get("sensorsId")
+                try:
+                    sensor_id_int = int(sensor_id) if sensor_id is not None else None
+                except (TypeError, ValueError):
+                    sensor_id_int = None
+                if sensor_id_int is not None:
+                    parameter_name = candidate["sensor_parameter_map"].get(sensor_id_int)
+
+            if parameter_name not in {"pm25", "pm10"}:
+                continue
+
             value = _to_float(measurement.get("value"))
-            if parameter in ("pm25", "pm2.5"):
+            if value is None:
+                continue
+
+            if parameter_name == "pm25":
                 pm25 = value
-            elif parameter == "pm10":
+            elif parameter_name == "pm10":
                 pm10 = value
+
+            measurement_time = _extract_measurement_time(measurement.get("datetime"))
+            if measurement_time is not None:
+                matched_times.append(measurement_time)
 
         if pm25 is None and pm10 is None:
             continue
 
-        distance_km = haversine_km(lat, lon, float(lat2), float(lon2))
-        if distance_km > radius_km:
-            return None
+        location = candidate["location"]
+        distance_km = candidate["distance_km"]
+        window_from = _format_iso_utc(min(matched_times) if matched_times else None)
+        window_to = _format_iso_utc(max(matched_times) if matched_times else None)
 
         normalized = {
             "current": {
@@ -931,7 +1075,7 @@ def fetch_openaq_latest_nearby(
                 "timezone": "UTC",
                 "units": dict(UNITS),
             },
-            "measurement_window": {"from": None, "to": None},
+            "measurement_window": {"from": window_from, "to": window_to},
             "source": {
                 "provider": "openaq",
                 "method": "nearest_station",
@@ -947,7 +1091,10 @@ def fetch_openaq_latest_nearby(
         }
 
         if CACHE_RAW:
-            normalized["raw"] = payload
+            normalized["raw"] = {
+                "locations": payload,
+                "latest": latest_payload,
+            }
 
         return _finalize_normalized(normalized)
 
@@ -1232,6 +1379,36 @@ def _merge_weather_into_normalized(
     if not isinstance(norm, dict) or not isinstance(weather_data, dict):
         return _finalize_normalized(norm)
 
+    def _fill_missing_weather_fields(
+        target: dict[str, Any],
+        source: dict[str, Any] | None,
+    ) -> None:
+        if not isinstance(target, dict) or not isinstance(source, dict):
+            return
+
+        if target.get("temperature_c") is None:
+            target["temperature_c"] = source.get("temperature_c")
+        if target.get("apparent_temperature_c") is None:
+            target["apparent_temperature_c"] = source.get("apparent_temperature_c")
+        if target.get("humidity_pct") is None:
+            target["humidity_pct"] = source.get("humidity_pct")
+        if target.get("cloud_cover_pct") is None:
+            target["cloud_cover_pct"] = source.get("cloud_cover_pct")
+        if target.get("pressure_hpa") is None:
+            target["pressure_hpa"] = source.get("pressure_hpa")
+        if target.get("wind_speed_ms") is None:
+            target["wind_speed_ms"] = source.get("wind_speed_ms")
+        if target.get("wind_direction_deg") is None:
+            target["wind_direction_deg"] = source.get("wind_direction_deg")
+        if target.get("weather_code") is None:
+            target["weather_code"] = source.get("weather_code")
+        if target.get("is_day") is None:
+            target["is_day"] = source.get("is_day")
+        if target.get("uv_index") is None:
+            target["uv_index"] = source.get("uv_index")
+        if target.get("rain_mm") is None:
+            target["rain_mm"] = source.get("rain_mm")
+
     weather_rows = weather_data.get("hourly") or []
     weather_map: dict[str, dict[str, Any]] = {}
 
@@ -1262,31 +1439,10 @@ def _merge_weather_into_normalized(
     current = norm.get("current") or {}
     weather_current = weather_map.get(current_key)
     if weather_current:
-        if current.get("temperature_c") is None:
-            current["temperature_c"] = weather_current.get("temperature_c")
-        if current.get("apparent_temperature_c") is None:
-            current["apparent_temperature_c"] = weather_current.get(
-                "apparent_temperature_c"
-            )
-        if current.get("humidity_pct") is None:
-            current["humidity_pct"] = weather_current.get("humidity_pct")
-        if current.get("cloud_cover_pct") is None:
-            current["cloud_cover_pct"] = weather_current.get("cloud_cover_pct")
-        if current.get("pressure_hpa") is None:
-            current["pressure_hpa"] = weather_current.get("pressure_hpa")
-        if current.get("wind_speed_ms") is None:
-            current["wind_speed_ms"] = weather_current.get("wind_speed_ms")
-        if current.get("wind_direction_deg") is None:
-            current["wind_direction_deg"] = weather_current.get("wind_direction_deg")
-        if current.get("weather_code") is None:
-            current["weather_code"] = weather_current.get("weather_code")
-        if current.get("is_day") is None:
-            current["is_day"] = weather_current.get("is_day")
-        if current.get("uv_index") is None:
-            current["uv_index"] = weather_current.get("uv_index")
-        if current.get("rain_mm") is None:
-            current["rain_mm"] = weather_current.get("rain_mm")
-        norm["current"] = current
+        _fill_missing_weather_fields(current, weather_current)
+
+    _fill_missing_weather_fields(current, weather_data.get("current"))
+    norm["current"] = current
 
     for series_name in ("history", "forecast"):
         series = norm.get(series_name)
@@ -1305,30 +1461,7 @@ def _merge_weather_into_normalized(
             if not weather_row:
                 continue
 
-            if row.get("temperature_c") is None:
-                row["temperature_c"] = weather_row.get("temperature_c")
-            if row.get("apparent_temperature_c") is None:
-                row["apparent_temperature_c"] = weather_row.get(
-                    "apparent_temperature_c"
-                )
-            if row.get("humidity_pct") is None:
-                row["humidity_pct"] = weather_row.get("humidity_pct")
-            if row.get("cloud_cover_pct") is None:
-                row["cloud_cover_pct"] = weather_row.get("cloud_cover_pct")
-            if row.get("pressure_hpa") is None:
-                row["pressure_hpa"] = weather_row.get("pressure_hpa")
-            if row.get("wind_speed_ms") is None:
-                row["wind_speed_ms"] = weather_row.get("wind_speed_ms")
-            if row.get("wind_direction_deg") is None:
-                row["wind_direction_deg"] = weather_row.get("wind_direction_deg")
-            if row.get("weather_code") is None:
-                row["weather_code"] = weather_row.get("weather_code")
-            if row.get("is_day") is None:
-                row["is_day"] = weather_row.get("is_day")
-            if row.get("uv_index") is None:
-                row["uv_index"] = weather_row.get("uv_index")
-            if row.get("rain_mm") is None:
-                row["rain_mm"] = weather_row.get("rain_mm")
+            _fill_missing_weather_fields(row, weather_row)
 
     meta = norm.get("meta") or {}
     meta["units"] = dict(UNITS)
@@ -1768,7 +1901,7 @@ def get_air_quality_data(lat: float, lon: float) -> dict[str, Any]:
                     )
                     return prepare_normalized_response(db, lat, lon, normalized_nearest)
 
-        openaq_variant = f"{OPENAQ_MAX_DISTANCE_KM}km"
+        openaq_variant = f"{OPENAQ_MAX_DISTANCE_KM}km-{OPENAQ_CACHE_VARIANT}"
         openaq_station_lookup_key = _build_provider_cache_key(
             provider_code="openaq",
             cache_kind="station_lookup",
