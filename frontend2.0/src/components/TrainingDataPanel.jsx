@@ -391,7 +391,7 @@ export default function TrainingDataPanel({
         </div>
         <div className="training-data-panel__modal-body">
           <ol className="training-data-panel__steps">
-            <li><strong>Request your Garmin export.</strong> In Garmin Connect, open the privacy or data export area and request your archive.</li>
+            <li><strong>Request your Garmin export.</strong> In Garmin Connect, open the privacy or data export area and request your archive. You can go directly to <a href="https://www.garmin.com/en-US/account/datamanagement/exportdata" target="_blank" rel="noreferrer">Garmin Manage Your Data</a>.</li>
             <li><strong>Download the Garmin zip file.</strong> Garmin sends an email with the export link when it is ready.</li>
             <li><strong>Unzip the archive on your computer.</strong> After extracting it, open the Garmin export folders.</li>
             <li><strong>Go to the training folder.</strong> The path you want is <code className="training-data-panel__path">DI_CONNECT/DI-Connect-Fitness/</code>.</li>

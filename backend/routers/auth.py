@@ -388,6 +388,9 @@ def update_profile(
         current_user.email = normalised
     if update.plan is not None:
         current_user.plan = update.plan
+    if update.profile_image_data is not None:
+        stripped_image = update.profile_image_data.strip()
+        current_user.profile_image_data = stripped_image if stripped_image else None
     db.commit()
     db.refresh(current_user)
     return current_user

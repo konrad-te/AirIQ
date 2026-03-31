@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     String,
+    Text,
     func,
     text,
 )
@@ -44,6 +45,11 @@ class User(Base):
 
     display_name: Mapped[str | None] = mapped_column(
         String(120),
+        nullable=True,
+    )
+
+    profile_image_data: Mapped[str | None] = mapped_column(
+        Text,
         nullable=True,
     )
 

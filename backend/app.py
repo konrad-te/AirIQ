@@ -52,6 +52,8 @@ from backend.routers.auth import router as auth_router
 from backend.routers.households import router as households_router
 from backend.routers.integrations import get_qingping_latest_reading
 from backend.routers.integrations import router as integrations_router
+from backend.routers.sleep import router as sleep_router
+from backend.routers.training import router as training_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
 from backend.schemas.suggestion_feedback import (
     SuggestionFeedbackCreateSchema,
@@ -105,6 +107,8 @@ from backend.routers.integrations import (
     get_qingping_sync_interval_minutes,
     sync_all_qingping_integrations,
 )
+
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(title="AirIQ API")
 app.state.limiter = limiter

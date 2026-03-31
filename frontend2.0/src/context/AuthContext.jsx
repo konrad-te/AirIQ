@@ -10,6 +10,16 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [isLoadingAuth, setIsLoadingAuth] = useState(!!localStorage.getItem(TOKEN_KEY))
 
+  const refreshUser = async (activeToken = token) => {
+    if (!activeToken) {
+      setUser(null)
+      return null
+    }
+    const userData = await getCurrentUser(activeToken)
+    setUser(userData)
+    return userData
+  }
+
   useEffect(() => {
     if (!token) {
       setUser(null)
@@ -20,7 +30,7 @@ export function AuthProvider({ children }) {
     let cancelled = false
     setIsLoadingAuth(true)
 
-    getCurrentUser(token)
+    refreshUser(token)
       .then((userData) => {
         if (!cancelled) setUser(userData)
       })
@@ -37,6 +47,19 @@ export function AuthProvider({ children }) {
 
     return () => {
       cancelled = true
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return undefined
+
+    const handleWindowFocus = () => {
+      refreshUser(token).catch(() => {})
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
     }
   }, [token])
 
@@ -60,7 +83,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoadingAuth, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, isLoadingAuth, login, logout, updateUser, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

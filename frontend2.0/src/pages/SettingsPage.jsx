@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import logoAiriq from '../assets/logo-airiq.svg'
 import { useAuth } from '../context/AuthContext'
@@ -47,6 +47,45 @@ const TIMEZONES = [
   { value: 'Asia/Shanghai', label: 'Shanghai (CST)' },
   { value: 'Australia/Sydney', label: 'Sydney (AEST/AEDT)' },
 ]
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+    reader.onerror = () => reject(new Error('Failed to read the selected image.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Failed to process the selected image.'))
+    image.src = src
+  })
+}
+
+async function buildProfileImageData(file) {
+  if (!file || !file.type?.startsWith('image/')) {
+    throw new Error('Please choose an image file.')
+  }
+  const sourceDataUrl = await readFileAsDataUrl(file)
+  const image = await loadImageElement(sourceDataUrl)
+  const canvas = document.createElement('canvas')
+  const maxSize = 320
+  canvas.width = maxSize
+  canvas.height = maxSize
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Failed to prepare the selected image.')
+  }
+  const cropSize = Math.min(image.width, image.height)
+  const cropX = Math.max(0, Math.round((image.width - cropSize) / 2))
+  const cropY = Math.max(0, Math.round((image.height - cropSize) / 2))
+  context.drawImage(image, cropX, cropY, cropSize, cropSize, 0, 0, maxSize, maxSize)
+  return canvas.toDataURL('image/jpeg', 0.86)
+}
 
 function ChangePasswordSection() {
   const { t } = useTranslation()
@@ -192,8 +231,15 @@ function ProfileSection() {
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
   const [saving, setSaving] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const profileImageInputRef = useRef(null)
+
+  useEffect(() => {
+    setDisplayName(user?.display_name ?? '')
+    setEmail(user?.email ?? '')
+  }, [user?.display_name, user?.email])
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -214,10 +260,84 @@ function ProfileSection() {
     }
   }
 
+  const handleSelectProfileImage = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setError('')
+    setSuccess(false)
+    setIsUploadingImage(true)
+    try {
+      const profileImageData = await buildProfileImageData(file)
+      const updated = await updateProfile(token, {
+        display_name: displayName || null,
+        email,
+        profile_image_data: profileImageData,
+      })
+      updateUser(updated)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
+  const handleRemoveProfileImage = async () => {
+    setError('')
+    setSuccess(false)
+    setIsUploadingImage(true)
+    try {
+      const updated = await updateProfile(token, {
+        display_name: displayName || null,
+        email,
+        profile_image_data: '',
+      })
+      updateUser(updated)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
   return (
     <div className="settings-section">
       <h2 className="settings-section-title">{t('settings.profile')}</h2>
       <p className="settings-section-desc">{t('settings.profileDesc')}</p>
+      <div className="settings-profile-image">
+        <input
+          ref={profileImageInputRef}
+          type="file"
+          accept="image/*"
+          className="settings-profile-image__input"
+          onChange={handleSelectProfileImage}
+        />
+        <div className="settings-profile-image__avatar">
+          {user?.profile_image_data ? (
+            <img src={user.profile_image_data} alt={displayName || email || 'Profile'} className="settings-profile-image__preview" />
+          ) : (
+            <span>{(displayName || email || 'U').slice(0, 1).toUpperCase()}</span>
+          )}
+        </div>
+        <div className="settings-profile-image__copy">
+          <strong>Profile picture</strong>
+          <p>Upload a square photo to personalize your account.</p>
+        </div>
+        <div className="settings-profile-image__actions">
+          <button type="button" className="btn btn-ghost" onClick={() => profileImageInputRef.current?.click()} disabled={isUploadingImage}>
+            {isUploadingImage ? 'Uploading...' : user?.profile_image_data ? 'Change photo' : 'Upload photo'}
+          </button>
+          {user?.profile_image_data ? (
+            <button type="button" className="btn btn-ghost" onClick={handleRemoveProfileImage} disabled={isUploadingImage}>
+              Remove photo
+            </button>
+          ) : null}
+        </div>
+      </div>
       <form className="settings-form" onSubmit={handleSave}>
         <div className="settings-field">
           <label htmlFor="s-email" className="settings-label">{t('settings.email')}</label>

@@ -925,7 +925,7 @@ export default function SleepHistoryPanel({
             </div>
             <div className="sleep-history-panel__modal-body">
               <ol className="sleep-history-panel__steps">
-                <li><strong>Request your Garmin export.</strong> Sign in to Garmin and open the account privacy or data export area.</li>
+                <li><strong>Request your Garmin export.</strong> Sign in to Garmin and open the account privacy or data export area. You can go directly to <a href="https://www.garmin.com/en-US/account/datamanagement/exportdata" target="_blank" rel="noreferrer">Garmin Manage Your Data</a>.</li>
                 <li><strong>Start the export.</strong> Open <em>Manage Your Data</em> or <em>Export Your Data</em>, then choose <em>Request Data Export</em>.</li>
                 <li><strong>Wait for Garmin&apos;s email.</strong> Garmin usually prepares the archive first and emails you the download link when it is ready.</li>
                 <li><strong>Download and unzip the archive.</strong> Extract the Garmin export on your computer so you can browse the folders inside it.</li>

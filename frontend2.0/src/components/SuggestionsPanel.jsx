@@ -14,10 +14,6 @@ import { MAX_DASHBOARD_SUGGESTIONS } from '../types/suggestions'
  *   feedbackErrors?: Record<string, string>,
  * }} props
  */
-<<<<<<< HEAD
-export default function SuggestionsPanel({ suggestions = [], isLoading = false }) {
-  const { t } = useTranslation()
-=======
 export default function SuggestionsPanel({
   suggestions = [],
   isLoading = false,
@@ -26,12 +22,13 @@ export default function SuggestionsPanel({
   feedbackBusy = {},
   feedbackErrors = {},
 }) {
->>>>>>> training-data
-  const visibleSuggestions = Array.isArray(suggestions)
-    ? suggestions.slice(0, MAX_DASHBOARD_SUGGESTIONS)
+  const { t } = useTranslation()
+  const normalizedSuggestions = Array.isArray(suggestions)
+    ? suggestions.filter((suggestion) => suggestion && typeof suggestion === 'object')
     : []
-  const countLabel = suggestions.length > visibleSuggestions.length
-    ? t('suggestions.showingOf', { shown: visibleSuggestions.length, total: suggestions.length })
+  const visibleSuggestions = normalizedSuggestions.slice(0, MAX_DASHBOARD_SUGGESTIONS)
+  const countLabel = normalizedSuggestions.length > visibleSuggestions.length
+    ? t('suggestions.showingOf', { shown: visibleSuggestions.length, total: normalizedSuggestions.length })
     : t('suggestions.total', { count: visibleSuggestions.length })
 
   if (isLoading) {
@@ -72,9 +69,9 @@ export default function SuggestionsPanel({
         <span className="suggestions-panel__count">{countLabel}</span>
       </div>
       <div className="suggestions-panel__stack">
-        {visibleSuggestions.map((suggestion) => (
+        {visibleSuggestions.map((suggestion, index) => (
           <SuggestionCard
-            key={suggestion.id}
+            key={suggestion.id ?? `suggestion-${index}`}
             suggestion={suggestion}
             onFeedback={onSuggestionFeedback}
             feedbackVote={feedbackVotes?.[suggestion.id] ?? ''}
