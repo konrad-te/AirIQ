@@ -165,11 +165,33 @@ class TrainingInsightDataQualitySchema(BaseModel):
     window_mode: Literal["day", "7d"]
 
 
+class TrainingInsightRecoverySchema(BaseModel):
+    recent_sleep_available: bool
+    recent_sleep_date: str | None = None
+    sleep_status: Literal["good", "mixed", "poor", "unknown"]
+    sleep_label: str
+    sleep_duration_minutes: int | None = None
+    sleep_duration_label: str | None = None
+    body_battery_gain: int | None = None
+    deep_sleep_pct: float | None = None
+    rem_sleep_pct: float | None = None
+    yesterday_had_training: bool
+    yesterday_was_rest_day: bool
+    yesterday_load_status: Literal["rest", "light", "moderate", "heavy", "very_heavy"]
+    training_streak_days: int
+    heavy_training_days: int
+    very_heavy_training_days: int
+    recommendation_level: Literal["go", "easy", "rest"]
+    recommendation_title: str
+    recommendation_detail: str
+
+
 class TrainingInsightResponseSchema(BaseModel):
     ok: bool = True
     date: str
     day: TrainingInsightDaySchema
     recent_baseline: TrainingInsightBaselineSchema
+    recovery: TrainingInsightRecoverySchema
     data_quality: TrainingInsightDataQualitySchema
     findings: list[SleepInsightFindingSchema]
     actions: list[SleepInsightActionSchema]
