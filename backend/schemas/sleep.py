@@ -26,6 +26,8 @@ class SleepHistoryPointSchema(BaseModel):
     time: datetime
     calendar_date: str
     sample_count: int
+    indoor_sample_count: int = 0
+    has_indoor_sensor_data: bool = False
     sleep_start_at: datetime | None = None
     sleep_end_at: datetime | None = None
     sleep_duration_minutes: int | None = None

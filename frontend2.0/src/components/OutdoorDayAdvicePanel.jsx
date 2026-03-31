@@ -116,6 +116,16 @@ function formatUv(value) {
   return value >= 10 ? `${Math.round(value)}` : value.toFixed(1).replace(/\.0$/, '')
 }
 
+function formatPeakDetail(row, locale, timeZone, fallback = 'Peak expected') {
+  if (!row?.__date) return fallback
+  return `Peak at ${formatTimeLabel(row.__date, locale, timeZone)}`
+}
+
+function formatTemperatureDetail(row, locale, timeZone) {
+  if (!row?.__date) return 'Min / max'
+  return `High at ${formatTimeLabel(row.__date, locale, timeZone)}`
+}
+
 function getSkyCondition(row) {
   const weatherCode = row?.weather_code
   const isDay = row?.is_day !== 0
@@ -623,6 +633,7 @@ export default function OutdoorDayAdvicePanel({
   const cloudCoverRange = getRange(selectedRows, 'cloud_cover_pct')
   const totalRain = getSum(selectedRows, 'rain_mm')
   const wettestRow = getPeakRow(selectedRows, 'rain_mm')
+  const peakTempRow = getPeakRow(selectedRows, 'temperature_c')
   const peakWindRow = getPeakRow(selectedRows, 'wind_speed_ms')
   const peakUvRow = getPeakRow(selectedRows, 'uv_index')
   const peakPm25Row = getPeakRow(selectedRows, 'pm25')
@@ -672,17 +683,26 @@ export default function OutdoorDayAdvicePanel({
     if (concernCount >= 1) return { label: 'Mixed conditions', tone: 'caution' }
     return { label: 'Easy outdoors', tone: 'good' }
   })()
+  const statusTone = (
+    readinessTone.tone === 'danger'
+    || airBand.tone === 'danger'
+    || airBand.tone === 'warning'
+  )
+    ? 'danger'
+    : (readinessTone.tone === 'caution' || airBand.tone === 'caution')
+      ? 'caution'
+      : 'good'
 
   const metricCards = [
-    { label: 'Temperature', value: formatTemperatureRange(tempRange), detail: 'Min / max' },
+    { label: 'Temperature', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone) },
     { label: 'Sky', value: skyCondition.label, detail: 'General outlook' },
     { label: 'Cloud cover', value: formatCloudCoverRange(cloudCoverRange), detail: 'Typical range' },
-    { label: 'PM2.5', value: formatPm(peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25), detail: 'Peak expected' },
-    { label: 'PM10', value: formatPm(peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10), detail: 'Peak expected' },
+    { label: 'PM2.5', value: formatPm(peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25), detail: formatPeakDetail(peakPm25Row, locale, timeZone) },
+    { label: 'PM10', value: formatPm(peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10), detail: formatPeakDetail(peakPm10Row, locale, timeZone) },
     { label: 'Rain', value: formatRainTotal(totalRain), detail: 'Expected total' },
-    { label: 'Wind', value: formatWindKmh(peakWindRow?.wind_speed_ms), detail: 'Peak speed' },
+    { label: 'Wind', value: formatWindKmh(peakWindRow?.wind_speed_ms), detail: formatPeakDetail(peakWindRow, locale, timeZone, 'Peak speed') },
     { label: 'Humidity', value: formatHumidityRange(humidityRange), detail: 'Range' },
-    { label: 'UV', value: formatUv(peakUvRow?.uv_index), detail: 'Peak index' },
+    { label: 'UV', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index') },
   ]
 
   const adviceItems = [
@@ -721,9 +741,6 @@ export default function OutdoorDayAdvicePanel({
           <p className="outdoor-day-advice__location">{locationLabel || 'Selected location'}</p>
           <p className="outdoor-day-advice__availability">{tomorrowHelpText}</p>
         </div>
-        <span className={`outdoor-day-advice__badge outdoor-day-advice__badge--${readinessTone.tone}`}>
-          {readinessTone.label}
-        </span>
       </div>
 
       <div className="outdoor-day-advice__hero">
@@ -731,9 +748,10 @@ export default function OutdoorDayAdvicePanel({
           <h4>{headline}</h4>
           <p>{subline}</p>
         </div>
-        <div className={`outdoor-day-advice__air-pill outdoor-day-advice__air-pill--${airBand.tone}`}>
-          <span>Air outlook</span>
-          <strong>{airBand.label}</strong>
+        <div className={`outdoor-day-advice__status-card outdoor-day-advice__status-card--${statusTone}`}>
+          <span className="outdoor-day-advice__status-eyebrow">Day status</span>
+          <strong>{readinessTone.label}</strong>
+          <p>Air outlook: {airBand.label}</p>
         </div>
       </div>
 

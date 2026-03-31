@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from backend.schemas.suggestions import SleepSuggestion, VentilationContext
 
 APP_DISPLAY_TIMEZONE = ZoneInfo("Europe/Warsaw")
+SLEEP_RECOMMENDATION_START_HOUR = 20
 
 
 @dataclass(frozen=True)
@@ -23,12 +24,17 @@ def evaluate_sleep_temperature(
     ideal_min: float,
     ideal_max: float,
     now_utc: datetime | None = None,
+    respect_time_window: bool = True,
 ) -> SleepSuggestion | None:
+    local_now = _current_local_time(now_utc)
+    if respect_time_window and not _is_sleep_recommendation_time(local_now):
+        return None
+
     indoor_temp = context.indoor_temperature_c
     overnight = _extract_sleep_window_summary(
         outdoor_data=outdoor_data,
         fallback_temperature=context.outdoor_temperature_c,
-        now_utc=now_utc,
+        now_utc=local_now.astimezone(UTC),
     )
 
     if indoor_temp is None and overnight is None:
@@ -77,6 +83,15 @@ def evaluate_sleep_temperature(
         reasons=reasons,
         based_on=based_on,
     )
+
+
+def _current_local_time(now_utc: datetime | None) -> datetime:
+    current_utc = now_utc.astimezone(UTC) if now_utc else datetime.now(UTC)
+    return current_utc.astimezone(APP_DISPLAY_TIMEZONE)
+
+
+def _is_sleep_recommendation_time(local_now: datetime) -> bool:
+    return local_now.hour >= SLEEP_RECOMMENDATION_START_HOUR
 
 
 def _sleep_looks_comfortable(

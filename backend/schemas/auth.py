@@ -20,6 +20,7 @@ class UserOutSchema(BaseModel):
     display_name: str | None
     is_active: bool
     role: str
+    plan: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,6 +33,7 @@ class UserRegisterResponseSchema(UserOutSchema):
 class UserUpdateSchema(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
     email: EmailStr | None = None
+    plan: str | None = Field(default=None, pattern="^(free|plus)$")
 
     model_config = ConfigDict(from_attributes=True)
 

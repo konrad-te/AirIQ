@@ -1,4 +1,5 @@
 import './SuggestionsPanel.css'
+import FeedbackComposer from './FeedbackComposer'
 
 /** @typedef {import('../types/suggestions').Suggestion} Suggestion */
 
@@ -27,9 +28,21 @@ function formatFamilyLabel(family) {
 }
 
 /**
- * @param {{ suggestion: Suggestion }} props
+ * @param {{
+ *   suggestion: Suggestion,
+ *   onFeedback?: ((suggestion: Suggestion, vote: 'helpful' | 'not_helpful', feedbackText?: string) => void) | null,
+ *   feedbackVote?: string,
+ *   feedbackBusy?: boolean,
+ *   feedbackError?: string,
+ * }} props
  */
-export default function SuggestionCard({ suggestion }) {
+export default function SuggestionCard({
+  suggestion,
+  onFeedback = null,
+  feedbackVote = '',
+  feedbackBusy = false,
+  feedbackError = '',
+}) {
   const {
     category,
     family,
@@ -46,6 +59,7 @@ export default function SuggestionCard({ suggestion }) {
   const severityLabel = severity ? SEVERITY_LABELS[severity] || formatFamilyLabel(severity) : null
   const recommendationText = recommendation || primaryReason
   const impactText = typeof impact === 'string' && impact.trim() ? impact : null
+  const feedbackEnabled = typeof onFeedback === 'function'
 
   return (
     <article className={`suggestion-card suggestion-card--${priority}${severity ? ` suggestion-card--severity-${severity}` : ''}`}>
@@ -86,6 +100,20 @@ export default function SuggestionCard({ suggestion }) {
           <div className="suggestion-card__section suggestion-card__section--impact">
             <span className="suggestion-card__section-label">Why it matters</span>
             <p className="suggestion-card__section-copy">{impactText}</p>
+          </div>
+        )}
+
+        {feedbackEnabled && (
+          <div className="suggestion-card__feedback">
+            <FeedbackComposer
+              label="Was it helpful?"
+              note="We store this suggestion together with the conditions it was based on. You can also add an optional note."
+              busy={feedbackBusy}
+              savedVote={feedbackVote}
+              error={feedbackError}
+              savedMessage="Thanks. Your suggestion feedback was saved."
+              onSubmit={(vote, feedbackText) => onFeedback(suggestion, vote, feedbackText)}
+            />
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import heroBackground from './assets/123.png'
 import dashboardBackground from './assets/222.png'
 import logoAiriq from './assets/logo-airiq.svg'
@@ -17,6 +17,7 @@ import OutdoorDayAdvicePanel from './components/OutdoorDayAdvicePanel'
 import IndoorHistoryPanel from './components/IndoorHistoryPanel'
 import SleepHistoryPanel from './components/SleepHistoryPanel'
 import TrainingDataPanel from './components/TrainingDataPanel'
+import PlanSelector from './components/PlanSelector'
 import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -25,10 +26,9 @@ import SettingsPage from './pages/SettingsPage'
 import FarewellPage from './pages/FarewellPage'
 import WelcomeBackPage from './pages/WelcomeBackPage'
 import { useAuth } from './context/AuthContext'
-import { geocodeAddress, getAiRecommendation, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, getTrainingHistory, importSleepDataFiles, importTrainingDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
-import { addSavedLocation, getSavedLocations, previewAdminSuggestions, removeSavedLocation } from './services/authService'
+import { geocodeAddress, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, getSleepInsight, getTrainingHistory, getTrainingInsight, importSleepDataFiles, importTrainingDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
+import { addSavedLocation, getSavedLocations, previewAdminSuggestions, removeSavedLocation, submitSuggestionFeedback, updateUserPlan } from './services/authService'
 import { getQingpingIntegrationStatus } from './services/integrationService'
-
 const mockData = {
   location: 'Stockholm, Sweden',
   aqi: 42,
@@ -60,7 +60,6 @@ const mockData = {
     },
   ],
 }
-
 const POLISH_LOCALE = 'pl-PL'
 const POLISH_TIMEZONE = 'Europe/Warsaw'
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000
@@ -79,33 +78,26 @@ const DASHBOARD_ADMIN_OVERRIDE_DEFAULTS = {
   indoor_pm10: '',
   indoor_humidity_pct: '',
 }
-
 function formatRoundedMetric(value, suffix, fallback) {
   return typeof value === 'number' ? `${Math.round(value)}${suffix}` : fallback
 }
-
 function formatUvIndex(value) {
   if (typeof value !== 'number') return '--'
   return value >= 10 ? `${Math.round(value)}` : value.toFixed(1).replace(/\.0$/, '')
 }
-
 function formatWindKmh(speedMs) {
   return typeof speedMs === 'number' ? `${Math.round(speedMs * 3.6)} km/h` : '-- km/h'
 }
-
 function formatRainAmount(value) {
   if (typeof value !== 'number') return '-- mm'
   if (value === 0) return '0 mm'
   if (value < 10) return `${value.toFixed(1).replace(/\.0$/, '')} mm`
   return `${Math.round(value)} mm`
 }
-
 function formatClockTimestamp(value) {
   if (!value) return 'No reading yet'
-
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return 'No reading yet'
-
   return new Intl.DateTimeFormat(POLISH_LOCALE, {
     hour: '2-digit',
     minute: '2-digit',
@@ -114,76 +106,78 @@ function formatClockTimestamp(value) {
     timeZoneName: 'short',
   }).format(date)
 }
-
 function formatElapsedMinutes(totalMinutes) {
   if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return '0 min'
   if (totalMinutes < 60) return `${Math.round(totalMinutes)} min`
-
   const hours = Math.floor(totalMinutes / 60)
   const minutes = Math.round(totalMinutes % 60)
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
 }
-
 function formatLocationFallbackLabel(lat, lon) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 'Detected current location'
   return `Detected near ${lat.toFixed(3)}, ${lon.toFixed(3)}`
 }
-
+function getLatestImportedSleepDate(historyData) {
+  const points = Array.isArray(historyData?.points) ? historyData.points : []
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const point = points[index]
+    if (point?.sample_count > 0 && point?.calendar_date) {
+      return point.calendar_date
+    }
+  }
+  return ''
+}
+function getLatestImportedTrainingDate(historyData) {
+  const points = Array.isArray(historyData?.points) ? historyData.points : []
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const point = points[index]
+    if (point?.activity_count > 0 && point?.calendar_date) {
+      return point.calendar_date
+    }
+  }
+  return ''
+}
 function parseOptionalNumberInput(value) {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   if (!trimmed) return null
-
   const parsed = Number(trimmed)
   return Number.isFinite(parsed) ? parsed : null
 }
-
 function getWeatherVisual(weatherCode, isDay, windSpeedMs) {
   const isNight = isDay === 0
   const hasStrongWind = typeof windSpeedMs === 'number' && windSpeedMs >= 12
-
   if ([95, 96, 99].includes(weatherCode)) {
     return { kind: 'storm', label: 'Storm' }
   }
-
   if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) {
     return { kind: 'snow', label: 'Snow' }
   }
-
   if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(weatherCode)) {
     return { kind: 'rain', label: 'Rain' }
   }
-
   if (hasStrongWind) {
     return { kind: 'wind', label: 'Windy' }
   }
-
   if ([45, 48].includes(weatherCode)) {
     return { kind: 'fog', label: 'Foggy' }
   }
-
   if (weatherCode === 0) {
     return { kind: isNight ? 'night-clear' : 'sunny', label: isNight ? 'Clear night' : 'Sunny' }
   }
-
   if ([1, 2].includes(weatherCode)) {
     return { kind: isNight ? 'night-cloudy' : 'partly-cloudy', label: 'Partly cloudy' }
   }
-
   if (weatherCode === 3) {
     return { kind: 'cloudy', label: 'Cloudy' }
   }
-
   if (typeof weatherCode === 'number') {
     return { kind: isNight ? 'night-clear' : 'sunny', label: 'Current conditions' }
   }
-
   return { kind: 'sunny', label: '--' }
 }
-
 function WeatherIcon({ kind }) {
   const className = `dash-weather-sun-icon dash-weather-sun-icon--${kind}`
-
   switch (kind) {
     case 'night-clear':
       return (
@@ -260,10 +254,8 @@ function WeatherIcon({ kind }) {
       )
   }
 }
-
-
 export default function App() {
-  const { user, token, logout, isLoadingAuth } = useAuth()
+  const { user, token, logout, isLoadingAuth, updateUser } = useAuth()
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -292,14 +284,32 @@ export default function App() {
   const [indoorHistoryRefreshNonce, setIndoorHistoryRefreshNonce] = useState(0)
   const [sleepHistoryRange, setSleepHistoryRange] = useState('30d')
   const [sleepHistory, setSleepHistory] = useState(null)
+  const [sleepCalendarHistory, setSleepCalendarHistory] = useState(null)
   const [isLoadingSleepHistory, setIsLoadingSleepHistory] = useState(false)
   const [sleepHistoryError, setSleepHistoryError] = useState('')
   const [sleepHistoryRefreshNonce, setSleepHistoryRefreshNonce] = useState(0)
+  const [selectedSleepInsightDate, setSelectedSleepInsightDate] = useState('')
+  const [sleepInsight, setSleepInsight] = useState(null)
+  const [isLoadingSleepInsight, setIsLoadingSleepInsight] = useState(false)
+  const [sleepInsightError, setSleepInsightError] = useState('')
+  const [requestedSleepInsightDate, setRequestedSleepInsightDate] = useState('')
+  const [requestedSleepInsightLat, setRequestedSleepInsightLat] = useState(null)
+  const [requestedSleepInsightLon, setRequestedSleepInsightLon] = useState(null)
+  const [sleepInsightRefreshNonce, setSleepInsightRefreshNonce] = useState(0)
   const [trainingPreview, setTrainingPreview] = useState(null)
+  const [trainingCalendarHistory, setTrainingCalendarHistory] = useState(null)
   const [isLoadingTrainingPreview, setIsLoadingTrainingPreview] = useState(false)
   const [trainingPreviewError, setTrainingPreviewError] = useState('')
   const [trainingPreviewRefreshNonce, setTrainingPreviewRefreshNonce] = useState(0)
   const [trainingHistoryRange, setTrainingHistoryRange] = useState('90d')
+  const [selectedTrainingInsightDate, setSelectedTrainingInsightDate] = useState('')
+  const [selectedTrainingInsightWindow, setSelectedTrainingInsightWindow] = useState('7d')
+  const [trainingInsight, setTrainingInsight] = useState(null)
+  const [isLoadingTrainingInsight, setIsLoadingTrainingInsight] = useState(false)
+  const [trainingInsightError, setTrainingInsightError] = useState('')
+  const [requestedTrainingInsightDate, setRequestedTrainingInsightDate] = useState('')
+  const [requestedTrainingInsightWindow, setRequestedTrainingInsightWindow] = useState('7d')
+  const [trainingInsightRefreshNonce, setTrainingInsightRefreshNonce] = useState(0)
   const [isImportingTrainingData, setIsImportingTrainingData] = useState(false)
   const [trainingImportNotice, setTrainingImportNotice] = useState('')
   const [trainingImportError, setTrainingImportError] = useState('')
@@ -307,7 +317,15 @@ export default function App() {
   const [sleepImportNotice, setSleepImportNotice] = useState('')
   const [sleepImportError, setSleepImportError] = useState('')
   const [dashboardSuggestions, setDashboardSuggestions] = useState([])
+  const [dashboardSuggestionContext, setDashboardSuggestionContext] = useState(null)
+  const [dashboardSuggestionSettings, setDashboardSuggestionSettings] = useState(null)
   const [dashboardSuggestionsError, setDashboardSuggestionsError] = useState('')
+  const [dashboardSuggestionFeedbackVotes, setDashboardSuggestionFeedbackVotes] = useState({})
+  const [dashboardSuggestionFeedbackBusy, setDashboardSuggestionFeedbackBusy] = useState({})
+  const [dashboardSuggestionFeedbackErrors, setDashboardSuggestionFeedbackErrors] = useState({})
+  const [sleepInsightFeedbackVotes, setSleepInsightFeedbackVotes] = useState({})
+  const [sleepInsightFeedbackBusy, setSleepInsightFeedbackBusy] = useState({})
+  const [sleepInsightFeedbackErrors, setSleepInsightFeedbackErrors] = useState({})
   const [sensorError, setSensorError] = useState('')
   const [currentCoords, setCurrentCoords] = useState(null)
   const [detectedCurrentLocation, setDetectedCurrentLocation] = useState('')
@@ -322,61 +340,97 @@ export default function App() {
   const [suggestionsRefreshNonce, setSuggestionsRefreshNonce] = useState(0)
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false)
   const [hasLoadedSuggestionsOnce, setHasLoadedSuggestionsOnce] = useState(false)
-  const [aiRecs, setAiRecs] = useState(null)
-  const [aiRecsLoading, setAiRecsLoading] = useState(false)
-  const [aiRecsError, setAiRecsError] = useState('')
-
+  const [isUpdatingPlan, setIsUpdatingPlan] = useState(false)
+  const [planUpdateNotice, setPlanUpdateNotice] = useState('')
+  const [planUpdateError, setPlanUpdateError] = useState('')
+  const canAccessPremiumInsights = Boolean(user && (user.role === 'admin' || user.plan === 'plus'))
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
     setRoute('/globe')
   }
-
   const handleOpenFeedback = () => {
     window.history.pushState({}, '', '/feedback')
     setRoute('/feedback')
   }
-
   const handleOpenAdmin = () => {
     window.history.pushState({}, '', '/admin')
     setRoute('/admin')
   }
-
   const handleOpenSettings = () => {
     window.history.pushState({}, '', '/settings')
     setRoute('/settings')
   }
-
-
   const handleOpenIndoor = () => {
     window.history.pushState({}, '', '/indoor')
     setRoute('/indoor')
   }
-
   const handleOpenSleep = () => {
     window.history.pushState({}, '', '/sleep')
     setRoute('/sleep')
   }
-
   const handleOpenTraining = () => {
     window.history.pushState({}, '', '/training')
     setRoute('/training')
   }
-
   const handleOpenSubscription = () => {
     window.history.pushState({}, '', '/subscription')
     setRoute('/subscription')
   }
-
+  const clearSleepInsight = () => {
+    setRequestedSleepInsightDate('')
+    setRequestedSleepInsightLat(null)
+    setRequestedSleepInsightLon(null)
+    setSleepInsight(null)
+    setSleepInsightError('')
+    setIsLoadingSleepInsight(false)
+  }
+  const clearTrainingInsight = () => {
+    setRequestedTrainingInsightDate('')
+    setRequestedTrainingInsightWindow(selectedTrainingInsightWindow)
+    setTrainingInsight(null)
+    setTrainingInsightError('')
+    setIsLoadingTrainingInsight(false)
+  }
   const handleBackToLanding = () => {
     window.history.pushState({}, '', '/')
     setRoute('/')
   }
-
   const handleAccountDeleted = () => {
     window.history.pushState({}, '', '/farewell')
     setRoute('/farewell')
   }
-
+  const handleGenerateSleepInsight = () => {
+    if (!canAccessPremiumInsights || !selectedSleepInsightDate) return
+    setRequestedSleepInsightDate(selectedSleepInsightDate)
+    setRequestedSleepInsightLat(currentCoords?.lat ?? null)
+    setRequestedSleepInsightLon(currentCoords?.lon ?? null)
+    setSleepInsightRefreshNonce((value) => value + 1)
+  }
+  const handleGenerateTrainingInsight = () => {
+    if (!canAccessPremiumInsights || !selectedTrainingInsightDate) return
+    setRequestedTrainingInsightDate(selectedTrainingInsightDate)
+    setRequestedTrainingInsightWindow(selectedTrainingInsightWindow)
+    setTrainingInsightRefreshNonce((value) => value + 1)
+  }
+  const handlePlanChange = async (nextPlan) => {
+    if (!token) return
+    setIsUpdatingPlan(true)
+    setPlanUpdateError('')
+    setPlanUpdateNotice('')
+    try {
+      const updatedUser = await updateUserPlan(token, nextPlan)
+      updateUser(updatedUser)
+      setPlanUpdateNotice(nextPlan === 'plus' ? 'Plus is now active on this account.' : 'Your account is now on the Free plan.')
+      if (nextPlan !== 'plus' && updatedUser.role !== 'admin') {
+        clearSleepInsight()
+        clearTrainingInsight()
+      }
+    } catch (error) {
+      setPlanUpdateError(error instanceof Error ? error.message : 'Failed to update plan.')
+    } finally {
+      setIsUpdatingPlan(false)
+    }
+  }
   const handleAddDevice = (deviceType) => {
     if (deviceType === 'sensor') {
       setIsDeviceSetupOpen(true)
@@ -384,7 +438,81 @@ export default function App() {
     // eslint-disable-next-line no-console
     console.log('User chose device:', deviceType)
   }
-
+  const handleSuggestionFeedback = async (suggestion, vote, feedbackText = '') => {
+    if (!token || !suggestion?.id) return
+    const suggestionId = suggestion.id
+    setDashboardSuggestionFeedbackBusy((prev) => ({ ...prev, [suggestionId]: true }))
+    setDashboardSuggestionFeedbackErrors((prev) => ({ ...prev, [suggestionId]: '' }))
+    try {
+      await submitSuggestionFeedback(token, {
+        vote,
+        suggestion,
+        context: dashboardSuggestionContext,
+        settings: dashboardSuggestionSettings,
+        feedback_text: feedbackText || null,
+        location_label: currentLocationLabel || null,
+        lat: currentCoords?.lat ?? null,
+        lon: currentCoords?.lon ?? null,
+        source_view: 'dashboard',
+      })
+      setDashboardSuggestionFeedbackVotes((prev) => ({ ...prev, [suggestionId]: vote }))
+    } catch (error) {
+      setDashboardSuggestionFeedbackErrors((prev) => ({
+        ...prev,
+        [suggestionId]: error instanceof Error ? error.message : 'Failed to send feedback.',
+      }))
+    } finally {
+      setDashboardSuggestionFeedbackBusy((prev) => ({ ...prev, [suggestionId]: false }))
+    }
+  }
+  const handleSleepInsightFeedback = async (insight, vote, feedbackText = '') => {
+    if (!token || !insight?.date) return
+    const feedbackId = `sleep-insight-${insight.date}`
+    setSleepInsightFeedbackBusy((prev) => ({ ...prev, [feedbackId]: true }))
+    setSleepInsightFeedbackErrors((prev) => ({ ...prev, [feedbackId]: '' }))
+    const topFinding = Array.isArray(insight.findings) && insight.findings.length > 0 ? insight.findings[0] : null
+    try {
+      await submitSuggestionFeedback(token, {
+        vote,
+        suggestion: {
+          id: feedbackId,
+          family: 'sleep_insight',
+          category: 'sleep_insight',
+          title: insight.explanation?.headline || 'AI sleep insight',
+          short_label: 'AI sleep insight',
+          recommendation: insight.explanation?.summary || 'Sleep insight summary',
+          impact: topFinding?.detail || null,
+          based_on: ['sleep duration', 'sleep stages', 'indoor air', 'outdoor context', 'training context'],
+          date: insight.date,
+        },
+        context: {
+          date: insight.date,
+          sleep: insight.sleep,
+          sleep_quality: insight.sleep_quality,
+          indoor: insight.indoor,
+          outdoor: insight.outdoor,
+          training_context: insight.training_context,
+          findings: insight.findings,
+          actions: insight.actions,
+          explanation: insight.explanation,
+        },
+        settings: null,
+        feedback_text: feedbackText || null,
+        location_label: currentLocationLabel || null,
+        lat: currentCoords?.lat ?? null,
+        lon: currentCoords?.lon ?? null,
+        source_view: 'sleep_insight',
+      })
+      setSleepInsightFeedbackVotes((prev) => ({ ...prev, [feedbackId]: vote }))
+    } catch (error) {
+      setSleepInsightFeedbackErrors((prev) => ({
+        ...prev,
+        [feedbackId]: error instanceof Error ? error.message : 'Failed to send sleep insight feedback.',
+      }))
+    } finally {
+      setSleepInsightFeedbackBusy((prev) => ({ ...prev, [feedbackId]: false }))
+    }
+  }
   const upsertSavedLocation = async (label, lat, lon) => {
     if (token) {
       try {
@@ -398,11 +526,9 @@ export default function App() {
       }
     }
   }
-
   const handleSwitchLocation = (loc) => {
     loadAirQualityForCoords(loc.lat, loc.lon, loc.label)
   }
-
   const handleRemoveLocation = async (label) => {
     const loc = savedLocations.find((l) => l.label === label)
     if (loc?.id && token) {
@@ -420,7 +546,6 @@ export default function App() {
       return next
     })
   }
-
   const openLocationModal = () => {
     setPendingLocation(null)
     setLocModalView('search')
@@ -428,7 +553,6 @@ export default function App() {
     setLocationSuggestions([])
     setIsLocationSearchOpen(true)
   }
-
   const closeLocationModal = () => {
     setIsLocationSearchOpen(false)
     setPendingLocation(null)
@@ -436,7 +560,6 @@ export default function App() {
     setLiveAirError('')
     setLocationSuggestions([])
   }
-
   const handleConfirmAddLocation = async () => {
     if (!pendingLocation) return
     setIsLoadingAirData(true)
@@ -449,12 +572,10 @@ export default function App() {
       setIsLoadingAirData(false)
     }
   }
-
   const loadAirQualityForCoords = async (lat, lon, locationLabel) => {
     setIsLoadingAirData(true)
     setLiveAirError('')
     setStatusMessage(`Fetching air quality for ${locationLabel.toLowerCase()}...`)
-
     try {
       const data = await getAirQualityData(lat, lon)
       setLiveAirData(data)
@@ -468,7 +589,6 @@ export default function App() {
       setIsLoadingAirData(false)
     }
   }
-
   const handleSearchSubmit = async (event) => {
     event.preventDefault()
     const trimmedAddress = searchAddress.trim()
@@ -476,13 +596,11 @@ export default function App() {
       setLiveAirError('Enter an address first.')
       return
     }
-
     setIsLoadingAirData(true)
     setLiveAirError('')
     setLocationSuggestions([])
     setIsLoadingSuggestions(false)
     setConfirmedSearchAddress(trimmedAddress)
-
     try {
       const geocoded = await geocodeAddress(trimmedAddress)
       setPendingLocation({ label: geocoded.address, lat: geocoded.lat, lon: geocoded.lon })
@@ -493,23 +611,19 @@ export default function App() {
       setIsLoadingAirData(false)
     }
   }
-
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
       setLiveAirError('Geolocation is not supported in this browser.')
       return
     }
-
     setIsLoadingAirData(true)
     setLiveAirError('')
     setCurrentLocationLabel('Detecting your location...')
     setStatusMessage('Getting your location...')
-
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         const fallbackLabel = formatLocationFallbackLabel(coords.latitude, coords.longitude)
         let resolvedLabel = fallbackLabel
-
         try {
           const reverse = await reverseGeocodeCoordinates(coords.latitude, coords.longitude)
           if (typeof reverse?.address === 'string' && reverse.address.trim()) {
@@ -518,7 +632,6 @@ export default function App() {
         } catch {
           // Keep the coordinate fallback if reverse lookup is unavailable.
         }
-
         setDetectedCurrentLocation(resolvedLabel)
         setSearchAddress(resolvedLabel)
         setConfirmedSearchAddress(resolvedLabel)
@@ -535,7 +648,6 @@ export default function App() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     )
   }
-
   const handleSelectSuggestion = (suggestion) => {
     setSearchAddress(suggestion.label)
     setLocationSuggestions([])
@@ -544,14 +656,11 @@ export default function App() {
     setPendingLocation({ label: suggestion.label, lat: suggestion.lat, lon: suggestion.lon })
     setLocModalView('confirm')
   }
-
   useEffect(() => {
     if (!user) {
       return undefined
     }
-
     let cancelled = false
-
     async function loadInitialAirData() {
       try {
         setIsLoadingAirData(true)
@@ -576,34 +685,28 @@ export default function App() {
         }
       }
     }
-
     loadInitialAirData()
-
     return () => {
       cancelled = true
     }
   }, [user])
-
   useEffect(() => {
     if (!user) {
       setLocationSuggestions([])
       setIsLoadingSuggestions(false)
       return undefined
     }
-
     const query = searchAddress.trim()
     if (query.length < 2) {
       setLocationSuggestions([])
       setIsLoadingSuggestions(false)
       return undefined
     }
-
     if (query === confirmedSearchAddress.trim()) {
       setLocationSuggestions([])
       setIsLoadingSuggestions(false)
       return undefined
     }
-
     const debounceId = window.setTimeout(async () => {
       try {
         setIsLoadingSuggestions(true)
@@ -615,17 +718,14 @@ export default function App() {
         setIsLoadingSuggestions(false)
       }
     }, 250)
-
     return () => {
       window.clearTimeout(debounceId)
     }
   }, [searchAddress, user])
-
   useEffect(() => {
     const timer = window.setInterval(() => setNowTs(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
-
   useEffect(() => {
     if (!user || !token) {
       setSavedLocations([])
@@ -635,7 +735,6 @@ export default function App() {
       .then((locs) => setSavedLocations(locs))
       .catch(() => {})
   }, [user])
-
   useEffect(() => {
     if (!token) {
       setSensorStatus(null)
@@ -645,22 +744,17 @@ export default function App() {
       setIndoorHistoryError('')
       return undefined
     }
-
     let cancelled = false
-
     const loadIndoorData = async () => {
       try {
         const status = await getQingpingIntegrationStatus(token)
         if (cancelled) return
-
         setSensorStatus(status)
-
         if (!status?.is_connected || !status?.selected_device_id) {
           setSensorReading(null)
           setSensorError('')
           return
         }
-
         const latest = await getIndoorSensorData(token)
         if (!cancelled) {
           setSensorReading(latest)
@@ -672,16 +766,13 @@ export default function App() {
         }
       }
     }
-
     loadIndoorData()
     const intervalId = window.setInterval(loadIndoorData, 60000)
-
     return () => {
       cancelled = true
       window.clearInterval(intervalId)
     }
   }, [token])
-
   useEffect(() => {
     if (!token || !sensorStatus?.is_connected || !sensorStatus?.selected_device_id) {
       setIndoorHistory(null)
@@ -689,13 +780,10 @@ export default function App() {
       setIsLoadingIndoorHistory(false)
       return undefined
     }
-
     if (route !== '/indoor') {
       return undefined
     }
-
     let cancelled = false
-
     const loadIndoorHistory = async () => {
       try {
         if (!cancelled) {
@@ -717,9 +805,7 @@ export default function App() {
         }
       }
     }
-
     loadIndoorHistory()
-
     return () => {
       cancelled = true
     }
@@ -732,34 +818,43 @@ export default function App() {
     sensorStatus?.selected_device_id,
     sensorReading?.updated_at,
   ])
-
   useEffect(() => {
     if (!token) {
       setSleepHistory(null)
+      setSleepCalendarHistory(null)
       setSleepHistoryError('')
       setIsLoadingSleepHistory(false)
+      setSelectedSleepInsightDate('')
+      clearSleepInsight()
       return undefined
     }
-
     if (route !== '/sleep') {
       return undefined
     }
-
     let cancelled = false
-
     const loadSleepHistory = async () => {
       try {
         if (!cancelled) {
           setIsLoadingSleepHistory(true)
           setSleepHistoryError('')
         }
-        const payload = await getSleepHistory(token, sleepHistoryRange)
+        const historyRequests = sleepHistoryRange === '180d'
+          ? [getSleepHistory(token, '180d')]
+          : [getSleepHistory(token, sleepHistoryRange), getSleepHistory(token, '180d')]
+        const [chartResult, calendarResult] = await Promise.allSettled(historyRequests)
+        if (chartResult.status !== 'fulfilled') {
+          throw chartResult.reason
+        }
+        const chartPayload = chartResult.value
+        const calendarPayload = calendarResult?.status === 'fulfilled' ? calendarResult.value : chartPayload
         if (!cancelled) {
-          setSleepHistory(payload)
+          setSleepHistory(chartPayload)
+          setSleepCalendarHistory(calendarPayload)
         }
       } catch (loadError) {
         if (!cancelled) {
           setSleepHistory(null)
+          setSleepCalendarHistory(null)
           setSleepHistoryError(loadError instanceof Error ? loadError.message : 'Failed to load sleep history.')
         }
       } finally {
@@ -768,41 +863,124 @@ export default function App() {
         }
       }
     }
-
     loadSleepHistory()
-
     return () => {
       cancelled = true
     }
   }, [token, route, sleepHistoryRange, sleepHistoryRefreshNonce])
-
+  useEffect(() => {
+    if (route !== '/sleep') return
+    const selectionHistory = sleepCalendarHistory ?? sleepHistory
+    const latestDate = getLatestImportedSleepDate(selectionHistory)
+    const availableDates = new Set(
+      (Array.isArray(selectionHistory?.points) ? selectionHistory.points : [])
+        .filter((point) => point?.sample_count > 0 && point?.calendar_date)
+        .map((point) => point.calendar_date),
+    )
+    if (!latestDate) {
+      setSelectedSleepInsightDate('')
+      clearSleepInsight()
+      return
+    }
+    if (!selectedSleepInsightDate || !availableDates.has(selectedSleepInsightDate)) {
+      setSelectedSleepInsightDate(latestDate)
+    }
+  }, [route, sleepCalendarHistory, sleepHistory, selectedSleepInsightDate])
+  useEffect(() => {
+    if (!token || route !== '/sleep') {
+      setSleepInsight(null)
+      setSleepInsightError('')
+      setIsLoadingSleepInsight(false)
+      return undefined
+    }
+    if (!requestedSleepInsightDate) {
+      setIsLoadingSleepInsight(false)
+      return undefined
+    }
+    let cancelled = false
+    const loadSleepInsight = async () => {
+      try {
+        if (!cancelled) {
+          setIsLoadingSleepInsight(true)
+          setSleepInsightError('')
+          setSleepInsight(null)
+        }
+        const payload = await getSleepInsight(token, requestedSleepInsightDate, {
+          lat: requestedSleepInsightLat,
+          lon: requestedSleepInsightLon,
+        })
+        if (!cancelled) {
+          setSleepInsight(payload)
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setSleepInsight(null)
+          setSleepInsightError(loadError instanceof Error ? loadError.message : 'Failed to load sleep insight.')
+        }
+      } finally {
+        if (!cancelled) {
+          setRequestedSleepInsightDate('')
+          setRequestedSleepInsightLat(null)
+          setRequestedSleepInsightLon(null)
+          setIsLoadingSleepInsight(false)
+        }
+      }
+    }
+    loadSleepInsight()
+    return () => {
+      cancelled = true
+    }
+  }, [token, route, requestedSleepInsightDate, requestedSleepInsightLat, requestedSleepInsightLon, sleepInsightRefreshNonce])
+  useEffect(() => {
+    if (!selectedSleepInsightDate) {
+      clearSleepInsight()
+      return
+    }
+    if (sleepInsight?.date && sleepInsight.date !== selectedSleepInsightDate) {
+      clearSleepInsight()
+    }
+  }, [selectedSleepInsightDate])
+  useEffect(() => {
+    if (route !== '/sleep' || canAccessPremiumInsights) return
+    clearSleepInsight()
+  }, [route, canAccessPremiumInsights])
   useEffect(() => {
     if (!token) {
       setTrainingPreview(null)
+      setTrainingCalendarHistory(null)
       setTrainingPreviewError('')
       setIsLoadingTrainingPreview(false)
+      setSelectedTrainingInsightDate('')
+      clearTrainingInsight()
       return undefined
     }
-
     if (route !== '/training') {
       return undefined
     }
-
     let cancelled = false
-
     const loadTrainingPreview = async () => {
       try {
         if (!cancelled) {
           setIsLoadingTrainingPreview(true)
           setTrainingPreviewError('')
         }
-        const payload = await getTrainingHistory(token, trainingHistoryRange)
+        const historyRequests = trainingHistoryRange === 'all'
+          ? [getTrainingHistory(token, 'all')]
+          : [getTrainingHistory(token, trainingHistoryRange), getTrainingHistory(token, 'all')]
+        const [chartResult, calendarResult] = await Promise.allSettled(historyRequests)
+        if (chartResult.status !== 'fulfilled') {
+          throw chartResult.reason
+        }
+        const chartPayload = chartResult.value
+        const calendarPayload = calendarResult?.status === 'fulfilled' ? calendarResult.value : chartPayload
         if (!cancelled) {
-          setTrainingPreview(payload)
+          setTrainingPreview(chartPayload)
+          setTrainingCalendarHistory(calendarPayload)
         }
       } catch (loadError) {
         if (!cancelled) {
           setTrainingPreview(null)
+          setTrainingCalendarHistory(null)
           setTrainingPreviewError(loadError instanceof Error ? loadError.message : 'Failed to load training data.')
         }
       } finally {
@@ -811,21 +989,93 @@ export default function App() {
         }
       }
     }
-
     loadTrainingPreview()
-
     return () => {
       cancelled = true
     }
   }, [token, route, trainingHistoryRange, trainingPreviewRefreshNonce])
-
+  useEffect(() => {
+    if (route !== '/training') return
+    const selectionHistory = trainingCalendarHistory ?? trainingPreview
+    const latestDate = getLatestImportedTrainingDate(selectionHistory)
+    const availableDates = new Set(
+      (Array.isArray(selectionHistory?.points) ? selectionHistory.points : [])
+        .filter((point) => point?.activity_count > 0 && point?.calendar_date)
+        .map((point) => point.calendar_date),
+    )
+    if (!latestDate) {
+      setSelectedTrainingInsightDate('')
+      clearTrainingInsight()
+      return
+    }
+    if (!selectedTrainingInsightDate || !availableDates.has(selectedTrainingInsightDate)) {
+      setSelectedTrainingInsightDate(latestDate)
+    }
+  }, [route, trainingCalendarHistory, trainingPreview, selectedTrainingInsightDate])
+  useEffect(() => {
+    if (!token || route !== '/training') {
+      setTrainingInsight(null)
+      setTrainingInsightError('')
+      setIsLoadingTrainingInsight(false)
+      return undefined
+    }
+    if (!requestedTrainingInsightDate) {
+      setIsLoadingTrainingInsight(false)
+      return undefined
+    }
+    let cancelled = false
+    const loadTrainingInsight = async () => {
+      try {
+        if (!cancelled) {
+          setIsLoadingTrainingInsight(true)
+          setTrainingInsightError('')
+          setTrainingInsight(null)
+        }
+        const payload = await getTrainingInsight(token, requestedTrainingInsightDate, {
+          window: requestedTrainingInsightWindow,
+        })
+        if (!cancelled) {
+          setTrainingInsight(payload)
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setTrainingInsight(null)
+          setTrainingInsightError(loadError instanceof Error ? loadError.message : 'Failed to load training insight.')
+        }
+      } finally {
+        if (!cancelled) {
+          setRequestedTrainingInsightDate('')
+          setRequestedTrainingInsightWindow(selectedTrainingInsightWindow)
+          setIsLoadingTrainingInsight(false)
+        }
+      }
+    }
+    loadTrainingInsight()
+    return () => {
+      cancelled = true
+    }
+  }, [token, route, requestedTrainingInsightDate, requestedTrainingInsightWindow, selectedTrainingInsightWindow, trainingInsightRefreshNonce])
+  useEffect(() => {
+    if (!selectedTrainingInsightDate) {
+      clearTrainingInsight()
+      return
+    }
+    if (trainingInsight?.date && trainingInsight.date !== selectedTrainingInsightDate) {
+      clearTrainingInsight()
+    }
+    if (trainingInsight?.day?.window_mode && trainingInsight.day.window_mode !== selectedTrainingInsightWindow) {
+      clearTrainingInsight()
+    }
+  }, [selectedTrainingInsightDate, selectedTrainingInsightWindow, trainingInsight?.date, trainingInsight?.day?.window_mode])
+  useEffect(() => {
+    if (route !== '/training' || canAccessPremiumInsights) return
+    clearTrainingInsight()
+  }, [route, canAccessPremiumInsights])
   const handleTrainingImport = async (files) => {
     if (!token || !files?.length) return
-
     setIsImportingTrainingData(true)
     setTrainingImportError('')
     setTrainingImportNotice('')
-
     try {
       const result = await importTrainingDataFiles(token, files)
       const summary = [
@@ -833,7 +1083,6 @@ export default function App() {
         result.updated ? `${result.updated} updated` : null,
         result.skipped ? `${result.skipped} skipped` : null,
       ].filter(Boolean).join(', ')
-
       setTrainingImportNotice(summary ? `Garmin activity import finished: ${summary}.` : 'Garmin activity import finished.')
       setTrainingPreviewRefreshNonce((value) => value + 1)
     } catch (importError) {
@@ -842,14 +1091,11 @@ export default function App() {
       setIsImportingTrainingData(false)
     }
   }
-
   const handleSleepImport = async (files) => {
     if (!token || !files?.length) return
-
     setIsImportingSleepData(true)
     setSleepImportError('')
     setSleepImportNotice('')
-
     try {
       const result = await importSleepDataFiles(token, files)
       const summary = [
@@ -857,7 +1103,6 @@ export default function App() {
         result.updated ? `${result.updated} updated` : null,
         result.skipped ? `${result.skipped} skipped` : null,
       ].filter(Boolean).join(', ')
-
       setSleepImportNotice(summary ? `Garmin import finished: ${summary}.` : 'Garmin import finished.')
       setSleepHistoryRefreshNonce((value) => value + 1)
     } catch (importError) {
@@ -866,19 +1111,20 @@ export default function App() {
       setIsImportingSleepData(false)
     }
   }
-
   useEffect(() => {
     const isAdminPreviewActive = Boolean(user?.role === 'admin' && dashboardAdminOverride)
-
     if (!token || (!currentCoords && !isAdminPreviewActive)) {
       setDashboardSuggestions([])
+      setDashboardSuggestionContext(null)
+      setDashboardSuggestionSettings(null)
       setDashboardSuggestionsError('')
+      setDashboardSuggestionFeedbackVotes({})
+      setDashboardSuggestionFeedbackBusy({})
+      setDashboardSuggestionFeedbackErrors({})
       setHasLoadedSuggestionsOnce(false)
       return undefined
     }
-
     let cancelled = false
-
     const loadDashboardSuggestions = async () => {
       try {
         if (!cancelled) {
@@ -889,12 +1135,22 @@ export default function App() {
           : await getHomeSuggestions(token, currentCoords.lat, currentCoords.lon)
         if (!cancelled) {
           setDashboardSuggestions(Array.isArray(payload?.suggestions) ? payload.suggestions : [])
+          setDashboardSuggestionContext(payload?.context && typeof payload.context === 'object' ? payload.context : null)
+          setDashboardSuggestionSettings(payload?.settings && typeof payload.settings === 'object' ? payload.settings : null)
           setDashboardSuggestionsError('')
+          setDashboardSuggestionFeedbackVotes({})
+          setDashboardSuggestionFeedbackBusy({})
+          setDashboardSuggestionFeedbackErrors({})
         }
       } catch (error) {
         if (!cancelled) {
           setDashboardSuggestions([])
+          setDashboardSuggestionContext(null)
+          setDashboardSuggestionSettings(null)
           setDashboardSuggestionsError(error instanceof Error ? error.message : 'Failed to refresh suggestions.')
+          setDashboardSuggestionFeedbackVotes({})
+          setDashboardSuggestionFeedbackBusy({})
+          setDashboardSuggestionFeedbackErrors({})
         }
       } finally {
         if (!cancelled) {
@@ -903,9 +1159,7 @@ export default function App() {
         }
       }
     }
-
     loadDashboardSuggestions()
-
     return () => {
       cancelled = true
     }
@@ -921,56 +1175,52 @@ export default function App() {
     dashboardAdminOverride,
     suggestionsRefreshNonce,
   ])
-
   if (isLoadingAuth) {
     return null
   }
-
   if (route === '/farewell') {
     return <FarewellPage onClose={handleBackToLanding} />
   }
-
   if (!user) {
     return <NewLandingPage onReactivated={() => { window.history.pushState({}, '', '/welcome-back'); setRoute('/welcome-back') }} />
   }
-
   if (route === '/welcome-back') {
     return <WelcomeBackPage onGoToDashboard={handleBackToLanding} onGoToSettings={() => { window.history.pushState({}, '', '/settings'); setRoute('/settings') }} />
   }
-
   if (route === '/globe') {
     return <MapboxGlobe onBack={handleBackToLanding} />
   }
-
   if (route === '/feedback') {
     return <FeedbackPage onBack={handleBackToLanding} />
   }
-
   if (route === '/admin') {
     return <AdminPage onBack={handleBackToLanding} />
   }
-
   if (route === '/settings') {
     return <SettingsPage onBack={handleBackToLanding} onAccountDeleted={handleAccountDeleted} />
   }
-
-
-
   if (route === '/subscription') {
     return (
       <div className="placeholder-page">
-        <button className="btn btn-ghost" onClick={handleBackToLanding}>← Back</button>
+        <button className="btn btn-ghost" onClick={handleBackToLanding}>â† Back</button>
         <h1>My Plan</h1>
-        <p>Coming soon.</p>
+        <p>Manage which account tier is active for this user.</p>
+        <div className="plan-selector-section">
+          <PlanSelector
+            currentPlan={user?.plan ?? 'free'}
+            busy={isUpdatingPlan}
+            notice={planUpdateNotice}
+            error={planUpdateError}
+            onPlanChange={handlePlanChange}
+          />
+        </div>
       </div>
     )
   }
-
   const userInitials = (() => {
     const source = user?.display_name || user?.email || ''
     return source.charAt(0).toUpperCase() || '?'
   })()
-
   const currentDashboardPreviewBase = {
     outdoor_pm25: liveAirData?.current?.pm25 ?? null,
     outdoor_pm10: liveAirData?.current?.pm10 ?? null,
@@ -986,12 +1236,10 @@ export default function App() {
     indoor_pm10: sensorReading?.pm10_ug_m3 ?? null,
     indoor_humidity_pct: sensorReading?.humidity_pct ?? null,
   }
-
   const handleDashboardAdminFieldChange = (event) => {
     const { name, value } = event.target
     setDashboardAdminForm((prev) => ({ ...prev, [name]: value }))
   }
-
   const handleFillDashboardAdminFromLive = () => {
     setDashboardAdminForm({
       outdoor_pm25: liveAirData?.current?.pm25 != null ? String(liveAirData.current.pm25) : '',
@@ -1008,7 +1256,6 @@ export default function App() {
     })
     setDashboardAdminError('')
   }
-
   const handleApplyDashboardAdminOverride = () => {
     const manualPayload = {
       outdoor_pm25: parseOptionalNumberInput(dashboardAdminForm.outdoor_pm25),
@@ -1023,7 +1270,6 @@ export default function App() {
       indoor_pm10: parseOptionalNumberInput(dashboardAdminForm.indoor_pm10),
       indoor_humidity_pct: parseOptionalNumberInput(dashboardAdminForm.indoor_humidity_pct),
     }
-
     const payload = {
       outdoor_pm25: manualPayload.outdoor_pm25 ?? currentDashboardPreviewBase.outdoor_pm25,
       outdoor_pm10: manualPayload.outdoor_pm10 ?? currentDashboardPreviewBase.outdoor_pm10,
@@ -1037,60 +1283,28 @@ export default function App() {
       indoor_pm10: manualPayload.indoor_pm10 ?? currentDashboardPreviewBase.indoor_pm10,
       indoor_humidity_pct: manualPayload.indoor_humidity_pct ?? currentDashboardPreviewBase.indoor_humidity_pct,
     }
-
     const hasAnyValue = Object.values(payload).some((value) => value != null)
     if (!hasAnyValue) {
       setDashboardAdminError('Enter at least one test value to preview the dashboard.')
       return
     }
-
     setDashboardAdminError('')
     setDashboardAdminOverride(payload)
   }
-
   const handleClearDashboardAdminOverride = () => {
     setDashboardAdminOverride(null)
     setDashboardAdminError('')
   }
-
   const handleRefreshSuggestions = () => {
     setSuggestionsRefreshNonce((prev) => prev + 1)
   }
   const isSuggestionsPanelLoading =
     (!hasLoadedSuggestionsOnce && !dashboardSuggestionsError) ||
     (isRefreshingSuggestions && dashboardSuggestions.length === 0)
-
-  const handleGenerateAiRecs = async () => {
-    setAiRecsLoading(true)
-    setAiRecsError('')
-    try {
-      const outdoorPayload = {
-        aqi: liveAirData?.aqi?.value ?? null,
-        aqi_label: liveAirData?.aqi?.label ?? null,
-        pm25: liveAirData?.current?.pm25 ?? null,
-        pm10: liveAirData?.current?.pm10 ?? null,
-        temperature: liveAirData?.current?.temperature_c ?? null,
-        humidity: liveAirData?.current?.humidity_pct ?? null,
-        location: currentLocationLabel || null,
-      }
-      const indoorPayload = sensorReading
-        ? {
-            pm25: sensorReading.pm2_5_ug_m3 ?? null,
-            pm10: sensorReading.pm10_ug_m3 ?? null,
-            co2: sensorReading.co2_ppm ?? null,
-            temperature: sensorReading.temperature_c ?? null,
-            humidity: sensorReading.humidity_pct ?? null,
-          }
-        : null
-      const result = await getAiRecommendation(outdoorPayload, indoorPayload, token)
-      setAiRecs(result)
-    } catch (err) {
-      setAiRecsError(err instanceof Error ? err.message : 'Failed to generate AI recommendations.')
-    } finally {
-      setAiRecsLoading(false)
-    }
-  }
-
+  const isDashboardSuggestionFeedbackEnabled = Boolean(
+    token &&
+    !(user?.role === 'admin' && dashboardAdminOverride),
+  )
   const heroPm25 = dashboardAdminOverride?.outdoor_pm25 ?? liveAirData?.current?.pm25 ?? '--'
   const heroPm10 = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
   const heroLocation = currentLocationLabel
@@ -1180,13 +1394,11 @@ export default function App() {
   const outdoorCooldownRemainingMs = Math.max(0, outdoorRefreshCooldownUntil - nowTs)
   const outdoorOnCooldown = outdoorCooldownRemainingMs > 0
   const outdoorCanRefresh = Boolean(currentCoords) && !isLoadingAirData && outdoorCooldownRemainingMs === 0
-
   const handleRefreshOutdoor = async () => {
     if (!currentCoords || !outdoorCanRefresh) return
     setOutdoorRefreshCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS)
     await loadAirQualityForCoords(currentCoords.lat, currentCoords.lon, currentLocationLabel)
   }
-
   const handleRefreshIndoor = async () => {
     if (!token || !indoorCanRefresh) return
     setIndoorRefreshCooldownUntil(Date.now() + INDOOR_MANUAL_RETRY_MS)
@@ -1194,13 +1406,11 @@ export default function App() {
     try {
       const status = await getQingpingIntegrationStatus(token)
       setSensorStatus(status)
-
       if (!status?.is_connected || !status?.selected_device_id) {
         setSensorReading(null)
         setSensorError('')
         return
       }
-
       const latest = await getIndoorSensorData(token)
       setSensorReading(latest)
       setSensorError('')
@@ -1241,9 +1451,7 @@ export default function App() {
     indoorExpectedNextUpdateAt && indoorOnCooldown
       ? `Next update expected around ${formatClockTimestamp(indoorExpectedNextUpdateAt)}.`
       : 'A newer sensor update may be available now.'
-
   const activeBackground = route === '/' ? dashboardBackground : heroBackground
-
   return (
     <div className={`page-root${route === '/' ? ' page-root--dashboard' : ''}`}>
       <div className="page-root__bg" aria-hidden>
@@ -1338,12 +1546,9 @@ export default function App() {
           )}
         </div>
       </header>
-
       <main className="dashboard">
-
       {route === '/trends' ? (<>
-
-        {/* ══ Trends page ══ */}
+        {/* â•â• Trends page â•â• */}
         <div className="dash-page-header">
           <h2 className="dash-page-title">Air Quality Trends</h2>
           <p className="dash-page-sub">{heroLocation}</p>
@@ -1361,10 +1566,8 @@ export default function App() {
             sourceDistanceKm={liveAirData?.source?.distance_km}
           />
         </div>
-
       </>) : route === '/indoor' ? (<>
-
-        {/* ══ Indoor page ══ */}
+        {/* â•â• Indoor page â•â• */}
         <div className="dash-card">
           {hasConnectedIndoorSensor ? (
             <IndoorHistoryPanel
@@ -1375,6 +1578,7 @@ export default function App() {
               onRangeChange={setIndoorHistoryRange}
               onRefresh={() => setIndoorHistoryRefreshNonce((n) => n + 1)}
               token={token}
+              canManageMockData={user?.role === 'admin'}
               locale="en-GB"
               timeZone={POLISH_TIMEZONE}
             />
@@ -1389,12 +1593,11 @@ export default function App() {
             </div>
           )}
         </div>
-
       </>) : route === '/sleep' ? (<>
-
         <div className="dash-card">
           <SleepHistoryPanel
             historyData={sleepHistory}
+            calendarHistoryData={sleepCalendarHistory ?? sleepHistory}
             isLoading={isLoadingSleepHistory}
             error={sleepHistoryError}
             selectedRange={sleepHistoryRange}
@@ -1404,16 +1607,30 @@ export default function App() {
             importBusy={isImportingSleepData}
             importNotice={sleepImportNotice}
             importError={sleepImportError}
+            token={token}
+            canManageMockData={user?.role === 'admin'}
+            selectedInsightDate={selectedSleepInsightDate}
+            onSelectInsightDate={setSelectedSleepInsightDate}
+            insightData={sleepInsight}
+            insightLoading={isLoadingSleepInsight}
+            insightError={sleepInsightError}
+            canGenerateInsight={canAccessPremiumInsights}
+            onGenerateInsight={handleGenerateSleepInsight}
+            onOpenSubscription={user?.role === 'admin' ? null : handleOpenSubscription}
+            onInsightFeedback={token ? handleSleepInsightFeedback : null}
+            insightFeedbackVote={sleepInsight?.date ? (sleepInsightFeedbackVotes[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
+            insightFeedbackBusy={Boolean(sleepInsight?.date ? sleepInsightFeedbackBusy[`sleep-insight-${sleepInsight.date}`] : false)}
+            insightFeedbackError={sleepInsight?.date ? (sleepInsightFeedbackErrors[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
+            onRefreshInsight={clearSleepInsight}
             locale="en-GB"
             timeZone={POLISH_TIMEZONE}
           />
         </div>
-
       </>) : route === '/training' ? (<>
-
         <div className="dash-card">
           <TrainingDataPanel
             trainingData={trainingPreview}
+            calendarTrainingData={trainingCalendarHistory ?? trainingPreview}
             isLoading={isLoadingTrainingPreview}
             error={trainingPreviewError}
             selectedRange={trainingHistoryRange}
@@ -1423,11 +1640,20 @@ export default function App() {
             importNotice={trainingImportNotice}
             importError={trainingImportError}
             onRefresh={() => setTrainingPreviewRefreshNonce((value) => value + 1)}
+            selectedInsightDate={selectedTrainingInsightDate}
+            onSelectInsightDate={setSelectedTrainingInsightDate}
+            insightData={trainingInsight}
+            insightLoading={isLoadingTrainingInsight}
+            insightError={trainingInsightError}
+            insightWindow={selectedTrainingInsightWindow}
+            onInsightWindowChange={setSelectedTrainingInsightWindow}
+            canGenerateInsight={canAccessPremiumInsights}
+            onGenerateInsight={handleGenerateTrainingInsight}
+            onOpenSubscription={user?.role === 'admin' ? null : handleOpenSubscription}
             locale="en-GB"
             timeZone={POLISH_TIMEZONE}
           />
         </div>
-
       </>) : (<>
         <section className="dashboard-preview">
           <div className="dashboard-preview__locations">
@@ -1441,7 +1667,6 @@ export default function App() {
               )}
             </button>
           </div>
-
           {user.role === 'admin' && (
             <div className={`dashboard-admin-override${isDashboardAdminPreviewActive ? ' dashboard-admin-override--active' : ''}`}>
               <div className="dashboard-admin-override__header">
@@ -1479,7 +1704,7 @@ export default function App() {
                       <input name="outdoor_uv_index" value={dashboardAdminForm.outdoor_uv_index} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="6" />
                     </label>
                     <label className="dashboard-admin-override__field">
-                      <span>Outdoor Temp °C</span>
+                      <span>Outdoor Temp Â°C</span>
                       <input name="outdoor_temperature_c" value={dashboardAdminForm.outdoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="24" />
                     </label>
                     <label className="dashboard-admin-override__field">
@@ -1495,7 +1720,7 @@ export default function App() {
                       <input name="indoor_co2_ppm" value={dashboardAdminForm.indoor_co2_ppm} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="950" />
                     </label>
                     <label className="dashboard-admin-override__field">
-                      <span>Indoor Temp °C</span>
+                      <span>Indoor Temp Â°C</span>
                       <input name="indoor_temperature_c" value={dashboardAdminForm.indoor_temperature_c} onChange={handleDashboardAdminFieldChange} inputMode="decimal" placeholder="19" />
                     </label>
                     <label className="dashboard-admin-override__field">
@@ -1527,7 +1752,6 @@ export default function App() {
               )}
             </div>
           )}
-
           <div className="dashboard-preview__cards">
             <article className="dashboard-preview-card">
               <div className="dashboard-preview-card__top">
@@ -1558,11 +1782,11 @@ export default function App() {
                 <div className="dashboard-preview-card__metrics-grid dashboard-preview-card__metrics-grid--outdoor">
                   <div className="dashboard-preview-card__metric-tile">
                     <strong>PM2.5</strong>
-                    <span>{heroPm25} µg/m³</span>
+                    <span>{heroPm25} Âµg/mÂ³</span>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
                     <strong>PM10</strong>
-                    <span>{heroPm10} µg/m³</span>
+                    <span>{heroPm10} Âµg/mÂ³</span>
                   </div>
                   <div className="dashboard-preview-card__metric-tile">
                     <strong>Temp</strong>
@@ -1609,7 +1833,6 @@ export default function App() {
                 </div>
               </div>
             </article>
-
             <article
               className={`dashboard-preview-card dashboard-preview-card--indoor${hasConnectedIndoorSensor ? '' : ' dashboard-preview-card--indoor-waiting'}`}
             >
@@ -1645,11 +1868,11 @@ export default function App() {
                     <div className="dashboard-preview-card__metrics-grid">
                       <div className="dashboard-preview-card__metric-tile">
                         <strong>PM2.5</strong>
-                        <span>{indoorPm25} µg/m³</span>
+                        <span>{indoorPm25} Âµg/mÂ³</span>
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
                         <strong>PM10</strong>
-                        <span>{indoorPm10} µg/m³</span>
+                        <span>{indoorPm10} Âµg/mÂ³</span>
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
                         <strong>CO2</strong>
@@ -1657,7 +1880,7 @@ export default function App() {
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
                         <strong>Temp</strong>
-                        <span>{indoorTemp}°C</span>
+                        <span>{indoorTemp}Â°C</span>
                       </div>
                       <div className="dashboard-preview-card__metric-tile">
                         <strong>Humidity</strong>
@@ -1680,7 +1903,7 @@ export default function App() {
                     <div className="dashboard-preview-card__indoor-empty-text">
                       <h3 className="dashboard-preview-card__indoor-empty-title">Room air, at a glance</h3>
                       <p className="dashboard-preview-card__indoor-empty-desc">
-                        Link a Qingping monitor through AirIQ Home to track PM, CO₂, temperature, and humidity indoors.
+                        Link a Qingping monitor through AirIQ Home to track PM, COâ‚‚, temperature, and humidity indoors.
                       </p>
                     </div>
                     <button type="button" className="dashboard-preview-card__indoor-empty-cta" onClick={() => handleAddDevice('sensor')}>
@@ -1715,13 +1938,12 @@ export default function App() {
               ) : (
                 <div className="dashboard-preview-card__status dashboard-preview-card__status--indoor-waiting">
                   <span className="dashboard-preview-card__status-waiting-note">
-                    The same pairing flow you use for Qingping / AirIQ Home — secure and local to your account.
+                    The same pairing flow you use for Qingping / AirIQ Home â€” secure and local to your account.
                   </span>
                 </div>
               )}
             </article>
           </div>
-
           <section className="dashboard-preview-recs">
             <div className="dashboard-preview-recs__tabs">
               <div className="dashboard-preview-recs__tab-group">
@@ -1739,13 +1961,6 @@ export default function App() {
                 >
                   Plan for the Day
                 </button>
-                <button
-                  type="button"
-                  className={`dashboard-preview-recs__tab${recsTab === 'ai' ? ' dashboard-preview-recs__tab--active' : ''}`}
-                  onClick={() => setRecsTab('ai')}
-                >
-                  AI Recommendations
-                </button>
               </div>
               <button
                 type="button"
@@ -1756,7 +1971,6 @@ export default function App() {
                 {isRefreshingSuggestions ? 'Refreshing...' : 'Refresh suggestions'}
               </button>
             </div>
-
             <div className="dashboard-preview-recs__body">
               {recsTab === 'suggestions' ? (
                 <>
@@ -1766,6 +1980,10 @@ export default function App() {
                   <SuggestionsPanel
                     suggestions={dashboardSuggestions}
                     isLoading={isSuggestionsPanelLoading}
+                    onSuggestionFeedback={isDashboardSuggestionFeedbackEnabled ? handleSuggestionFeedback : null}
+                    feedbackVotes={dashboardSuggestionFeedbackVotes}
+                    feedbackBusy={dashboardSuggestionFeedbackBusy}
+                    feedbackErrors={dashboardSuggestionFeedbackErrors}
                   />
                 </>
               ) : recsTab === 'day' ? (
@@ -1775,61 +1993,12 @@ export default function App() {
                   locale="en-GB"
                   timeZone={POLISH_TIMEZONE}
                 />
-              ) : (
-                <div className="dashboard-preview-recs__ai">
-                  <h4>AI Daily Plan</h4>
-                  {!aiRecs && !aiRecsLoading && (
-                    <p className="dashboard-preview-recs__ai-hint">
-                      Generate personalised outdoor and indoor recommendations powered by Gemini based on your current air quality readings.
-                    </p>
-                  )}
-                  {aiRecsError && <p className="dashboard-preview-recs__ai-error">{aiRecsError}</p>}
-                  <button
-                    type="button"
-                    className="dashboard-preview-recs__ai-btn"
-                    onClick={handleGenerateAiRecs}
-                    disabled={aiRecsLoading || !liveAirData}
-                  >
-                    {aiRecsLoading ? 'Generating…' : aiRecs ? 'Regenerate' : 'Generate Recommendations'}
-                  </button>
-                  {aiRecs && (
-                    <div className="ai-recs__cards">
-                      {aiRecs.outdoor?.length > 0 && (
-                        <div className="ai-recs__card ai-recs__card--outdoor">
-                          <h5 className="ai-recs__card-header">Outdoor</h5>
-                          <ul className="ai-recs__card-list">
-                            {aiRecs.outdoor.map((tip, i) => <li key={i}>{tip}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                      {aiRecs.indoor?.length > 0 && (
-                        <div className="ai-recs__card ai-recs__card--indoor">
-                          <h5 className="ai-recs__card-header">Indoor</h5>
-                          <ul className="ai-recs__card-list">
-                            {aiRecs.indoor.map((tip, i) => <li key={i}>{tip}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {!aiRecs && !aiRecsLoading && (
-                    <div className="dashboard-preview-recs__chips">
-                      <span>Sleep timing</span>
-                      <span>Workout windows</span>
-                      <span>Ventilation strategy</span>
-                    </div>
-                  )}
-                </div>
-              )}
+              ) : null}
             </div>
           </section>
-
         </section>
       </>)}
-
       </main>
-
-
       <footer className="page-footer">
         <div className="footer-left">
           <img src={logoAiriq} alt="AirIQ" className="footer-logo" />
@@ -1843,7 +2012,6 @@ export default function App() {
           <a href="#help" className="footer-link">Help</a>
         </div>
       </footer>
-
       <DeviceSetupModal
         isOpen={isDeviceSetupOpen}
         onClose={() => setIsDeviceSetupOpen(false)}
@@ -1864,8 +2032,7 @@ export default function App() {
       />
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
       <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
-
-      {/* ── Location search / manage popup ── */}
+      {/* â”€â”€ Location search / manage popup â”€â”€ */}
       {isLocationSearchOpen && (
         <>
           <div className="loc-modal-backdrop" onClick={closeLocationModal} />
@@ -1885,12 +2052,11 @@ export default function App() {
                 </svg>
               </button>
             </div>
-
             <div className="loc-modal-body">
-              {/* ── Main locations view ── */}
+              {/* â”€â”€ Main locations view â”€â”€ */}
               {locModalView === 'search' && (
                 <>
-                  {/* Saved locations — shown first */}
+                  {/* Saved locations â€” shown first */}
                   {savedLocations.length > 0 && (
                     <div className="loc-modal-saved-list">
                       {savedLocations.map((loc) => (
@@ -1929,13 +2095,11 @@ export default function App() {
                       ))}
                     </div>
                   )}
-
                   {savedLocations.length > 0 && (
                     <div className="loc-modal-divider">
                       <span>add new</span>
                     </div>
                   )}
-
                   {/* Search form */}
                   <div className="loc-modal-form-wrap">
                     <form className="loc-modal-form" onSubmit={handleSearchSubmit}>
@@ -1953,18 +2117,17 @@ export default function App() {
                           }
                         }}
                         className="loc-modal-input"
-                        placeholder="City, address, or postcode…"
+                        placeholder="City, address, or postcodeâ€¦"
                         autoFocus
                       />
                       <button type="submit" className="loc-modal-submit" disabled={isLoadingAirData}>
-                        {isLoadingAirData ? 'Loading…' : 'Search'}
+                        {isLoadingAirData ? 'Loadingâ€¦' : 'Search'}
                       </button>
                     </form>
-
                     {(isLoadingSuggestions || locationSuggestions.length > 0) && !isLoadingAirData && (
                       <div className="loc-modal-suggestions">
                         {isLoadingSuggestions ? (
-                          <div className="loc-modal-suggestion loc-modal-suggestion--muted">Searching…</div>
+                          <div className="loc-modal-suggestion loc-modal-suggestion--muted">Searchingâ€¦</div>
                         ) : (
                           locationSuggestions.map((suggestion) => (
                             <button
@@ -1983,11 +2146,9 @@ export default function App() {
                       </div>
                     )}
                   </div>
-
                   <div className="loc-modal-divider">
                     <span>or</span>
                   </div>
-
                   <button type="button" className="loc-modal-my-location" onClick={handleUseMyLocation}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                       <circle cx="12" cy="12" r="3" />
@@ -1996,7 +2157,6 @@ export default function App() {
                     </svg>
                     Use my current location
                   </button>
-
                   <div className="loc-modal-location-note">
                     <p>AirIQ asks your browser or Windows for an estimated location. On desktop or Ethernet it can be a little off.</p>
                     <p>For the most precise data, enter your address manually.</p>
@@ -2004,14 +2164,12 @@ export default function App() {
                       <p className="loc-modal-location-note__detected">Detected location: {detectedCurrentLocation}</p>
                     ) : null}
                   </div>
-
                   {liveAirError && (
                     <p className="loc-modal-error">{liveAirError}</p>
                   )}
                 </>
               )}
-
-              {/* ── Confirm / add view ── */}
+              {/* â”€â”€ Confirm / add view â”€â”€ */}
               {locModalView === 'confirm' && pendingLocation && (
                 <>
                   <div className="loc-modal-result">
@@ -2027,7 +2185,7 @@ export default function App() {
                       onClick={handleConfirmAddLocation}
                       disabled={isLoadingAirData}
                     >
-                      {isLoadingAirData ? 'Adding…' : 'Add location'}
+                      {isLoadingAirData ? 'Addingâ€¦' : 'Add location'}
                     </button>
                     <button
                       type="button"

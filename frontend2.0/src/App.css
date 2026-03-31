@@ -3945,6 +3945,11 @@
   color: #1a3152;
 }
 
+.plan-selector-tab:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .plan-selector-tab--active {
   background: linear-gradient(135deg, #0874f8, #02b4ff);
   color: #fff;
@@ -3994,8 +3999,31 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+.plan-selector-cta:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .plan-selector-cta:hover {
   box-shadow: 0 12px 28px rgba(13, 89, 192, 0.5);
+}
+
+.plan-selector-notice,
+.plan-selector-error {
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.plan-selector-notice {
+  color: #1f6f78;
+  font-weight: 600;
+}
+
+.plan-selector-error {
+  color: #b55656;
+  font-weight: 600;
 }
 
 /* Footer */

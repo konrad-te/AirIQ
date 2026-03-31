@@ -2,6 +2,7 @@ from .base import Base
 from .app_setting import AppSetting
 from .city_point import CityPoint
 from .saved_location import SavedLocation
+from .suggestion_feedback import SuggestionFeedback
 from .data_provider import DataProvider
 from .external_station import ExternalStation
 from .feedback import Feedback
@@ -38,6 +39,7 @@ __all__ = [
     "LocationStationCache",
     "ProviderCacheEntry",
     "SavedLocation",
+    "SuggestionFeedback",
     "User",
     "UserQingpingIntegration",
     "UserPreference",

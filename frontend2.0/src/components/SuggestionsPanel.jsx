@@ -4,9 +4,23 @@ import { MAX_DASHBOARD_SUGGESTIONS } from '../types/suggestions'
 /** @typedef {import('../types/suggestions').Suggestion} Suggestion */
 
 /**
- * @param {{ suggestions?: Suggestion[] | null, isLoading?: boolean }} props
+ * @param {{
+ *   suggestions?: Suggestion[] | null,
+ *   isLoading?: boolean,
+ *   onSuggestionFeedback?: ((suggestion: Suggestion, vote: 'helpful' | 'not_helpful', feedbackText?: string) => void) | null,
+ *   feedbackVotes?: Record<string, string>,
+ *   feedbackBusy?: Record<string, boolean>,
+ *   feedbackErrors?: Record<string, string>,
+ * }} props
  */
-export default function SuggestionsPanel({ suggestions = [], isLoading = false }) {
+export default function SuggestionsPanel({
+  suggestions = [],
+  isLoading = false,
+  onSuggestionFeedback = null,
+  feedbackVotes = {},
+  feedbackBusy = {},
+  feedbackErrors = {},
+}) {
   const visibleSuggestions = Array.isArray(suggestions)
     ? suggestions.slice(0, MAX_DASHBOARD_SUGGESTIONS)
     : []
@@ -54,7 +68,14 @@ export default function SuggestionsPanel({ suggestions = [], isLoading = false }
 
       <div className="suggestions-panel__stack">
         {visibleSuggestions.map((suggestion) => (
-          <SuggestionCard key={suggestion.id} suggestion={suggestion} />
+          <SuggestionCard
+            key={suggestion.id}
+            suggestion={suggestion}
+            onFeedback={onSuggestionFeedback}
+            feedbackVote={feedbackVotes?.[suggestion.id] ?? ''}
+            feedbackBusy={Boolean(feedbackBusy?.[suggestion.id])}
+            feedbackError={feedbackErrors?.[suggestion.id] ?? ''}
+          />
         ))}
       </div>
     </section>
