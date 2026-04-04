@@ -780,6 +780,9 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (isLoadingAuth) {
+      return undefined
+    }
     if (!token) {
       i18n.changeLanguage('en')
       return
@@ -789,10 +792,10 @@ export default function App() {
         i18n.changeLanguage(prefs.language_code || 'en')
       })
       .catch(() => {})
-  }, [token, i18n])
+  }, [token, isLoadingAuth, i18n])
 
   useEffect(() => {
-    if (!token) {
+    if (isLoadingAuth || !token) {
       return undefined
     }
     let cancelled = false
@@ -833,7 +836,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, t])
+  }, [token, isLoadingAuth, t])
   useEffect(() => {
     if (!user) {
       setLocationSuggestions([])
@@ -871,6 +874,9 @@ export default function App() {
     return () => window.clearInterval(timer)
   }, [])
   useEffect(() => {
+    if (isLoadingAuth) {
+      return undefined
+    }
     if (!user || !token) {
       setSavedLocations([])
       return
@@ -878,8 +884,11 @@ export default function App() {
     getSavedLocations(token)
       .then((locs) => setSavedLocations(locs))
       .catch(() => {})
-  }, [user])
+  }, [user, token, isLoadingAuth])
   useEffect(() => {
+    if (isLoadingAuth) {
+      return undefined
+    }
     if (!token) {
       setSensorStatus(null)
       setSensorReading(null)
@@ -916,9 +925,9 @@ export default function App() {
       cancelled = true
       window.clearInterval(intervalId)
     }
-  }, [token])
+  }, [token, isLoadingAuth, t])
   useEffect(() => {
-    if (!token || !sensorStatus?.is_connected || !sensorStatus?.selected_device_id) {
+    if (isLoadingAuth || !token || !sensorStatus?.is_connected || !sensorStatus?.selected_device_id) {
       setIndoorHistory(null)
       setIndoorHistoryError('')
       setIsLoadingIndoorHistory(false)
@@ -955,6 +964,7 @@ export default function App() {
     }
   }, [
     token,
+    isLoadingAuth,
     route,
     indoorHistoryRange,
     indoorHistoryRefreshNonce,
@@ -963,6 +973,9 @@ export default function App() {
     sensorReading?.updated_at,
   ])
   useEffect(() => {
+    if (isLoadingAuth) {
+      return undefined
+    }
     if (!token) {
       setSleepHistory(null)
       setSleepCalendarHistory(null)
@@ -1011,7 +1024,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, route, sleepHistoryRange, sleepHistoryRefreshNonce])
+  }, [token, isLoadingAuth, route, sleepHistoryRange, sleepHistoryRefreshNonce])
   useEffect(() => {
     if (route !== '/sleep') return
     const selectionHistory = sleepCalendarHistory ?? sleepHistory
@@ -1031,7 +1044,7 @@ export default function App() {
     }
   }, [route, sleepCalendarHistory, sleepHistory, selectedSleepInsightDate])
   useEffect(() => {
-    if (!token || route !== '/sleep') {
+    if (isLoadingAuth || !token || route !== '/sleep') {
       setSleepInsight(null)
       setSleepInsightError('')
       setIsLoadingSleepInsight(false)
@@ -1074,7 +1087,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, route, requestedSleepInsightDate, requestedSleepInsightLat, requestedSleepInsightLon, sleepInsightRefreshNonce])
+  }, [token, isLoadingAuth, route, requestedSleepInsightDate, requestedSleepInsightLat, requestedSleepInsightLon, sleepInsightRefreshNonce])
   useEffect(() => {
     if (!selectedSleepInsightDate) {
       clearSleepInsight()
@@ -1089,6 +1102,9 @@ export default function App() {
     clearSleepInsight()
   }, [route, canAccessPremiumInsights])
   useEffect(() => {
+    if (isLoadingAuth) {
+      return undefined
+    }
     if (!token) {
       setTrainingPreview(null)
       setTrainingCalendarHistory(null)
@@ -1137,7 +1153,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, route, trainingHistoryRange, trainingPreviewRefreshNonce])
+  }, [token, isLoadingAuth, route, trainingHistoryRange, trainingPreviewRefreshNonce])
   useEffect(() => {
     if (route !== '/training') return
     const selectionHistory = trainingCalendarHistory ?? trainingPreview
@@ -1157,7 +1173,7 @@ export default function App() {
     }
   }, [route, trainingCalendarHistory, trainingPreview, selectedTrainingInsightDate])
   useEffect(() => {
-    if (!token || route !== '/training') {
+    if (isLoadingAuth || !token || route !== '/training') {
       setTrainingInsight(null)
       setTrainingInsightError('')
       setIsLoadingTrainingInsight(false)
@@ -1198,7 +1214,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, route, requestedTrainingInsightDate, requestedTrainingInsightWindow, selectedTrainingInsightWindow, trainingInsightRefreshNonce])
+  }, [token, isLoadingAuth, route, requestedTrainingInsightDate, requestedTrainingInsightWindow, selectedTrainingInsightWindow, trainingInsightRefreshNonce])
   useEffect(() => {
     if (!selectedTrainingInsightDate) {
       clearTrainingInsight()

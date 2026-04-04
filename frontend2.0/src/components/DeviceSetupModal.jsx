@@ -12,7 +12,7 @@ import './DeviceSetupModal.css'
 
 export default function DeviceSetupModal({ isOpen, onClose, onConnected }) {
   const { t } = useTranslation()
-  const { token } = useAuth()
+  const { token, isLoadingAuth } = useAuth()
   const [step, setStep] = useState('loading')
   const [appKey, setAppKey] = useState('')
   const [appSecret, setAppSecret] = useState('')
@@ -28,6 +28,15 @@ export default function DeviceSetupModal({ isOpen, onClose, onConnected }) {
     document.body.style.overflow = 'hidden'
     setStep('loading'); setAppKey(''); setAppSecret(''); setError(''); setConnectedPayload(null); setDevices([]); setSelectedDeviceId('')
     let cancelled = false
+
+    if (isLoadingAuth) {
+      return () => { cancelled = true; document.body.style.overflow = '' }
+    }
+
+    if (!token) {
+      setStep('intro')
+      return () => { cancelled = true; document.body.style.overflow = '' }
+    }
 
     const loadStatus = async () => {
       try {
@@ -55,7 +64,7 @@ export default function DeviceSetupModal({ isOpen, onClose, onConnected }) {
 
     loadStatus()
     return () => { cancelled = true; document.body.style.overflow = '' }
-  }, [isOpen, token, t])
+  }, [isOpen, token, isLoadingAuth, t])
 
   if (!isOpen) return null
 
@@ -64,6 +73,7 @@ export default function DeviceSetupModal({ isOpen, onClose, onConnected }) {
   const handleConnectSubmit = async (event) => {
     event.preventDefault()
     if (!appKey.trim() || !appSecret.trim()) { setError(t('deviceSetup.bothRequired')); return }
+    if (!token) { setError(t('deviceSetup.failedStatus')); return }
     setIsSubmitting(true); setError('')
     try {
       const payload = await connectQingpingIntegration(token, appKey.trim(), appSecret.trim())
@@ -76,6 +86,7 @@ export default function DeviceSetupModal({ isOpen, onClose, onConnected }) {
 
   const handleSelectDevice = async () => {
     if (!selectedDeviceId) { setError(t('deviceSetup.chooseFirst')); return }
+    if (!token) { setError(t('deviceSetup.failedStatus')); return }
     setIsSubmitting(true); setError('')
     try {
       const payload = await selectQingpingDevice(token, selectedDeviceId)

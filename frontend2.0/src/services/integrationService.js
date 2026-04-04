@@ -1,11 +1,19 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
+function requireAuthToken(token) {
+  if (typeof token !== 'string' || token.trim() === '') {
+    throw new Error('Please sign in again to use Qingping integration.')
+  }
+  return token
+}
+
 export async function connectQingpingIntegration(token, appKey, appSecret) {
+  const authToken = requireAuthToken(token)
   const response = await fetch(`${API_BASE_URL}/api/integrations/qingping/connect`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${authToken}`,
     },
     body: JSON.stringify({
       app_key: appKey,
@@ -23,9 +31,10 @@ export async function connectQingpingIntegration(token, appKey, appSecret) {
 }
 
 export async function getQingpingIntegrationStatus(token) {
+  const authToken = requireAuthToken(token)
   const response = await fetch(`${API_BASE_URL}/api/integrations/qingping/status`, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${authToken}`,
     },
   })
 
@@ -39,9 +48,10 @@ export async function getQingpingIntegrationStatus(token) {
 }
 
 export async function getQingpingDevices(token) {
+  const authToken = requireAuthToken(token)
   const response = await fetch(`${API_BASE_URL}/api/integrations/qingping/devices`, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${authToken}`,
     },
   })
 
@@ -55,11 +65,12 @@ export async function getQingpingDevices(token) {
 }
 
 export async function selectQingpingDevice(token, deviceId) {
+  const authToken = requireAuthToken(token)
   const response = await fetch(`${API_BASE_URL}/api/integrations/qingping/select-device`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${authToken}`,
     },
     body: JSON.stringify({
       device_id: deviceId,

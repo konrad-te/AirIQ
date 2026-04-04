@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import './SuggestionsPanel.css'
-import FeedbackComposer from './FeedbackComposer'
 
 /** @typedef {import('../types/suggestions').Suggestion} Suggestion */
 
@@ -71,6 +70,9 @@ export default function SuggestionCard({
   const suggestionId = typeof suggestion.id === 'string' || typeof suggestion.id === 'number'
     ? suggestion.id
     : 'suggestion'
+  const helpfulSelected = feedbackVote === 'helpful'
+  const notHelpfulSelected = feedbackVote === 'not_helpful'
+  const isFeedbackSubmitted = Boolean(feedbackVote)
 
   return (
     <article className={`suggestion-card suggestion-card--${normalizedPriority}${normalizedSeverity ? ` suggestion-card--severity-${normalizedSeverity}` : ''}`}>
@@ -108,15 +110,31 @@ export default function SuggestionCard({
 
         {feedbackEnabled && (
           <div className="suggestion-card__feedback">
-            <FeedbackComposer
-              label="Was it helpful?"
-              note="We store this suggestion together with the conditions it was based on. You can also add an optional note."
-              busy={feedbackBusy}
-              savedVote={feedbackVote}
-              error={feedbackError}
-              savedMessage="Thanks. Your suggestion feedback was saved."
-              onSubmit={(vote, feedbackText) => onFeedback(suggestion, vote, feedbackText)}
-            />
+            <div className="suggestion-card__feedback-actions">
+              <span className="suggestion-card__feedback-label">Was it helpful?</span>
+              <button
+                type="button"
+                className={`suggestion-card__feedback-btn${helpfulSelected ? ' suggestion-card__feedback-btn--active' : ''}`}
+                onClick={() => onFeedback(suggestion, 'helpful')}
+                disabled={feedbackBusy || isFeedbackSubmitted}
+              >
+                Helpful
+              </button>
+              <button
+                type="button"
+                className={`suggestion-card__feedback-btn suggestion-card__feedback-btn--negative${notHelpfulSelected ? ' suggestion-card__feedback-btn--active' : ''}`}
+                onClick={() => onFeedback(suggestion, 'not_helpful')}
+                disabled={feedbackBusy || isFeedbackSubmitted}
+              >
+                Not helpful
+              </button>
+            </div>
+            {isFeedbackSubmitted && !feedbackError ? (
+              <p className="suggestion-card__feedback-status">Thanks. Your suggestion feedback was saved.</p>
+            ) : null}
+            {feedbackError ? (
+              <p className="suggestion-card__feedback-error">{feedbackError}</p>
+            ) : null}
           </div>
         )}
       </div>

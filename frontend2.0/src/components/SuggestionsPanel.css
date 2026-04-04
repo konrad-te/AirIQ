@@ -332,7 +332,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.85rem;
   border-top: 1px solid rgba(223, 234, 245, 0.96);
   padding-top: 0.8rem;
@@ -364,6 +364,8 @@
   align-items: center;
   gap: 0.55rem;
   flex-wrap: wrap;
+  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .suggestion-card__feedback-btn {
@@ -432,5 +434,11 @@
 
   .suggestion-card__feedback {
     align-items: flex-start;
+  }
+
+  .suggestion-card__feedback-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
   }
 }

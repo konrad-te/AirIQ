@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { clearMockIndoorReadings, seedMockIndoorReadings } from '../services/airDataService'
 import FeedbackComposer from './FeedbackComposer'
 import './IndoorHistoryPanel.css'
@@ -357,6 +358,17 @@ export default function SleepHistoryPanel({
     }
   }, [selectedInsightPoint?.calendar_date])
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined
+    if (!(isHelpOpen || isImportModalOpen || isMockModalOpen)) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isHelpOpen, isImportModalOpen, isMockModalOpen])
+
   const handleChartPointer = (clientX) => {
     if (!geometry.plotPoints.length || !chartSvgRef.current) return
     const rect = chartSvgRef.current.getBoundingClientRect()
@@ -522,29 +534,102 @@ export default function SleepHistoryPanel({
     </div>
   )
 
-  return (
-    <section className="indoor-history-panel sleep-history-panel">
-      <div className="indoor-history-panel__top">
-        <div className="indoor-history-panel__brand">
-          <h2 className="indoor-history-panel__page-title">Sleep data history</h2>
+  const importModalContent = isImportModalOpen ? (
+    <div className="sleep-history-panel__modal-backdrop" onClick={() => setIsImportModalOpen(false)}>
+      <div className="sleep-history-panel__modal sleep-history-panel__modal--import" role="dialog" aria-modal="true" aria-labelledby="sleep-import-modal-title" onClick={(event) => event.stopPropagation()}>
+        <div className="sleep-history-panel__modal-head">
+          <div>
+            <p className="sleep-history-panel__modal-eyebrow">Garmin Import</p>
+            <h3 id="sleep-import-modal-title">Import Garmin files</h3>
+          </div>
+          <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsImportModalOpen(false)} aria-label="Close import dialog">
+            x
+          </button>
         </div>
-        <div className="sleep-history-panel__top-actions">
-          {canManageMockData ? (
-            <button
-              type="button"
-              className="sleep-history-panel__import-new-btn sleep-history-panel__import-new-btn--demo"
-              onClick={() => setIsMockModalOpen(true)}
-            >
-              Demo tools
-            </button>
-          ) : null}
-          {hasImportedDays ? (
-            <button type="button" className="sleep-history-panel__import-new-btn" onClick={() => setIsImportModalOpen(true)}>
-              Import new data
-            </button>
-          ) : null}
+        <div className="sleep-history-panel__modal-body">
+          {renderImportPanel({ showTitle: false })}
         </div>
       </div>
+    </div>
+  ) : null
+
+  const mockModalContent = isMockModalOpen ? (
+    <div className="sleep-history-panel__modal-backdrop" onClick={() => setIsMockModalOpen(false)}>
+      <div className="sleep-history-panel__modal sleep-history-panel__modal--import" role="dialog" aria-modal="true" aria-labelledby="sleep-mock-modal-title" onClick={(event) => event.stopPropagation()}>
+        <div className="sleep-history-panel__modal-head">
+          <div>
+            <p className="sleep-history-panel__modal-eyebrow">Admin Demo Tools</p>
+            <h3 id="sleep-mock-modal-title">Sleep insight sensor demo</h3>
+          </div>
+          <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsMockModalOpen(false)} aria-label="Close demo tools">
+            x
+          </button>
+        </div>
+        <div className="sleep-history-panel__modal-body">
+          {renderMockAdminPanel({ showTitle: false })}
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  const helpModalContent = isHelpOpen ? (
+    <div className="sleep-history-panel__modal-backdrop" onClick={() => setIsHelpOpen(false)}>
+      <div className="sleep-history-panel__modal" role="dialog" aria-modal="true" aria-labelledby="sleep-import-help-title" onClick={(event) => event.stopPropagation()}>
+        <div className="sleep-history-panel__modal-head">
+          <div>
+            <p className="sleep-history-panel__modal-eyebrow">Garmin Export Guide</p>
+            <h3 id="sleep-import-help-title">How to import the sleep data</h3>
+          </div>
+          <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsHelpOpen(false)} aria-label="Close import instructions">
+            x
+          </button>
+        </div>
+        <div className="sleep-history-panel__modal-body">
+          <ol className="sleep-history-panel__steps">
+            <li><strong>Request your Garmin export.</strong> Sign in to Garmin and open the account privacy or data export area. You can go directly to <a href="https://www.garmin.com/en-US/account/datamanagement/exportdata" target="_blank" rel="noreferrer">Garmin Manage Your Data</a>.</li>
+            <li><strong>Start the export.</strong> Open <em>Manage Your Data</em> or <em>Export Your Data</em>, then choose <em>Request Data Export</em>.</li>
+            <li><strong>Wait for Garmin&apos;s email.</strong> Garmin usually prepares the archive first and emails you the download link when it is ready.</li>
+            <li><strong>Download and unzip the archive.</strong> Extract the Garmin export on your computer so you can browse the folders inside it.</li>
+            <li><strong>Find the nightly summary files.</strong> For the summary metrics already supported in AirIQ, open <code className="sleep-history-panel__path">DI_CONNECT/DI-Connect-Aggregator/</code> and look for files named <code className="sleep-history-panel__path">UDSFile_...json</code>.</li>
+            <li><strong>Find the detailed sleep stage files.</strong> For REM, light, deep, and awake data, open <code className="sleep-history-panel__path">DI_CONNECT/DI-Connect-Wellness/</code> and look for files named <code className="sleep-history-panel__path">*_sleepData.json</code>.</li>
+            <li><strong>Upload either or both types here.</strong> You can import just the summary files, just the detailed sleep files, or both together. AirIQ will merge matching nights into one sleep history.</li>
+          </ol>
+          <p className="sleep-history-panel__modal-note">
+            Garmin&apos;s export folder names are a little cryptic, but the two useful paths for sleep imports are the aggregator folder for nightly summaries and the wellness folder for stage-level sleep data.
+          </p>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  const importModal = importModalContent && typeof document !== 'undefined' ? createPortal(importModalContent, document.body) : null
+  const mockModal = mockModalContent && typeof document !== 'undefined' ? createPortal(mockModalContent, document.body) : null
+  const helpModal = helpModalContent && typeof document !== 'undefined' ? createPortal(helpModalContent, document.body) : null
+
+  return (
+    <>
+      <section className="indoor-history-panel sleep-history-panel">
+        <div className="indoor-history-panel__top">
+          <div className="indoor-history-panel__brand">
+            <h2 className="indoor-history-panel__page-title">Sleep data history</h2>
+          </div>
+          <div className="sleep-history-panel__top-actions">
+            {canManageMockData ? (
+              <button
+                type="button"
+                className="sleep-history-panel__import-new-btn sleep-history-panel__import-new-btn--demo"
+                onClick={() => setIsMockModalOpen(true)}
+              >
+                Demo tools
+              </button>
+            ) : null}
+            {hasImportedDays ? (
+              <button type="button" className="sleep-history-panel__import-new-btn" onClick={() => setIsImportModalOpen(true)}>
+                Import new data
+              </button>
+            ) : null}
+          </div>
+        </div>
 
       {!hasImportedDays ? renderImportPanel() : null}
 
@@ -873,73 +958,10 @@ export default function SleepHistoryPanel({
         </>
       )}
 
-      {isImportModalOpen ? (
-        <div className="sleep-history-panel__modal-backdrop" onClick={() => setIsImportModalOpen(false)}>
-          <div className="sleep-history-panel__modal sleep-history-panel__modal--import" role="dialog" aria-modal="true" aria-labelledby="sleep-import-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="sleep-history-panel__modal-head">
-              <div>
-                <p className="sleep-history-panel__modal-eyebrow">Garmin Import</p>
-                <h3 id="sleep-import-modal-title">Import Garmin files</h3>
-              </div>
-              <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsImportModalOpen(false)} aria-label="Close import dialog">
-                x
-              </button>
-            </div>
-            <div className="sleep-history-panel__modal-body">
-              {renderImportPanel({ showTitle: false })}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {isMockModalOpen ? (
-        <div className="sleep-history-panel__modal-backdrop" onClick={() => setIsMockModalOpen(false)}>
-          <div className="sleep-history-panel__modal sleep-history-panel__modal--import" role="dialog" aria-modal="true" aria-labelledby="sleep-mock-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="sleep-history-panel__modal-head">
-              <div>
-                <p className="sleep-history-panel__modal-eyebrow">Admin Demo Tools</p>
-                <h3 id="sleep-mock-modal-title">Sleep insight sensor demo</h3>
-              </div>
-              <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsMockModalOpen(false)} aria-label="Close demo tools">
-                x
-              </button>
-            </div>
-            <div className="sleep-history-panel__modal-body">
-              {renderMockAdminPanel({ showTitle: false })}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {isHelpOpen ? (
-        <div className="sleep-history-panel__modal-backdrop" onClick={() => setIsHelpOpen(false)}>
-          <div className="sleep-history-panel__modal" role="dialog" aria-modal="true" aria-labelledby="sleep-import-help-title" onClick={(event) => event.stopPropagation()}>
-            <div className="sleep-history-panel__modal-head">
-              <div>
-                <p className="sleep-history-panel__modal-eyebrow">Garmin Export Guide</p>
-                <h3 id="sleep-import-help-title">How to import the sleep data</h3>
-              </div>
-              <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsHelpOpen(false)} aria-label="Close import instructions">
-                x
-              </button>
-            </div>
-            <div className="sleep-history-panel__modal-body">
-              <ol className="sleep-history-panel__steps">
-                <li><strong>Request your Garmin export.</strong> Sign in to Garmin and open the account privacy or data export area. You can go directly to <a href="https://www.garmin.com/en-US/account/datamanagement/exportdata" target="_blank" rel="noreferrer">Garmin Manage Your Data</a>.</li>
-                <li><strong>Start the export.</strong> Open <em>Manage Your Data</em> or <em>Export Your Data</em>, then choose <em>Request Data Export</em>.</li>
-                <li><strong>Wait for Garmin&apos;s email.</strong> Garmin usually prepares the archive first and emails you the download link when it is ready.</li>
-                <li><strong>Download and unzip the archive.</strong> Extract the Garmin export on your computer so you can browse the folders inside it.</li>
-                <li><strong>Find the nightly summary files.</strong> For the summary metrics already supported in AirIQ, open <code className="sleep-history-panel__path">DI_CONNECT/DI-Connect-Aggregator/</code> and look for files named <code className="sleep-history-panel__path">UDSFile_...json</code>.</li>
-                <li><strong>Find the detailed sleep stage files.</strong> For REM, light, deep, and awake data, open <code className="sleep-history-panel__path">DI_CONNECT/DI-Connect-Wellness/</code> and look for files named <code className="sleep-history-panel__path">*_sleepData.json</code>.</li>
-                <li><strong>Upload either or both types here.</strong> You can import just the summary files, just the detailed sleep files, or both together. AirIQ will merge matching nights into one sleep history.</li>
-              </ol>
-              <p className="sleep-history-panel__modal-note">
-                Garmin&apos;s export folder names are a little cryptic, but the two useful paths for sleep imports are the aggregator folder for nightly summaries and the wellness folder for stage-level sleep data.
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </section>
+      </section>
+      {importModal}
+      {mockModal}
+      {helpModal}
+    </>
   )
 }
