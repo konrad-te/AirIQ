@@ -529,7 +529,7 @@
 
 .sleep-history-panel__selected-day-duration strong {
   color: #ffffff;
-  font-size: 1.2rem;
+  font-size: 1rem;
   letter-spacing: -0.03em;
 }
 
@@ -544,10 +544,10 @@
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 0.65rem;
+  gap: 0.5rem;
   min-height: 0;
-  padding: 0.52rem 0.62rem;
-  border-radius: 12px;
+  padding: 0.42rem 0.55rem;
+  border-radius: 10px;
   border: 1px solid rgba(188, 210, 235, 0.88);
   border-left: 3px solid rgba(94, 207, 255, 0.55);
   background:
@@ -559,8 +559,8 @@
 
 .sleep-history-panel__selected-stat strong {
   color: #142a45;
-  font-size: 1.08rem;
-  font-weight: 500;
+  font-size: 0.88rem;
+  font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -570,11 +570,11 @@
 
 .sleep-history-panel__selected-stat span {
   color: #4a6b8a;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  line-height: 1.25;
+  line-height: 1.2;
   flex: 1 1 auto;
   min-width: 0;
 }

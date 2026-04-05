@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getIntlLocale, getIntlTimezone } from './i18n'
-import heroBackground from './assets/123.png'
-import logoAiriq from './assets/airiq_logo2.0.png'
-import runIcon from './assets/run.png'
-import windowIcon from './assets/window.png'
 import sensorEmptyArt from './assets/sensor.png'
-import moonIcon from './assets/moon.png'
-import notisIcon from './assets/notis.png'
 import './App.css'
 import AqiRing from './components/AqiRing'
-import DashboardGlobe from './components/DashboardGlobe'
 import DeviceSetupModal from './components/DeviceSetupModal'
 import ForgotPasswordModal from './components/ForgotPasswordModal'
 import LoginModal from './components/LoginModal'
@@ -38,34 +31,6 @@ import { addSavedLocation, getPreferences, getSavedLocations, previewAdminSugges
 import { getQingpingIntegrationStatus } from './services/integrationService'
 const mockData = {
   location: 'Stockholm, Sweden',
-  aqi: 42,
-  aqiLabel: 'Good',
-  pm25Value: 18,
-  pm25Unit: 'ug/m3',
-  pm10Value: 24,
-  pm10Unit: 'ug/m3',
-  pollen: 'Medium',
-  todayTag: 'Today',
-  recommendations: [
-    {
-      key: 'outdoor',
-      title: 'Best time for outdoor activities',
-      value: '18:00 - 20:00',
-      icon: runIcon,
-    },
-    {
-      key: 'ventilation',
-      title: 'Ventilation window',
-      value: '13:00 - 15:00',
-      icon: windowIcon,
-    },
-    {
-      key: 'sleep',
-      title: 'Sleep air',
-      value: 'Excellent tonight',
-      icon: moonIcon,
-    },
-  ],
 }
 const POLISH_LOCALE = 'pl-PL'
 const POLISH_TIMEZONE = 'Europe/Warsaw'
@@ -430,11 +395,22 @@ export default function App() {
   const [isSendingVerificationNotification, setIsSendingVerificationNotification] = useState(false)
   const [verificationNotificationSent, setVerificationNotificationSent] = useState(false)
   const activeAirRequestRef = useRef(0)
+  const [navScrolled, setNavScrolled] = useState(false)
+  const [isHealthDropOpen, setIsHealthDropOpen] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 16)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
   const canAccessPremiumInsights = Boolean(user && (user.role === 'admin' || user.plan === 'plus'))
   const notificationCount = user && !user.email_verified ? 1 : 0
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
     setRoute('/globe')
+  }
+  const handleOpenTrends = () => {
+    window.history.pushState({}, '', '/trends')
+    setRoute('/trends')
   }
   const handleOpenFeedback = () => {
     window.history.pushState({}, '', '/feedback')
@@ -1481,8 +1457,10 @@ export default function App() {
     token &&
     !(user?.role === 'admin' && dashboardAdminOverride),
   )
-  const heroPm25 = dashboardAdminOverride?.outdoor_pm25 ?? liveAirData?.current?.pm25 ?? '--'
-  const heroPm10 = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
+  const heroPm25Raw = dashboardAdminOverride?.outdoor_pm25 ?? liveAirData?.current?.pm25 ?? '--'
+  const heroPm25 = typeof heroPm25Raw === 'number' ? Math.round(heroPm25Raw * 10) / 10 : heroPm25Raw
+  const heroPm10Raw = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
+  const heroPm10 = typeof heroPm10Raw === 'number' ? Math.round(heroPm10Raw * 10) / 10 : heroPm10Raw
   const heroLocation = currentLocationLabel
   const heroAqiValue = liveAirData?.aqi?.value ?? 0
   const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? t('common.loading') : t('dashboard.noData'))
@@ -1688,8 +1666,10 @@ export default function App() {
   const indoorAqiValue = 2
   const indoorAqiLabel = 'Good'
   const indoorTitle = sensorStatus?.selected_device_name || 'Living Room'
-  const indoorPm25 = dashboardAdminOverride?.indoor_pm25 ?? sensorReading?.pm2_5_ug_m3 ?? '--'
-  const indoorPm10 = dashboardAdminOverride?.indoor_pm10 ?? sensorReading?.pm10_ug_m3 ?? '--'
+  const indoorPm25Raw = dashboardAdminOverride?.indoor_pm25 ?? sensorReading?.pm2_5_ug_m3 ?? '--'
+  const indoorPm25 = typeof indoorPm25Raw === 'number' ? Math.round(indoorPm25Raw * 10) / 10 : indoorPm25Raw
+  const indoorPm10Raw = dashboardAdminOverride?.indoor_pm10 ?? sensorReading?.pm10_ug_m3 ?? '--'
+  const indoorPm10 = typeof indoorPm10Raw === 'number' ? Math.round(indoorPm10Raw * 10) / 10 : indoorPm10Raw
   const indoorCo2 = dashboardAdminOverride?.indoor_co2_ppm ?? sensorReading?.co2_ppm ?? '--'
   const indoorTemp = sensorReading?.temperature_c ?? '--'
   const indoorHumidity = dashboardAdminOverride?.indoor_humidity_pct ?? sensorReading?.humidity_pct ?? '--'
@@ -1707,544 +1687,370 @@ export default function App() {
   const indoorStatusPrimary = `Latest sensor reading: ${indoorMeasurementLabel}`
   const isDashboard = route === '/'
   return (
-    <div className={`page-root${isDashboard ? ' page-root--dashboard' : ''}`}>
-      {isDashboard ? (
-        <DashboardGlobe lat={currentCoords?.lat} lon={currentCoords?.lon} />
-      ) : (
-        <div className="page-root__bg" aria-hidden>
-          <img className="page-root__bg-image" src={heroBackground} alt="" />
-          <div className="page-root__bg-fade" />
-        </div>
-      )}
-      <header className="top-nav">
-        <div className="brand">
-          <img src={logoAiriq} alt="AirIQ" className="brand-logo" />
-        </div>
-        <nav className="nav-links">
-          <button
-            className={`nav-link${route === '/' ? ' nav-link--active' : ''}`}
-            onClick={handleBackToLanding}
-          >
-            {t('nav.dashboard')}
+    <div className="app-root">
+      <nav className={`app-nav${navScrolled ? ' app-nav--scrolled' : ''}`}>
+        <div className="app-nav-inner">
+          <button type="button" className="app-logo-btn" onClick={handleBackToLanding} aria-label="Dashboard">
+            <svg className="app-logo-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="8" fill="url(#app-lg)" />
+              <path d="M16 8L24 23H8L16 8Z" fill="rgba(255,255,255,0.92)" />
+              <defs><linearGradient id="app-lg" x1="0" y1="0" x2="32" y2="32"><stop stopColor="#38BDF8" /><stop offset="1" stopColor="#1A6BF0" /></linearGradient></defs>
+            </svg>
+            <span className="app-logo-text">Air<span className="app-logo-iq">IQ</span></span>
           </button>
-          <button
-            className={`nav-link${route === '/indoor' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenIndoor}
-          >
-            {t('nav.sensorHistory')}
-          </button>
-            <button
-              className={`nav-link${route === '/sleep' ? ' nav-link--active' : ''}`}
-              onClick={handleOpenSleep}
-            >
-              Sleep Data
-            </button>
-            <button
-              className={`nav-link${route === '/training' ? ' nav-link--active' : ''}`}
-              onClick={handleOpenTraining}
-            >
-              Training Data
-            </button>
-          <button
-            className={`nav-link${route === '/feedback' ? ' nav-link--active' : ''}`}
-            onClick={handleOpenFeedback}
-          >
-            {t('nav.feedback')}
-          </button>
-        </nav>
-        <div className="nav-actions">
-          {user ? (
-            <>
-              {user.role === 'admin' && (
+
+          <div className="app-nav-links">
+            <button type="button" className={`app-nav-link${isDashboard ? ' app-nav-link--active' : ''}`} onClick={handleBackToLanding}>Dashboard</button>
+            <button type="button" className={`app-nav-link${route === '/trends' ? ' app-nav-link--active' : ''}`} onClick={handleOpenTrends}>Trends</button>
+            <div className="app-nav-drop">
+              <button type="button" className={`app-nav-link${route === '/sleep' || route === '/training' ? ' app-nav-link--active' : ''}`} onClick={() => setIsHealthDropOpen(v => !v)}>
+                Health
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={isHealthDropOpen ? 'app-nav-chevron--open' : ''}><path d="M3 4.5l3 3 3-3" /></svg>
+              </button>
+              {isHealthDropOpen && (
                 <>
-                  <button
-                    type="button"
-                    className="sleep-history-panel__import-new-btn sleep-history-panel__import-new-btn--demo app-admin-demo-btn"
-                    onClick={() => setIsDashboardAdminToolsOpen(true)}
-                  >
-                    Demo tools
-                  </button>
-                  <button className="btn btn-ghost" onClick={handleOpenAdmin}>{t('nav.admin')}</button>
+                  <div className="app-backdrop" onClick={() => setIsHealthDropOpen(false)} />
+                  <div className="app-nav-drop-menu">
+                    <button type="button" className="app-nav-drop-item" onClick={() => { setIsHealthDropOpen(false); handleOpenSleep() }}>Sleep Data</button>
+                    <button type="button" className="app-nav-drop-item" onClick={() => { setIsHealthDropOpen(false); handleOpenTraining() }}>Training Data</button>
+                  </div>
                 </>
               )}
-              <div className="notifications-menu">
-                <button className="nav-bell" aria-label={t('nav.notifications')} onClick={handleToggleNotifications}>
-                  <img src={notisIcon} alt="" aria-hidden className="nav-bell__icon" />
-                  {notificationCount > 0 ? <span className="nav-bell__badge">{notificationCount}</span> : null}
-                </button>
-                {isNotificationsOpen && (
-                  <>
-                    <div className="user-menu-backdrop" onClick={() => setIsNotificationsOpen(false)} />
-                    <div className="notifications-dropdown">
-                      <div className="notifications-dropdown__header">
-                        <span>{t('nav.notifications')}</span>
-                        {notificationCount > 0 ? <strong>{notificationCount}</strong> : null}
-                      </div>
-                      {notificationCount > 0 ? (
-                        <article className="notification-card notification-card--action">
-                          <div className="notification-card__icon" aria-hidden>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="2" y="4" width="20" height="16" rx="2" />
-                              <polyline points="22,4 12,13 2,4" />
-                            </svg>
-                          </div>
-                          <div className="notification-card__copy">
-                            <span className="notification-card__title">Verify your email</span>
-                            <p className="notification-card__text">
-                              {verificationNotificationSent ? 'Verification email sent. Check your inbox.' : 'Please verify your email address to fully activate your account.'}
-                            </p>
-                            {!verificationNotificationSent && (
-                              <button
-                                type="button"
-                                className="notification-card__action"
-                                onClick={handleSendVerificationNotification}
-                                disabled={isSendingVerificationNotification}
-                              >
-                                {isSendingVerificationNotification ? 'Sending...' : 'Resend email'}
-                              </button>
-                            )}
-                          </div>
-                        </article>
-                      ) : (
-                        <div className="notifications-dropdown__empty">
-                          <p>No notifications right now.</p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="user-menu">
-                <button
-                  className="nav-avatar"
-                  onClick={() => { setIsNotificationsOpen(false); setIsUserMenuOpen((prev) => !prev) }}
-                  aria-label="Open user menu"
-                >
-                  {user?.profile_image_data ? (
-                    <img src={user.profile_image_data} alt={userDisplayName} className="nav-avatar__image" />
-                  ) : (
-                    userInitials
-                  )}
-                </button>
-                {isUserMenuOpen && (
-                  <>
-                    <div className="user-menu-backdrop" onClick={() => setIsUserMenuOpen(false)} />
-                    <div className="user-menu-dropdown">
-                      <div className="user-menu-profile">
-                        <div className="user-menu-profile__avatar">
-                          {user?.profile_image_data ? (
-                            <img src={user.profile_image_data} alt={userDisplayName} className="user-menu-profile__image" />
-                          ) : (
-                            <span>{userInitials}</span>
+            </div>
+            <button type="button" className={`app-nav-link${route === '/globe' ? ' app-nav-link--active' : ''}`} onClick={handleOpenGlobe}>Globe</button>
+          </div>
+
+          <div className="app-nav-actions">
+            {user?.role === 'admin' && (
+              <button type="button" className="app-nav-icon-btn app-nav-icon-btn--admin" onClick={() => setIsDashboardAdminToolsOpen(true)} title="Admin demo tools">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
+              </button>
+            )}
+            <div className="app-notif-wrap">
+              <button type="button" className="app-nav-icon-btn" aria-label={t('nav.notifications')} onClick={handleToggleNotifications}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
+                {notificationCount > 0 && <span className="app-notif-badge">{notificationCount}</span>}
+              </button>
+              {isNotificationsOpen && (
+                <>
+                  <div className="app-backdrop" onClick={() => setIsNotificationsOpen(false)} />
+                  <div className="app-dropdown app-dropdown--notif">
+                    <div className="app-dropdown-head"><span>{t('nav.notifications')}</span>{notificationCount > 0 ? <strong>{notificationCount}</strong> : null}</div>
+                    {notificationCount > 0 ? (
+                      <div className="app-dropdown-notif-card">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,4 12,13 2,4" /></svg>
+                        <div>
+                          <strong>Verify your email</strong>
+                          <p>{verificationNotificationSent ? 'Verification email sent. Check your inbox.' : 'Please verify your email address.'}</p>
+                          {!verificationNotificationSent && (
+                            <button type="button" className="app-link-btn" onClick={handleSendVerificationNotification} disabled={isSendingVerificationNotification}>
+                              {isSendingVerificationNotification ? 'Sending...' : 'Resend email'}
+                            </button>
                           )}
                         </div>
-                        <div className="user-menu-profile__copy">
-                          <strong>{userDisplayName}</strong>
-                          <span>{user?.email}</span>
-                          <span className={`user-menu-profile__tier user-menu-profile__tier--${user?.role === 'admin' ? 'admin' : user?.plan === 'plus' ? 'premium' : 'free'}`}>{userTierLabel}</span>
-                        </div>
                       </div>
-                      <div className="user-menu-divider" />
-                      <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSubscription() }}>Premium</button>
-                      <div className="user-menu-divider" />
-                      <button className="user-menu-item" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>{t('nav.settings')}</button>
-                      <div className="user-menu-divider" />
-                      <button className="user-menu-item user-menu-item--logout" onClick={() => { setIsUserMenuOpen(false); logout() }}>{t('nav.logout')}</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <button className="btn btn-ghost" onClick={() => setIsLoginOpen(true)}>{t('nav.login')}</button>
-              <button className="btn btn-primary" onClick={() => setIsRegisterOpen(true)}>{t('nav.getStarted')}</button>
-            </>
-          )}
-        </div>
-      </header>
-      <main className={`dashboard${isDashboard ? ' dashboard--globe' : ''}`}>
-
-      {route === '/trends' ? (<>
-        {/* â•â• Trends page â•â• */}
-        <div className="dash-page-header">
-          <h2 className="dash-page-title">{t('dashboard.airQualityTrends')}</h2>
-          <p className="dash-page-sub">{heroLocation}</p>
-        </div>
-        <div className="dash-chart-row">
-          <PM25Chart
-            history={liveAirData?.history}
-            forecast={liveAirData?.forecast}
-            currentValue={heroPm25}
-            currentLabel={t('now')}
-            unit={mockData.pm25Unit}
-            measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
-            sourceProvider={sourceProvider}
-            sourceMethod={sourceMethod}
-            sourceDistanceKm={liveAirData?.source?.distance_km}
-          />
-        </div>
-      </>) : route === '/indoor' ? (<>
-        {/* â•â• Indoor page â•â• */}
-        <div className="dash-card">
-          {hasConnectedIndoorSensor ? (
-            <IndoorHistoryPanel
-              historyData={indoorHistory}
-              isLoading={isLoadingIndoorHistory}
-              error={indoorHistoryError}
-              selectedRange={indoorHistoryRange}
-              onRangeChange={setIndoorHistoryRange}
-              onRefresh={() => setIndoorHistoryRefreshNonce((n) => n + 1)}
-              token={token}
-              canManageMockData={user?.role === 'admin'}
-              locale="en-GB"
-              timeZone={POLISH_TIMEZONE}
-            />
-          ) : (
-            <div className="indoor-history-empty">
-              <h3>{t('indoor.noHistoryTitle')}</h3>
-              <p>{t('indoor.noHistoryDesc')}</p>
-              {sensorError ? <p className="indoor-history-empty__error">{sensorError}</p> : null}
-              <button type="button" className="btn btn-primary indoor-history-empty__action" onClick={() => handleAddDevice('sensor')}>
-                {t('indoor.connectSensor')}
-              </button>
-            </div>
-          )}
-        </div>
-      </>) : route === '/sleep' ? (<>
-        <div className="dash-card">
-          <SleepHistoryPanel
-            historyData={sleepHistory}
-            calendarHistoryData={sleepCalendarHistory ?? sleepHistory}
-            isLoading={isLoadingSleepHistory}
-            error={sleepHistoryError}
-            selectedRange={sleepHistoryRange}
-            onRangeChange={setSleepHistoryRange}
-            onRefresh={() => setSleepHistoryRefreshNonce((value) => value + 1)}
-            onImport={handleSleepImport}
-            importBusy={isImportingSleepData}
-            importNotice={sleepImportNotice}
-            importError={sleepImportError}
-            token={token}
-            canManageMockData={user?.role === 'admin'}
-            selectedInsightDate={selectedSleepInsightDate}
-            onSelectInsightDate={setSelectedSleepInsightDate}
-            insightData={sleepInsight}
-            insightLoading={isLoadingSleepInsight}
-            insightError={sleepInsightError}
-            canGenerateInsight={canAccessPremiumInsights}
-            onGenerateInsight={handleGenerateSleepInsight}
-            onOpenSubscription={user?.role === 'admin' ? null : handleOpenSubscription}
-            onInsightFeedback={token ? handleSleepInsightFeedback : null}
-            insightFeedbackVote={sleepInsight?.date ? (sleepInsightFeedbackVotes[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
-            insightFeedbackBusy={Boolean(sleepInsight?.date ? sleepInsightFeedbackBusy[`sleep-insight-${sleepInsight.date}`] : false)}
-            insightFeedbackError={sleepInsight?.date ? (sleepInsightFeedbackErrors[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
-            onRefreshInsight={clearSleepInsight}
-            locale="en-GB"
-            timeZone={POLISH_TIMEZONE}
-          />
-        </div>
-      </>) : route === '/training' ? (<>
-        <div className="dash-card">
-          <TrainingDataPanel
-            trainingData={trainingPreview}
-            calendarTrainingData={trainingCalendarHistory ?? trainingPreview}
-            isLoading={isLoadingTrainingPreview}
-            error={trainingPreviewError}
-            selectedRange={trainingHistoryRange}
-            onRangeChange={setTrainingHistoryRange}
-            onImport={handleTrainingImport}
-            importBusy={isImportingTrainingData}
-            importNotice={trainingImportNotice}
-            importError={trainingImportError}
-            onRefresh={() => setTrainingPreviewRefreshNonce((value) => value + 1)}
-            selectedInsightDate={selectedTrainingInsightDate}
-            onSelectInsightDate={setSelectedTrainingInsightDate}
-            insightData={trainingInsight}
-            insightLoading={isLoadingTrainingInsight}
-            insightError={trainingInsightError}
-            insightWindow={selectedTrainingInsightWindow}
-            onInsightWindowChange={setSelectedTrainingInsightWindow}
-            canGenerateInsight={canAccessPremiumInsights}
-            onGenerateInsight={handleGenerateTrainingInsight}
-            onOpenSubscription={user?.role === 'admin' ? null : handleOpenSubscription}
-            locale="en-GB"
-            timeZone={POLISH_TIMEZONE}
-          />
-        </div>
-      </>) : (<>
-        <section className="dashboard-preview dashboard-preview--globe">
-          <div className="dashboard-preview__globe-top-bar">
-            <button type="button" className="dashboard-locations-btn" onClick={openLocationModal}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-              </svg>
-              {currentLocationLabel || t('dashboard.locations')}
-            </button>
-            {user.role === 'admin' && isDashboardAdminPreviewActive ? (
-              <div className="dashboard-admin-preview-status">
-                <span>{t('dashboard.adminPreviewActive')}</span>
-                <button type="button" className="dashboard-admin-preview-status__action" onClick={() => setIsDashboardAdminToolsOpen(true)}>
-                  Open demo tools
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <div className="dashboard-preview__cards">
-            <article className="dashboard-preview-card">
-              <div className="dashboard-preview-card__top">
-                <span className="dashboard-preview-card__eyebrow">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M19 18H7a4 4 0 1 1 .6-7.96A5.5 5.5 0 0 1 18 11.5h1a3.5 3.5 0 1 1 0 7Z" />
-                  </svg>
-                  {t('dashboard.outdoorAir')}
-                </span>
-                <span className="dashboard-preview-card__pill dashboard-preview-card__pill--tooltip">
-                  {sourceBadgeLabel}
-                  <span className="dashboard-preview-card__tooltip" role="tooltip">
-                    {sourceTooltipMessage}
-                  </span>
-                </span>
-              </div>
-              <div className="dashboard-preview-card__content">
-                <div className="dashboard-preview-card__ring">
-                  <AqiRing value={heroAqiValue} label={heroAqiLabel} maxValue={6} />
-                </div>
-                <div className="dashboard-preview-card__copy">
-                  {t('dashboard.liveOutdoorAir')}
-                </div>
-                <div className="dashboard-preview-card__meta-row dashboard-preview-card__meta-row--placeholder" aria-hidden>
-                  <span className="dashboard-preview-card__meta-chip">{t('dashboard.batteryPlaceholder')}</span>
-                  <span className="dashboard-preview-card__meta-chip">{t('dashboard.liveSync')}</span>
-                </div>
-                  <div className="dashboard-preview-card__metrics-grid dashboard-preview-card__metrics-grid--outdoor">
-                  <div className="dashboard-preview-card__metric-tile">
-                    <strong>{t('metrics.pm25')}</strong>
-                    <span>{heroPm25} µg/m³</span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-tile">
-                    <strong>{t('metrics.pm10')}</strong>
-                    <span>{heroPm10} µg/m³</span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-tile">
-                    <strong>{t('metrics.temp')}</strong>
-                    <span>{weatherTemperature}</span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-tile">
-                    <strong>{t('metrics.wind')}</strong>
-                    <span>{weatherWind}</span>
-                  </div>
-                  <div className="dashboard-preview-card__metric-tile">
-                    <div className="dashboard-preview-card__split-metric">
-                      <div className="dashboard-preview-card__split-metric-item dashboard-preview-card__split-metric-item--stack">
-                        <small>{t('metrics.humidity')}</small>
-                        <span>{weatherHumidity}</span>
-                      </div>
-                      <div className="dashboard-preview-card__split-metric-item dashboard-preview-card__split-metric-item--stack dashboard-preview-card__split-metric-item--align-end">
-                        <small>{t('metrics.rain')}</small>
-                        <span>{weatherRain}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="dashboard-preview-card__metric-tile">
-                    <strong>{t('metrics.uvIndex')}</strong>
-                    <span>{weatherUv}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="dashboard-preview-card__status">
-                <span>{t('dashboard.updated', { time: outdoorUpdatedLabel })}</span>
-                <div className={`dashboard-preview-card__refresh-wrap${outdoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
-                  <button
-                    type="button"
-                    className="dashboard-preview-card__refresh-btn"
-                    onClick={handleRefreshOutdoor}
-                    disabled={!outdoorCanRefresh}
-                  >
-                    {isLoadingAirData ? t('dashboard.refreshing') : t('dashboard.refresh')}
-                  </button>
-                  {outdoorOnCooldown && (
-                    <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
-                      {t('dashboard.refreshCooldown')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </article>
-            <article
-              className={`dashboard-preview-card dashboard-preview-card--indoor${hasConnectedIndoorSensor ? '' : ' dashboard-preview-card--indoor-waiting'}`}
-            >
-              <div className="dashboard-preview-card__top">
-                <span className="dashboard-preview-card__eyebrow">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="m3 10 9-7 9 7" />
-                    <path d="M5 9.8V21h14V9.8" />
-                  </svg>
-                  {t('dashboard.indoorAir')}
-                </span>
-                {hasConnectedIndoorSensor ? (
-                  <button type="button" className="dashboard-preview-card__room-select" onClick={() => handleAddDevice('sensor')}>
-                    Device: {sensorStatus?.selected_device_name || indoorTitle}
-                  </button>
-                ) : (
-                  <span className="dashboard-preview-card__waiting-pill" role="status">
-                    No device linked
-                  </span>
-                )}
-              </div>
-              <div className="dashboard-preview-card__content">
-                {hasConnectedIndoorSensor ? (
-                  <>
-                    <div className="dashboard-preview-card__ring">
-                      <AqiRing value={indoorAqiValue} label={indoorAqiLabel} maxValue={6} />
-                    </div>
-                    <div className="dashboard-preview-card__copy">{'\u00A0'}</div>
-                    <div className="dashboard-preview-card__meta-row">
-                      <span className="dashboard-preview-card__meta-chip">{t('dashboard.battery', { value: indoorBattery })}</span>
-                      <span className="dashboard-preview-card__meta-chip dashboard-preview-card__meta-chip--live">{t('dashboard.connected')}</span>
-                    </div>
-                    <div className="dashboard-preview-card__metrics-grid">
-                      <div className="dashboard-preview-card__metric-tile">
-                        <strong>{t('metrics.pm25')}</strong>
-                        <span>{indoorPm25} µg/m³</span>
-                      </div>
-                      <div className="dashboard-preview-card__metric-tile">
-                        <strong>{t('metrics.pm10')}</strong>
-                        <span>{indoorPm10} µg/m³</span>
-                      </div>
-                      <div className="dashboard-preview-card__metric-tile">
-                        <strong>{t('metrics.co2')}</strong>
-                        <span>{indoorCo2} ppm</span>
-                      </div>
-                      <div className="dashboard-preview-card__metric-tile">
-                        <strong>{t('metrics.temp')}</strong>
-                        <span>{indoorTemp}°C</span>
-                      </div>
-                      <div className="dashboard-preview-card__metric-tile">
-                        <strong>{t('metrics.humidity')}</strong>
-                        <span>{indoorHumidity}%</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="dashboard-preview-card__indoor-empty">
-                    <div className="dashboard-preview-card__indoor-empty-visual" aria-hidden>
-                      <img
-                        className="dashboard-preview-card__indoor-empty-img"
-                        src={sensorEmptyArt}
-                        alt=""
-                        width={360}
-                        height={360}
-                        decoding="async"
-                      />
-                    </div>
-                    <div className="dashboard-preview-card__indoor-empty-text">
-                      <h3 className="dashboard-preview-card__indoor-empty-title">Room air, at a glance</h3>
-                      <p className="dashboard-preview-card__indoor-empty-desc">
-                        Link a Qingping monitor through AirIQ Home to track PM, COâ‚‚, temperature, and humidity indoors.
-                      </p>
-                    </div>
-                    <button type="button" className="dashboard-preview-card__indoor-empty-cta" onClick={() => handleAddDevice('sensor')}>
-                      Pair indoor sensor
-                    </button>
-                  </div>
-                )}
-                {sensorError && <p className="dashboard-preview-card__error">{sensorError}</p>}
-              </div>
-              {hasConnectedIndoorSensor ? (
-                <div className="dashboard-preview-card__status">
-                  <div className="dashboard-preview-card__status-copy">
-                    <span>{indoorStatusPrimary}</span>
-                  </div>
-                  <div className={`dashboard-preview-card__refresh-wrap${indoorOnCooldown ? ' dashboard-preview-card__refresh-wrap--cooldown' : ''}`}>
-                    <button
-                      type="button"
-                      className="dashboard-preview-card__refresh-btn"
-                      onClick={handleRefreshIndoor}
-                      disabled={!indoorCanRefresh}
-                    >
-                      {isRefreshingIndoor ? 'Checking...' : indoorRefreshButtonLabel}
-                    </button>
-                    {indoorOnCooldown && (
-                      <span className="dashboard-preview-card__refresh-tooltip" role="tooltip">
-                        {indoorRefreshTooltipMessage}
-                      </span>
+                    ) : (
+                      <p className="app-dropdown-empty">No notifications right now.</p>
                     )}
                   </div>
-                </div>
-              ) : (
-                <div className="dashboard-preview-card__status dashboard-preview-card__status--indoor-waiting">
-                  <span className="dashboard-preview-card__status-waiting-note">
-                    The same pairing flow you use for Qingping / AirIQ Home â€” secure and local to your account.
-                  </span>
-                </div>
+                </>
               )}
-            </article>
+            </div>
+            <div className="app-user-wrap">
+              <button type="button" className="app-nav-avatar" onClick={() => { setIsNotificationsOpen(false); setIsUserMenuOpen(v => !v) }} aria-label="User menu">
+                {user?.profile_image_data ? <img src={user.profile_image_data} alt={userDisplayName} className="app-nav-avatar-img" /> : userInitials}
+              </button>
+              {isUserMenuOpen && (
+                <>
+                  <div className="app-backdrop" onClick={() => setIsUserMenuOpen(false)} />
+                  <div className="app-dropdown app-dropdown--user">
+                    <div className="app-dropdown-profile">
+                      <div className="app-dropdown-profile-avatar">{user?.profile_image_data ? <img src={user.profile_image_data} alt={userDisplayName} /> : <span>{userInitials}</span>}</div>
+                      <div><strong>{userDisplayName}</strong><span>{user?.email}</span><span className={`app-user-tier app-user-tier--${user?.role === 'admin' ? 'admin' : user?.plan === 'plus' ? 'premium' : 'free'}`}>{userTierLabel}</span></div>
+                    </div>
+                    <div className="app-dropdown-sep" />
+                    <button type="button" className="app-dropdown-btn" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>{t('nav.settings')}</button>
+                    <button type="button" className="app-dropdown-btn" onClick={() => { setIsUserMenuOpen(false); handleOpenFeedback() }}>Feedback</button>
+                    <button type="button" className="app-dropdown-btn" onClick={() => { setIsUserMenuOpen(false); handleAddDevice('sensor') }}>Connect Sensor</button>
+                    {user?.role === 'admin' && <button type="button" className="app-dropdown-btn" onClick={() => { setIsUserMenuOpen(false); handleOpenAdmin() }}>Admin</button>}
+                    <div className="app-dropdown-sep" />
+                    <button type="button" className="app-dropdown-btn" onClick={() => { setIsUserMenuOpen(false); handleOpenSubscription() }}>Premium</button>
+                    <div className="app-dropdown-sep" />
+                    <button type="button" className="app-dropdown-btn app-dropdown-btn--danger" onClick={() => { setIsUserMenuOpen(false); logout() }}>{t('nav.logout')}</button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-          <div className="dashboard-preview-recs__banners" aria-hidden>
-            <div className="dashboard-preview-recs__banner dashboard-preview-recs__banner--suggestions">
-              <button
-                type="button"
-                className="dashboard-preview-recs__banner-refresh-btn"
-                onClick={handleRefreshSuggestions}
-                disabled={isRefreshingSuggestions}
-                aria-label={`${t('dashboard.suggestions')}: ${suggestionsBannerCountLabel}. ${t('dashboard.refreshSuggestions')}`}
-              >
-                <span className="dashboard-preview-recs__banner-label">
-                  {t('dashboard.suggestions')}
-                  <span className="dashboard-preview-recs__banner-label-count" aria-hidden>
-                    {suggestionsBannerCount}
-                  </span>
-                </span>
+        </div>
+      </nav>
+
+      <main className="app-main">
+
+      {route === '/trends' ? (<>
+        <div className="app-page">
+          <div className="app-page-header"><h2>{t('dashboard.airQualityTrends')}</h2><p>{heroLocation}</p></div>
+          <div className="app-card">
+            <PM25Chart
+              history={liveAirData?.history}
+              forecast={liveAirData?.forecast}
+              currentValue={heroPm25}
+              currentLabel={t('now')}
+              unit={'ug/m3'}
+              measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
+              sourceProvider={sourceProvider}
+              sourceMethod={sourceMethod}
+              sourceDistanceKm={liveAirData?.source?.distance_km}
+            />
+          </div>
+        </div>
+      </>) : route === '/indoor' ? (<>
+        <div className="app-page">
+          <div className="app-card">
+            {hasConnectedIndoorSensor ? (
+              <IndoorHistoryPanel
+                historyData={indoorHistory}
+                isLoading={isLoadingIndoorHistory}
+                error={indoorHistoryError}
+                selectedRange={indoorHistoryRange}
+                onRangeChange={setIndoorHistoryRange}
+                onRefresh={() => setIndoorHistoryRefreshNonce((n) => n + 1)}
+                token={token}
+                canManageMockData={user?.role === 'admin'}
+                locale="en-GB"
+                timeZone={intlTimezone}
+              />
+            ) : (
+              <div className="app-empty-state">
+                <img src={sensorEmptyArt} alt="" width={240} className="app-empty-state-img" />
+                <h3>{t('indoor.noHistoryTitle')}</h3>
+                <p>{t('indoor.noHistoryDesc')}</p>
+                {sensorError ? <p className="app-error-text">{sensorError}</p> : null}
+                <button type="button" className="app-btn-primary" onClick={() => handleAddDevice('sensor')}>{t('indoor.connectSensor')}</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </>) : route === '/sleep' ? (<>
+        <div className="app-page">
+          <div className="app-card">
+            <SleepHistoryPanel
+              historyData={sleepHistory}
+              calendarHistoryData={sleepCalendarHistory ?? sleepHistory}
+              isLoading={isLoadingSleepHistory}
+              error={sleepHistoryError}
+              selectedRange={sleepHistoryRange}
+              onRangeChange={setSleepHistoryRange}
+              onRefresh={() => setSleepHistoryRefreshNonce((value) => value + 1)}
+              onImport={handleSleepImport}
+              importBusy={isImportingSleepData}
+              importNotice={sleepImportNotice}
+              importError={sleepImportError}
+              token={token}
+              canManageMockData={user?.role === 'admin'}
+              selectedInsightDate={selectedSleepInsightDate}
+              onSelectInsightDate={setSelectedSleepInsightDate}
+              insightData={sleepInsight}
+              insightLoading={isLoadingSleepInsight}
+              insightError={sleepInsightError}
+              canGenerateInsight={canAccessPremiumInsights}
+              onGenerateInsight={handleGenerateSleepInsight}
+              onOpenSubscription={user?.role === 'admin' ? null : handleOpenSubscription}
+              onInsightFeedback={token ? handleSleepInsightFeedback : null}
+              insightFeedbackVote={sleepInsight?.date ? (sleepInsightFeedbackVotes[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
+              insightFeedbackBusy={Boolean(sleepInsight?.date ? sleepInsightFeedbackBusy[`sleep-insight-${sleepInsight.date}`] : false)}
+              insightFeedbackError={sleepInsight?.date ? (sleepInsightFeedbackErrors[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
+              onRefreshInsight={clearSleepInsight}
+              locale="en-GB"
+              timeZone={intlTimezone}
+            />
+          </div>
+        </div>
+      </>) : route === '/training' ? (<>
+        <div className="app-page">
+          <div className="app-card">
+            <TrainingDataPanel
+              trainingData={trainingPreview}
+              calendarTrainingData={trainingCalendarHistory ?? trainingPreview}
+              isLoading={isLoadingTrainingPreview}
+              error={trainingPreviewError}
+              selectedRange={trainingHistoryRange}
+              onRangeChange={setTrainingHistoryRange}
+              onImport={handleTrainingImport}
+              importBusy={isImportingTrainingData}
+              importNotice={trainingImportNotice}
+              importError={trainingImportError}
+              onRefresh={() => setTrainingPreviewRefreshNonce((value) => value + 1)}
+              selectedInsightDate={selectedTrainingInsightDate}
+              onSelectInsightDate={setSelectedTrainingInsightDate}
+              insightData={trainingInsight}
+              insightLoading={isLoadingTrainingInsight}
+              insightError={trainingInsightError}
+              insightWindow={selectedTrainingInsightWindow}
+              onInsightWindowChange={setSelectedTrainingInsightWindow}
+              canGenerateInsight={canAccessPremiumInsights}
+              onGenerateInsight={handleGenerateTrainingInsight}
+              onOpenSubscription={user?.role === 'admin' ? null : handleOpenSubscription}
+              locale="en-GB"
+              timeZone={intlTimezone}
+            />
+          </div>
+        </div>
+      </>) : (<>
+        <div className="app-dash">
+          <div className="app-dash-location-bar">
+            <button type="button" className="app-dash-loc-btn" onClick={openLocationModal}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+              <span>{currentLocationLabel || t('dashboard.locations')}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            {isDashboardAdminPreviewActive && (
+              <div className="app-dash-admin-status">
+                <span>Admin preview active</span>
+                <button type="button" onClick={() => setIsDashboardAdminToolsOpen(true)}>Open tools</button>
+              </div>
+            )}
+          </div>
+
+          <div className="app-dash-card app-dash-card--air">
+            <div className="app-dash-card-head">
+              <div className="app-dash-card-title-row">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 18H7a4 4 0 11.6-7.96A5.5 5.5 0 0118 11.5h1a3.5 3.5 0 110 7z" /></svg>
+                <h3>Outdoor Air Quality</h3>
+              </div>
+              <span className="app-dash-source" title={sourceTooltipMessage}>{sourceBadgeLabel}</span>
+            </div>
+
+            <div className="app-air-grid app-air-grid--outdoor">
+              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                <span>{t('metrics.temp')}</span><strong>{weatherTemperature}</strong>
+                <div className="app-air-tip" role="tooltip"><strong>Temperature</strong><p>Current outdoor temperature.</p><p className="app-air-tip-range">Comfortable: 18–24 °C</p></div>
+              </div>
+              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                <span>{t('metrics.wind')}</span><strong>{weatherWind}</strong>
+                <div className="app-air-tip" role="tooltip"><strong>Wind Speed</strong><p>Higher wind helps disperse pollutants but may carry dust.</p><p className="app-air-tip-range">Light: &lt;20 km/h · Strong: &gt;50 km/h</p></div>
+              </div>
+              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                <span>{t('metrics.pm25')}</span><strong>{heroPm25} <small>µg/m³</small></strong>
+                <div className="app-air-tip" role="tooltip"><strong>PM2.5</strong><p>Fine particles that penetrate deep into the lungs. Main health concern in air pollution.</p><p className="app-air-tip-range">Good: &lt;10 · Moderate: 10–25 · Poor: &gt;25</p></div>
+              </div>
+              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                <span>{t('metrics.pm10')}</span><strong>{heroPm10} <small>µg/m³</small></strong>
+                <div className="app-air-tip" role="tooltip"><strong>PM10</strong><p>Coarser particles including dust and pollen. Less harmful than PM2.5 but still irritating.</p><p className="app-air-tip-range">Good: &lt;20 · Moderate: 20–50 · Poor: &gt;50</p></div>
+              </div>
+              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                <span>{t('metrics.rain')}</span><strong>{weatherRain}</strong>
+                <div className="app-air-tip" role="tooltip"><strong>Rainfall</strong><p>Rain washes pollutants from the air, improving air quality temporarily.</p><p className="app-air-tip-range">0 mm: Dry · &gt;2 mm: Light rain</p></div>
+              </div>
+              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                <span>{t('metrics.uvIndex')}</span><strong>{weatherUv}</strong>
+                <div className="app-air-tip" role="tooltip"><strong>UV Index</strong><p>Strength of ultraviolet radiation. Higher values mean more sun protection needed.</p><p className="app-air-tip-range">Low: 0–2 · Moderate: 3–5 · High: 6–7 · Very high: 8+</p></div>
+              </div>
+              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                <span>{t('metrics.humidity')}</span><strong>{weatherHumidity}</strong>
+                <div className="app-air-tip" role="tooltip"><strong>Humidity</strong><p>Relative humidity affects comfort and how pollutants behave in the air.</p><p className="app-air-tip-range">Comfortable: 30–60%</p></div>
+              </div>
+            </div>
+
+            <div className="app-dash-card-foot">
+              <span>{t('dashboard.updated', { time: outdoorUpdatedLabel })}</span>
+              <button type="button" className="app-dash-refresh" onClick={handleRefreshOutdoor} disabled={!outdoorCanRefresh}>
+                {isLoadingAirData ? t('dashboard.refreshing') : t('dashboard.refresh')}
               </button>
             </div>
-            <div className="dashboard-preview-recs__banner dashboard-preview-recs__banner--day">
-              <span className="dashboard-preview-recs__banner-label">{t('dashboard.planForDay')}</span>
+          </div>
+
+          {hasConnectedIndoorSensor && (
+            <div className="app-dash-card app-dash-card--indoor">
+              <div className="app-dash-card-head">
+                <div className="app-dash-card-title-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 10 9-7 9 7" /><path d="M5 9.8V21h14V9.8" /></svg>
+                  <h3>Indoor Air</h3>
+                  <span className="app-dash-device-name">{sensorStatus?.selected_device_name || indoorTitle}</span>
+                </div>
+                <button type="button" className="app-dash-history-link" onClick={handleOpenIndoor}>View history</button>
+              </div>
+              <div className="app-air-grid app-air-grid--indoor">
+                <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                  <span>{t('metrics.temp')}</span><strong>{indoorTemp}°C</strong>
+                  <div className="app-air-tip" role="tooltip"><strong>Indoor Temperature</strong><p>Room temperature affects sleep quality and comfort.</p><p className="app-air-tip-range">Ideal for sleep: 16–19 °C · Comfortable: 20–24 °C</p></div>
+                </div>
+                <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                  <span>{t('metrics.co2')}</span><strong>{indoorCo2} <small>ppm</small></strong>
+                  <div className="app-air-tip" role="tooltip"><strong>CO₂</strong><p>Carbon dioxide level. High CO₂ causes drowsiness and reduces cognitive performance.</p><p className="app-air-tip-range">Good: &lt;800 ppm · Ventilate: &gt;1000 ppm</p></div>
+                </div>
+                <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                  <span>{t('metrics.humidity')}</span><strong>{indoorHumidity}%</strong>
+                  <div className="app-air-tip" role="tooltip"><strong>Indoor Humidity</strong><p>Too dry irritates airways, too humid promotes mold growth.</p><p className="app-air-tip-range">Ideal: 40–60%</p></div>
+                </div>
+                <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                  <span>{t('metrics.pm25')}</span><strong>{indoorPm25} <small>µg/m³</small></strong>
+                  <div className="app-air-tip" role="tooltip"><strong>Indoor PM2.5</strong><p>Fine particles indoors, often from cooking, candles, or outdoor air leaking in.</p><p className="app-air-tip-range">Good: &lt;10 · Moderate: 10–25 · Poor: &gt;25</p></div>
+                </div>
+                <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
+                  <span>{t('metrics.pm10')}</span><strong>{indoorPm10} <small>µg/m³</small></strong>
+                  <div className="app-air-tip" role="tooltip"><strong>Indoor PM10</strong><p>Coarser particles from dust, pet dander, or pollen brought indoors.</p><p className="app-air-tip-range">Good: &lt;20 · Moderate: 20–50 · Poor: &gt;50</p></div>
+                </div>
+              </div>
+              <div className="app-dash-card-foot">
+                <span>{indoorStatusPrimary}</span>
+                <button type="button" className="app-dash-refresh" onClick={handleRefreshIndoor} disabled={!indoorCanRefresh}>
+                  {isRefreshingIndoor ? t('dashboard.checking') : indoorRefreshButtonLabel}
+                </button>
+              </div>
+              {sensorError && <p className="app-error-msg">{sensorError}</p>}
+            </div>
+          )}
+
+          <div className="app-dash-split">
+            <div className="app-dash-card">
+              <div className="app-dash-card-head">
+                <h3>{t('dashboard.suggestions')}</h3>
+                <button type="button" className="app-dash-head-action" onClick={handleRefreshSuggestions} disabled={isRefreshingSuggestions}>
+                  {isRefreshingSuggestions ? t('dashboard.refreshingSuggestions') : t('dashboard.refreshSuggestions')}
+                </button>
+              </div>
+              {dashboardSuggestionsError ? <p className="app-error-msg">{dashboardSuggestionsError}</p> : null}
+              <SuggestionsPanel
+                variant="globeConsole"
+                suggestions={dashboardSuggestions}
+                isLoading={isSuggestionsPanelLoading}
+                onSuggestionFeedback={isDashboardSuggestionFeedbackEnabled ? handleSuggestionFeedback : null}
+                feedbackVotes={dashboardSuggestionFeedbackVotes}
+                feedbackBusy={dashboardSuggestionFeedbackBusy}
+                feedbackErrors={dashboardSuggestionFeedbackErrors}
+              />
+            </div>
+            <div className="app-dash-card">
+              <OutdoorDayAdvicePanel
+                airData={liveAirData}
+                locationLabel={currentLocationLabel}
+                locale={intlLocale}
+                timeZone={intlTimezone}
+              />
             </div>
           </div>
-          <section className="dashboard-preview-recs" aria-label={t('dashboard.suggestions')}>
-            <div className="dashboard-preview-recs__split">
-              <div className="dashboard-preview-recs__pane dashboard-preview-recs__pane--suggestions">
-                {dashboardSuggestionsError ? (
-                  <p className="dashboard-preview-recs__error">{dashboardSuggestionsError}</p>
-                ) : null}
-                <SuggestionsPanel
-                  variant="globeConsole"
-                  suggestions={dashboardSuggestions}
-                  isLoading={isSuggestionsPanelLoading}
-                  onSuggestionFeedback={isDashboardSuggestionFeedbackEnabled ? handleSuggestionFeedback : null}
-                  feedbackVotes={dashboardSuggestionFeedbackVotes}
-                  feedbackBusy={dashboardSuggestionFeedbackBusy}
-                  feedbackErrors={dashboardSuggestionFeedbackErrors}
-                />
-              </div>
-              <div className="dashboard-preview-recs__pane dashboard-preview-recs__pane--day">
-                <OutdoorDayAdvicePanel
-                  hidePlanEyebrow
-                  airData={liveAirData}
-                  locationLabel={currentLocationLabel}
-                  locale={intlLocale}
-                  timeZone={intlTimezone}
-                />
-              </div>
-            </div>
-          </section>
-        </section>
+        </div>
       </>)}
       </main>
-      <footer className="page-footer">
-        <div className="footer-left">
-          <img src={logoAiriq} alt="AirIQ" className="footer-logo" />
-          <p className="footer-tagline">{t('footer.tagline')}</p>
-        </div>
-        <div className="footer-right">
-          <a href="#privacy" className="footer-link">{t('footer.privacy')}</a>
-          <span className="footer-dot">|</span>
-          <a href="#sources" className="footer-link">{t('footer.dataSources')}</a>
-          <span className="footer-dot">|</span>
-          <a href="#help" className="footer-link">{t('footer.help')}</a>
+
+      <footer className="app-footer">
+        <div className="app-footer-inner">
+          <div className="app-footer-brand">
+            <span className="app-logo-btn app-logo-btn--small">
+              <svg width="24" height="24" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="url(#app-lgf)" /><path d="M16 8L24 23H8L16 8Z" fill="rgba(255,255,255,0.92)" /><defs><linearGradient id="app-lgf" x1="0" y1="0" x2="32" y2="32"><stop stopColor="#38BDF8" /><stop offset="1" stopColor="#1A6BF0" /></linearGradient></defs></svg>
+              <span className="app-logo-text app-logo-text--footer">Air<span className="app-logo-iq">IQ</span></span>
+            </span>
+            <p>{t('footer.tagline')}</p>
+          </div>
+          <div className="app-footer-links">
+            <a href="#privacy">{t('footer.privacy')}</a>
+            <a href="#sources">{t('footer.dataSources')}</a>
+            <a href="#help">{t('footer.help')}</a>
+          </div>
         </div>
       </footer>
+
       <DeviceSetupModal
         isOpen={isDeviceSetupOpen}
         onClose={() => setIsDeviceSetupOpen(false)}
@@ -2277,27 +2083,18 @@ export default function App() {
                 <p className="plan-modal__copy">Upgrade this account to Plus to generate AI sleep and training insights.</p>
               </div>
               <button type="button" className="plan-modal__close" onClick={handleClosePlanModal} aria-label={t('common.close')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="plan-selector-section">
-              <PlanSelector
-                currentPlan={user?.plan ?? 'free'}
-                busy={isUpdatingPlan}
-                notice={planUpdateNotice}
-                error={planUpdateError}
-                onPlanChange={handlePlanChange}
-                title="Choose your plan"
-              />
+              <PlanSelector currentPlan={user?.plan ?? 'free'} busy={isUpdatingPlan} notice={planUpdateNotice} error={planUpdateError} onPlanChange={handlePlanChange} title="Choose your plan" />
             </div>
           </div>
         </>
       )}
       {dashboardAdminToolsModal}
 
-      {/* ── Location search / manage popup ── */}
+
       {isLocationSearchOpen && (
         <>
           <div className="loc-modal-backdrop" onClick={closeLocationModal} />

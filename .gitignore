@@ -66,3 +66,12 @@ docs/garmin-sleep-data/
 docs/**/DI_CONNECT/
 docs/**/UDSFile_*.json
 docs/**/*_sleepData.json
+
+venv/
+.venv/
+__pycache__/
+node_modules/
+.env
+.env.*
+dist/
+build/

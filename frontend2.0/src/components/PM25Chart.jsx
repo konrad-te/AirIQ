@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import sourceLogo from '../assets/source-logo.png'
+import './PM25Chart.css'
 
-const CHART_WIDTH = 348
-const CHART_HEIGHT = 152
-const PAD = { left: 2, right: 2, top: 20, bottom: 16 }
+const CHART_WIDTH = 820
+const CHART_HEIGHT = 260
+const PAD = { left: 12, right: 12, top: 16, bottom: 24 }
 const INNER_W = CHART_WIDTH - PAD.left - PAD.right
 const INNER_H = CHART_HEIGHT - PAD.top - PAD.bottom
+const GRID_LINES = 5
 const HOUR_MS = 60 * 60 * 1000
 
 function toDate(value) {
@@ -279,12 +281,14 @@ function PM25Chart({
           >
             <defs>
               <linearGradient id="pm25AreaFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1183ff" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#1183ff" stopOpacity="0.03" />
+                <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.22" />
+                <stop offset="45%" stopColor="#bae6fd" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
               </linearGradient>
               <linearGradient id="pm25ForecastFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#12b88f" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#12b88f" stopOpacity="0.02" />
+                <stop offset="0%" stopColor="#6ee7b7" stopOpacity="0.18" />
+                <stop offset="45%" stopColor="#a7f3d0" stopOpacity="0.06" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
               </linearGradient>
               <clipPath id="pm25HistoryClip">
                 <rect x="0" y="0" width={centerX} height={CHART_HEIGHT} />
@@ -294,47 +298,32 @@ function PM25Chart({
               </clipPath>
             </defs>
 
+            <rect x={0} y={0} width={CHART_WIDTH} height={CHART_HEIGHT} rx="10" fill="#f3f6f9" />
+
+            {Array.from({ length: GRID_LINES }, (_, i) => {
+              const y = PAD.top + (i / (GRID_LINES - 1)) * INNER_H
+              return (
+                <line key={`h${i}`} x1={PAD.left} y1={y} x2={CHART_WIDTH - PAD.right} y2={y}
+                  stroke="#dde3ea" strokeWidth="1" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />
+              )
+            })}
+
+            <line x1={centerX} y1={PAD.top} x2={centerX} y2={PAD.top + INNER_H}
+              stroke="#e1e7ee" strokeWidth="1" strokeDasharray="2 5" vectorEffect="non-scaling-stroke" />
+
             {historyAreaPath ? <path d={historyAreaPath} fill="url(#pm25AreaFill)" /> : null}
-            {fullPath ? (
-              <path
-                d={fullPath}
-                clipPath="url(#pm25HistoryClip)"
-                fill="none"
-                stroke="#1183ff"
-                strokeWidth="2.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ) : null}
-            {fullPath ? (
-              <path
-                d={fullPath}
-                clipPath="url(#pm25ForecastClip)"
-                fill="none"
-                stroke="#0f766e"
-                strokeWidth="2.35"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ) : null}
             {forecastAreaPath ? (
-              <path
-                d={forecastAreaPath}
-                clipPath="url(#pm25ForecastClip)"
-                fill="url(#pm25ForecastFill)"
-                opacity="0.95"
-              />
+              <path d={forecastAreaPath} clipPath="url(#pm25ForecastClip)" fill="url(#pm25ForecastFill)" />
             ) : null}
 
-            <line
-              x1={centerX}
-              y1={PAD.top}
-              x2={centerX}
-              y2={PAD.top + INNER_H}
-              stroke="#94a3b8"
-              strokeWidth="1"
-              strokeDasharray="4 4"
-            />
+            {fullPath ? (
+              <path d={fullPath} clipPath="url(#pm25HistoryClip)" fill="none"
+                stroke="#5ecfff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            ) : null}
+            {fullPath ? (
+              <path d={fullPath} clipPath="url(#pm25ForecastClip)" fill="none"
+                stroke="#4fa0db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+            ) : null}
 
             {clickablePoints.map((point) => {
               const selected = selectedPoint?.ts === point.ts
@@ -343,8 +332,8 @@ function PM25Chart({
                   key={point.ts}
                   cx={toX(point.offset)}
                   cy={toY(point.value)}
-                  r={selected ? '5' : '3.5'}
-                  fill={point.offset <= 0 ? '#1183ff' : '#0f766e'}
+                  r={selected ? '4.5' : '3'}
+                  fill={point.offset <= 0 ? '#5ecfff' : '#4fa0db'}
                   stroke="#ffffff"
                   strokeWidth={selected ? '2.5' : '1.5'}
                 />
