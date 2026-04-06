@@ -504,7 +504,6 @@
   background: var(--app-white);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-  overflow: hidden;
 }
 
 .app-dash-card-head {
