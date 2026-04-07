@@ -52,10 +52,29 @@ def hash_session_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
+# Tables allowed for serial-style MAX(id)+1 allocation (must match real PG table names).
+_RESERVE_NEXT_ID_TABLES: frozenset[str] = frozenset(
+    {
+        "email_tokens",
+        "household_members",
+        "households",
+        "user_preferences",
+        "user_sessions",
+        "users",
+    }
+)
+
+
 def reserve_next_id(db: Session, table_name: str) -> int:
-    db.execute(sql_text("SELECT pg_advisory_xact_lock(hashtext(:table_name))"), {"table_name": table_name})
+    if table_name not in _RESERVE_NEXT_ID_TABLES:
+        raise ValueError(f"reserve_next_id: disallowed or unknown table {table_name!r}")
+
+    db.execute(
+        sql_text("SELECT pg_advisory_xact_lock(hashtext(:table_name))"),
+        {"table_name": table_name},
+    )
     next_id = db.execute(
-        sql_text(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table_name}")
+        sql_text(f'SELECT COALESCE(MAX(id), 0) + 1 FROM "{table_name}"')
     ).scalar_one()
     return int(next_id)
 

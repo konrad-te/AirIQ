@@ -32,25 +32,16 @@ from backend.security import (
     get_current_token,
     get_current_user,
     hash_password,
+    reserve_next_id,
     verify_email_token,
     verify_password,
 )
 from backend.services.email_service import send_activation_email, send_password_reset_email
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-def reserve_next_id(db: Session, table_name: str) -> int:
-    # Some environments were migrated with BIGINT PK columns but without IDENTITY defaults.
-    # We serialize per-table ID reservation inside the transaction to avoid collisions.
-    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:table_name))"), {"table_name": table_name})
-    next_id = db.execute(
-        text(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {table_name}")
-    ).scalar_one()
-    return int(next_id)
 
 
 def build_default_household_name(user: User) -> str:
