@@ -20,6 +20,7 @@ from backend.schemas.integrations import (
     QingpingStatusResponseSchema,
 )
 from backend.security import get_current_user
+from backend.services.credential_encryption import decrypt_credential, encrypt_credential
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -37,6 +38,14 @@ class QingpingSyncSummary:
     attempted: int = 0
     synced: int = 0
     failed: int = 0
+
+
+def _qingping_plain_credentials(integration: UserQingpingIntegration) -> tuple[str, str, str]:
+    return (
+        decrypt_credential(integration.app_key),
+        decrypt_credential(integration.app_secret),
+        decrypt_credential(integration.access_token),
+    )
 
 
 def _qingping_token_url() -> str:
@@ -398,21 +407,22 @@ def _refresh_qingping_token_if_needed(
 ) -> UserQingpingIntegration:
     now = datetime.now(UTC)
     expires_at = integration.token_expires_at
+    app_key, app_secret, access_token = _qingping_plain_credentials(integration)
 
     if (
-        integration.access_token
+        access_token
         and expires_at is not None
         and expires_at > now + timedelta(minutes=2)
     ):
         return integration
 
     payload = exchange_qingping_token(
-        app_key=integration.app_key,
-        app_secret=integration.app_secret,
+        app_key=app_key,
+        app_secret=app_secret,
     )
 
     expires_in = _parse_int(payload.get("expires_in"))
-    integration.access_token = payload["access_token"]
+    integration.access_token = encrypt_credential(payload["access_token"])
     integration.token_expires_at = (
         now + timedelta(seconds=expires_in) if expires_in is not None else None
     )
@@ -428,8 +438,9 @@ def _qingping_get(
     url: str,
     params: dict[str, Any] | None = None,
 ) -> Any:
+    _, _, bearer = _qingping_plain_credentials(integration)
     headers = {
-        "Authorization": f"Bearer {integration.access_token}",
+        "Authorization": f"Bearer {bearer}",
         "Accept": "application/json",
     }
 
@@ -605,18 +616,18 @@ def connect_qingping(
         integration = UserQingpingIntegration(
             user_id=current_user.id,
             provider="qingping",
-            app_key=body.app_key.strip(),
-            app_secret=body.app_secret.strip(),
-            access_token=payload["access_token"],
+            app_key=encrypt_credential(body.app_key.strip()),
+            app_secret=encrypt_credential(body.app_secret.strip()),
+            access_token=encrypt_credential(payload["access_token"]),
             token_expires_at=token_expires_at,
             status="connected",
             last_validated_at=now,
         )
         db.add(integration)
     else:
-        integration.app_key = body.app_key.strip()
-        integration.app_secret = body.app_secret.strip()
-        integration.access_token = payload["access_token"]
+        integration.app_key = encrypt_credential(body.app_key.strip())
+        integration.app_secret = encrypt_credential(body.app_secret.strip())
+        integration.access_token = encrypt_credential(payload["access_token"])
         integration.token_expires_at = token_expires_at
         integration.status = "connected"
         integration.last_validated_at = now

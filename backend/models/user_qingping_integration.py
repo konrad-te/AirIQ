@@ -28,12 +28,12 @@ class UserQingpingIntegration(Base):
     )
 
     app_key: Mapped[str] = mapped_column(
-        String(255),
+        Text,
         nullable=False,
     )
 
     app_secret: Mapped[str] = mapped_column(
-        String(255),
+        Text,
         nullable=False,
     )
 

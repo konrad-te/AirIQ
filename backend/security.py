@@ -12,8 +12,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from backend.models import EmailToken, User, UserSession
 from pwdlib import PasswordHash
-from sqlalchemy import TextClause, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
@@ -120,26 +119,6 @@ def verify_token_access(token_str: str, db: Session) -> UserSession:
         .scalars()
         .first()
     )
-    if not token:
-        # Backward compatibility for legacy rows where raw token ended up in token_hash
-        token = (
-            db.execute(
-                select(UserSession).where(
-                    UserSession.token_hash == token_str,
-                    UserSession.expires_at >= now,
-                    UserSession.revoked_at.is_(None),
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-    if not token:
-        # Backward compatibility for deployments that only still have a legacy `token` column
-        legacy_token_id = _lookup_legacy_token_id(db=db, token_str=token_str, now=now)
-        token = db.get(UserSession, legacy_token_id) if legacy_token_id is not None else None
-        if token:
-            token.token_hash = hashed_token
 
     if token:
         token.last_used_at = now
@@ -154,31 +133,6 @@ def verify_token_access(token_str: str, db: Session) -> UserSession:
     )
 
     return token
-
-
-def _lookup_legacy_token_id(db: Session, token_str: str, now: datetime) -> int | None:
-    stmt: TextClause = sql_text(
-        """
-        SELECT id
-        FROM user_sessions
-        WHERE token = :token
-          AND expires_at >= :now
-          AND revoked_at IS NULL
-        LIMIT 1
-        """
-    )
-
-    try:
-        result = db.execute(
-            stmt,
-            {
-                "token": token_str,
-                "now": now,
-            },
-        ).scalar_one_or_none()
-        return int(result) if result is not None else None
-    except SQLAlchemyError:
-        return None
 
 
 def get_current_user(
