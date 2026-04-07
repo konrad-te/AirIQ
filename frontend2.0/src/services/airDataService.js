@@ -13,9 +13,14 @@ export async function getAirQualityData(lat, lon) {
 }
 
 export async function geocodeAddress(address) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/geocode?address=${encodeURIComponent(address)}`,
-  )
+  let response
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/api/geocode?address=${encodeURIComponent(address)}`,
+    )
+  } catch {
+    throw new Error('Could not reach the location service.')
+  }
 
   if (!response.ok) {
     throw new Error(response.status === 404 ? 'Address not found.' : `Geocoding failed with status ${response.status}`)
@@ -25,9 +30,14 @@ export async function geocodeAddress(address) {
 }
 
 export async function suggestAddresses(query, limit = 5) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/geocode/suggest?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`,
-  )
+  let response
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/api/geocode/suggest?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`,
+    )
+  } catch {
+    throw new Error('Could not reach the location suggestion service.')
+  }
 
   if (!response.ok) {
     throw new Error(`Suggestion lookup failed with status ${response.status}`)
@@ -37,9 +47,14 @@ export async function suggestAddresses(query, limit = 5) {
 }
 
 export async function reverseGeocodeCoordinates(lat, lon) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
-  )
+  let response
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+    )
+  } catch {
+    throw new Error('Could not resolve your current location.')
+  }
 
   if (!response.ok) {
     throw new Error(response.status === 404 ? 'Location could not be resolved.' : `Reverse geocoding failed with status ${response.status}`)

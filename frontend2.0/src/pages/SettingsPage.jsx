@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import logoAiriq from '../assets/airiq_logo2.0.png'
 import { useAuth } from '../context/AuthContext'
 import {
   changePassword,
@@ -443,7 +442,7 @@ export default function SettingsPage({ onBack, onAccountDeleted }) {
             </svg>
             {t('common.back')}
           </button>
-          <img src={logoAiriq} alt="AirIQ" className="settings-logo" />
+          <span className="settings-header-title">Settings</span>
         </div>
       </header>
       <div className="settings-body">

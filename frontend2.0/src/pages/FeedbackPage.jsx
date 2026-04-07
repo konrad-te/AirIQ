@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import logoAiriq from '../assets/airiq_logo2.0.png'
 import { useAuth } from '../context/AuthContext'
 import { submitFeedback } from '../services/authService'
 import './FeedbackPage.css'
@@ -51,7 +50,7 @@ export default function FeedbackPage({ onBack }) {
             </svg>
             {t('common.back')}
           </button>
-          <img src={logoAiriq} alt="AirIQ" className="feedback-logo" />
+          <span className="feedback-header-title">Feedback</span>
         </div>
       </header>
       <main className="feedback-main">

@@ -24,6 +24,7 @@ from backend.dependencies.authorization import (
 )
 from backend.init_db import init_db
 from backend.main import (
+    geocode_address_nominatim,
     get_air_quality_data,
     get_lat_lon_nominatim_cached,
     reverse_geocode_nominatim,
@@ -351,6 +352,7 @@ def _build_suggestions_payload_from_context(
     low_humidity_suggestion = evaluate_low_indoor_humidity(
         ventilation_context,
         low_threshold=settings["indoor_humidity_low_threshold"],
+        ideal_min=settings["indoor_humidity_ideal_min"],
     )
     sleep_temperature_suggestion = evaluate_sleep_temperature(
         outdoor_data=outdoor_data,
@@ -522,12 +524,11 @@ def get_air_quality(
 @app.get("/api/geocode")
 @limiter.limit("20/minute")
 def geocode_address(request: Request, address: str = Query(..., min_length=3)) -> dict:
-    coords = get_lat_lon_nominatim_cached(address)
-    if coords is None:
+    result = geocode_address_nominatim(address)
+    if result is None:
         raise HTTPException(status_code=404, detail="Address not found.")
 
-    lat, lon = coords
-    return {"address": address, "lat": lat, "lon": lon}
+    return result
 
 
 @app.get("/api/geocode/suggest")

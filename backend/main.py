@@ -42,6 +42,8 @@ TTL_STATION = 10 * 60
 TTL_MODEL = 20 * 60
 TTL_WEATHER = 30 * 60
 TTL_GEOCODE = 30 * 24 * 3600
+OPENMETEO_WEATHER_TIMEOUT_SECONDS = 12
+OPENMETEO_WEATHER_RETRY_TIMEOUT_SECONDS = 20
 
 AIRLY_NEAREST_MAX_DISTANCE_KM = 15
 OPENAQ_MAX_DISTANCE_KM = 50
@@ -137,6 +139,8 @@ def _extract_error_detail(response: requests.Response | None) -> str | None:
                 return value.strip()
 
     body = response.text.strip()
+    if body.startswith("<"):
+        return None
     return body[:160] if body else None
 
 
@@ -390,6 +394,39 @@ def _read_geocode_cache(
     db.commit()
 
     return float(entry.lat), float(entry.lon)
+
+
+def _read_geocode_cache_payload(
+    db: Session,
+    normalized_query: str,
+) -> dict[str, Any] | None:
+    provider = _get_provider(db, "nominatim")
+    query_hash = _query_hash(normalized_query)
+
+    entry = db.execute(
+        select(GeocodeCacheEntry).where(
+            GeocodeCacheEntry.provider_id == provider.id,
+            GeocodeCacheEntry.query_hash == query_hash,
+        )
+    ).scalar_one_or_none()
+
+    if entry is None:
+        return None
+
+    now = _utc_now()
+    if entry.expires_at <= now:
+        return None
+
+    entry.last_used_at = now
+    entry.use_count += 1
+    db.commit()
+
+    return {
+        "address": entry.display_name or entry.query_text,
+        "lat": float(entry.lat),
+        "lon": float(entry.lon),
+        "place_id": entry.external_place_id,
+    }
 
 
 def _write_geocode_cache(
@@ -1218,6 +1255,7 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
         "latitude": lat,
         "longitude": lon,
         "timezone": "UTC",
+        "wind_speed_unit": "ms",
         "current": (
             "temperature_2m,apparent_temperature,relative_humidity_2m,cloud_cover,pressure_msl,"
             "weather_code,is_day,uv_index,rain,"
@@ -1232,9 +1270,29 @@ def fetch_openmeteo_weather(lat: float, lon: float) -> dict[str, Any] | None:
         "forecast_days": 2,
     }
 
-    response = _http_get(OPENMETEO_WEATHER_URL, params=params, timeout=12)
-    response.raise_for_status()
-    data = response.json()
+    data: dict[str, Any] | None = None
+    last_error: requests.RequestException | None = None
+    for attempt, timeout in enumerate(
+        (
+            OPENMETEO_WEATHER_TIMEOUT_SECONDS,
+            OPENMETEO_WEATHER_RETRY_TIMEOUT_SECONDS,
+        ),
+        start=1,
+    ):
+        try:
+            response = _http_get(OPENMETEO_WEATHER_URL, params=params, timeout=timeout)
+            response.raise_for_status()
+            data = response.json()
+            break
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt == 1:
+                time.sleep(0.5)
+
+    if data is None:
+        if last_error is not None:
+            raise last_error
+        return None
 
     current = data.get("current") or {}
     hourly = data.get("hourly") or {}
@@ -1499,11 +1557,13 @@ def enrich_with_weather_if_missing(
         provider_code="open-meteo",
         cache_key=cache_key,
     )
+    weather_error_detail: str | None = None
 
     if weather_data is None:
         try:
             weather_data = fetch_openmeteo_weather(lat, lon)
         except requests.RequestException as exc:
+            weather_error_detail = _describe_request_error("Open-Meteo weather", exc)
             if DEBUG:
                 print(f"DEBUG: Open-Meteo weather failed: {exc}")
             weather_data = None
@@ -1523,6 +1583,20 @@ def enrich_with_weather_if_missing(
 
     if weather_data:
         return _merge_weather_into_normalized(normalized, weather_data)
+
+    meta = normalized.get("meta") or {}
+    if not isinstance(meta.get("weather_source"), dict):
+        message = "Open-Meteo weather enrichment is currently unavailable."
+        if weather_error_detail:
+            message = f"{message} {weather_error_detail}"
+        meta["weather_source"] = {
+            "provider": "open-meteo",
+            "type": "weather_model",
+            "available": False,
+            "message": message,
+            "error": weather_error_detail,
+        }
+        normalized["meta"] = meta
 
     return _finalize_normalized(normalized)
 
@@ -1665,6 +1739,83 @@ def get_lat_lon_nominatim_cached(address: str) -> tuple[float, float] | None:
             )
 
             return lat, lon
+
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 403:
+                print(
+                    "Nominatim blocked the request (403). "
+                    "Set NOMINATIM_USER_AGENT and optionally NOMINATIM_EMAIL in .env."
+                )
+            print(f"Nominatim request error: {exc}")
+            return None
+        except requests.RequestException as exc:
+            print(f"Nominatim request error: {exc}")
+            return None
+        except (KeyError, TypeError, ValueError) as exc:
+            print(f"Unexpected Nominatim response format: {exc}")
+            return None
+
+
+def geocode_address_nominatim(address: str) -> dict[str, Any] | None:
+    normalized_address = _normalize_address(address)
+    if not normalized_address:
+        return None
+
+    with _db_session() as db:
+        cached = _read_geocode_cache_payload(db, normalized_address)
+        if cached is not None:
+            return cached
+
+        headers = {"User-Agent": NOMINATIM_USER_AGENT}
+        params = {
+            "q": address,
+            "format": "jsonv2",
+            "limit": 1,
+            "addressdetails": 1,
+        }
+        if NOMINATIM_EMAIL:
+            params["email"] = NOMINATIM_EMAIL
+
+        try:
+            time.sleep(1.2)
+            response = _http_get(
+                NOMINATIM_URL,
+                params=params,
+                headers=headers,
+                timeout=10,
+            )
+            response.raise_for_status()
+
+            results = response.json()
+            if not results:
+                return None
+
+            first = results[0]
+            lat = float(first["lat"])
+            lon = float(first["lon"])
+            display_name = first.get("display_name")
+            place_id = (
+                str(first.get("place_id"))
+                if first.get("place_id") is not None
+                else None
+            )
+
+            _write_geocode_cache(
+                db=db,
+                query_text=address,
+                normalized_query=normalized_address,
+                lat=lat,
+                lon=lon,
+                display_name=display_name,
+                external_place_id=place_id,
+            )
+
+            return {
+                "address": display_name or address,
+                "lat": lat,
+                "lon": lon,
+                "place_id": place_id,
+            }
 
         except requests.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 403:

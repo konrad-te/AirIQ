@@ -87,8 +87,8 @@ function formatElapsedMinutes(totalMinutes) {
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
 }
 function formatLocationFallbackLabel(lat, lon) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 'Detected current location'
-  return `Detected near ${lat.toFixed(3)}, ${lon.toFixed(3)}`
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return ''
+  return `${lat.toFixed(3)}, ${lon.toFixed(3)}`
 }
 function MetricInfoTile({ label, value, tooltipTitle, tooltipBody, tooltipRange, tooltipHint }) {
   const hasTooltip = Boolean(tooltipTitle || tooltipBody || tooltipRange || tooltipHint)
@@ -1462,6 +1462,12 @@ export default function App() {
   const heroPm10Raw = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
   const heroPm10 = typeof heroPm10Raw === 'number' ? Math.round(heroPm10Raw * 10) / 10 : heroPm10Raw
   const heroLocation = currentLocationLabel
+  const shortLocation = (() => {
+    if (!currentLocationLabel) return ''
+    const parts = currentLocationLabel.split(',').map(s => s.trim())
+    if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`
+    return parts[0]
+  })()
   const heroAqiValue = liveAirData?.aqi?.value ?? 0
   const heroAqiLabel = liveAirData?.aqi?.label ?? (isLoadingAirData ? t('common.loading') : t('dashboard.noData'))
   const sourceProvider = liveAirData?.source?.provider
@@ -1564,13 +1570,11 @@ export default function App() {
       : sourceMethod === 'model'
         ? t('source.model')
         : null
-  const sourceBadgeLabel = isDashboardAdminPreviewActive
-    ? t('source.adminPreview')
-    : sourceMethodLabel
-    ? t('source.label', { provider: sourceProviderLabel, method: sourceMethodLabel })
-    : t('source.labelSimple', { provider: sourceProviderLabel })
   const liveSourceMessage = statusMessage || liveAirData?.source?.user_message || liveAirError
   const sourceDistanceKm = liveAirData?.source?.distance_km
+  const sourceUpstreamFailures = Array.isArray(liveAirData?.source?.upstream_failures)
+    ? liveAirData.source.upstream_failures.filter((item) => typeof item === 'string' && item.trim())
+    : []
   const sourceTooltipMessage = (() => {
     if (isDashboardAdminPreviewActive) {
       return 'Admin preview mode is overriding dashboard values and suggestion output for testing. Live data is unchanged.'
@@ -1592,6 +1596,29 @@ export default function App() {
     return liveSourceMessage || t('source.liveOutdoor')
   })()
   const weatherCurrent = liveAirData?.current
+  const weatherSourceMeta = liveAirData?.meta?.weather_source
+  const airSourceSummary = isDashboardAdminPreviewActive
+    ? t('source.adminPreview')
+    : sourceMethodLabel
+      ? t('source.label', { provider: sourceProviderLabel, method: sourceMethodLabel })
+      : t('source.labelSimple', { provider: sourceProviderLabel })
+  const airSourceDetail = sourceUpstreamFailures.length > 0
+    ? `${sourceTooltipMessage} Fallback reason: ${sourceUpstreamFailures.join('; ')}.`
+    : sourceTooltipMessage
+  const weatherSourceLabel = (() => {
+    if (weatherSourceMeta?.available === false) return 'Unavailable'
+    if (weatherSourceMeta?.provider === 'open-meteo') return 'Open-Meteo weather model'
+    if (typeof weatherSourceMeta?.provider === 'string' && weatherSourceMeta.provider.trim()) {
+      return weatherSourceMeta.provider
+    }
+    return 'Unknown'
+  })()
+  const weatherSourceDetail = (() => {
+    if (typeof weatherSourceMeta?.message === 'string' && weatherSourceMeta.message.trim()) {
+      return weatherSourceMeta.message.trim()
+    }
+    return 'Weather details are merged separately from the air-quality source when available.'
+  })()
   const weatherTemperature = dashboardAdminOverride?.outdoor_temperature_c != null
     ? formatRoundedMetric(dashboardAdminOverride.outdoor_temperature_c, '\u00B0', '--\u00B0')
     : formatRoundedMetric(weatherCurrent?.temperature_c, '\u00B0', '--\u00B0')
@@ -1898,19 +1925,12 @@ export default function App() {
         </div>
       </>) : (<>
         <div className="app-dash">
-          <div className="app-dash-location-bar">
-            <button type="button" className="app-dash-loc-btn" onClick={openLocationModal}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
-              <span>{currentLocationLabel || t('dashboard.locations')}</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
-            </button>
-            {isDashboardAdminPreviewActive && (
-              <div className="app-dash-admin-status">
-                <span>Admin preview active</span>
-                <button type="button" onClick={() => setIsDashboardAdminToolsOpen(true)}>Open tools</button>
-              </div>
-            )}
-          </div>
+          {isDashboardAdminPreviewActive && (
+            <div className="app-dash-admin-status">
+              <span>Admin preview active</span>
+              <button type="button" onClick={() => setIsDashboardAdminToolsOpen(true)}>Open tools</button>
+            </div>
+          )}
 
           <div className="app-dash-card app-dash-card--air">
             <div className="app-dash-card-head">
@@ -1918,7 +1938,28 @@ export default function App() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 18H7a4 4 0 11.6-7.96A5.5 5.5 0 0118 11.5h1a3.5 3.5 0 110 7z" /></svg>
                 <h3>Outdoor Air Quality</h3>
               </div>
-              <span className="app-dash-source" title={sourceTooltipMessage}>{sourceBadgeLabel}</span>
+              <div className="app-dash-card-head-right">
+                <button type="button" className="app-dash-loc-inline" onClick={openLocationModal}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                  <span>{shortLocation || t('dashboard.locations')}</span>
+                  <svg className="app-dash-loc-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                <div className="app-dash-source-wrap" tabIndex={0}>
+                <span className="app-dash-source">Sources</span>
+                <div className="app-dash-source-tip" role="tooltip">
+                  <div className="app-dash-source-tip-section">
+                    <strong>Air quality</strong>
+                    <span className="app-dash-source-tip-label">{airSourceSummary}</span>
+                    <p>{airSourceDetail}</p>
+                  </div>
+                  <div className="app-dash-source-tip-section">
+                    <strong>Weather</strong>
+                    <span className="app-dash-source-tip-label">{weatherSourceLabel}</span>
+                    <p>{weatherSourceDetail}</p>
+                  </div>
+                </div>
+              </div>
+              </div>
             </div>
 
             <div className="app-air-grid app-air-grid--outdoor">
@@ -1959,6 +2000,17 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          {!hasConnectedIndoorSensor && (
+            <button type="button" className="app-dash-sensor-prompt" onClick={() => setIsDeviceSetupOpen(true)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 10 9-7 9 7" /><path d="M5 9.8V21h14V9.8" /></svg>
+              <span className="app-dash-sensor-prompt-text">
+                <strong>Indoor Air Quality</strong>
+                Connect a sensor to monitor your indoor air
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+            </button>
+          )}
 
           {hasConnectedIndoorSensor && (
             <div className="app-dash-card app-dash-card--indoor">

@@ -49,8 +49,10 @@
   background: #F1F5F9;
 }
 
-.settings-logo {
-  height: 32px;
+.settings-header-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94A3B8;
 }
 
 /* ── Body layout ── */
