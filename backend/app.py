@@ -839,7 +839,11 @@ def get_map_markers(db: Session = Depends(get_db)) -> dict:
 
 @app.post("/api/map/seed-city-points")
 @limiter.limit("3/minute")
-def seed_map_city_points(request: Request, db: Session = Depends(get_db)) -> dict:
+def seed_map_city_points(
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
     result = seed_city_points(db, per_country=4)
     return {
         "ok": True,
@@ -852,7 +856,11 @@ def seed_map_city_points(request: Request, db: Session = Depends(get_db)) -> dic
 
 @app.post("/api/map/run-ingest")
 @limiter.limit("3/minute")
-def run_map_ingest(request: Request, db: Session = Depends(get_db)) -> dict:
+def run_map_ingest(
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
     summary = run_globe_ingest(
         db=db,
         batch_size=40,
