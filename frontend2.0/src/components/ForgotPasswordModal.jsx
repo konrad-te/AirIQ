@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { forgotPassword } from '../services/authService'
 import './ForgotPasswordModal.css'
 
@@ -71,7 +71,13 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
               </svg>
             </div>
             <h2 id="forgot-modal-title" className="login-modal-title">{t('forgot.sentTitle')}</h2>
-            <p className="login-modal-subtitle" dangerouslySetInnerHTML={{ __html: t('forgot.sentMessage', { email }) }} />
+            <p className="login-modal-subtitle">
+              <Trans
+                i18nKey="forgot.sentMessage"
+                values={{ email }}
+                components={{ strong: <strong /> }}
+              />
+            </p>
             <button type="button" className="btn btn-primary login-modal-submit" onClick={onClose}>
               {t('forgot.done')}
             </button>
