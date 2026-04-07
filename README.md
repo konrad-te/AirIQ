@@ -28,6 +28,7 @@ AirIQ brings together multiple data sources and turns them into user-facing insi
 ## Screenshots
 
 ![Landing page](docs/readme/landing.png)
+![Dashboard](docs/readme/dashboard.png)
 ![Indoor history](docs/readme/indoor-history.png)
 ![Training insights](docs/readme/training-insights.png)
 ![Map view](docs/readme/map-view.png)
