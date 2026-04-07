@@ -6,7 +6,7 @@ import mapPin from '../assets/map-pin.png'
 const MAPBOX_TOKEN = String(import.meta.env.VITE_MAPBOX_TOKEN || '').trim()
 const STUDIO_STYLE_URL = String(import.meta.env.VITE_STUDIO_STYLE_URL || '').trim()
 const FALLBACK_STYLE_URL = 'mapbox://styles/mapbox/outdoors-v12'
-const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').trim()
+const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 
 const BAND_COLORS = {
   '0-10': '#3cad57',
