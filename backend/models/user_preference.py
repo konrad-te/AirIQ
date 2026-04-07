@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -48,6 +49,12 @@ class UserPreference(Base):
     timezone: Mapped[str | None] = mapped_column(
         String(64),
         nullable=True,
+    )
+
+    allow_gemini_health_insights: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false",
     )
 
     created_at: Mapped[datetime] = mapped_column(

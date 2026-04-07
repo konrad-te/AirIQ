@@ -11,8 +11,9 @@ except ModuleNotFoundError:
     genai = None
     genai_types = None
 from backend.database import get_db
-from backend.security import get_current_user
 from backend.models import User
+from backend.security import get_current_user
+from backend.services.gemini_consent import user_allows_gemini_health_data
 from backend.schemas.ai import SleepInsightExplanationSchema, SleepInsightResponseSchema, TrainingInsightResponseSchema
 from backend.services.sleep_insights import build_sleep_insight
 from backend.services.training_insights import build_training_insight
@@ -248,7 +249,17 @@ def get_ai_recommendation(
     request: Request,
     body: RecommendationRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> RecommendationResponse:
+    if not user_allows_gemini_health_data(db, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Air quality AI recommendations use Google Gemini. "
+                "Enable AI health insights (Gemini) in Settings under Preferences to continue."
+            ),
+        )
+
     if genai is None or genai_types is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -302,7 +313,7 @@ def get_sleep_insight(
     target_date: str = Query(..., alias="date"),
     lat: float | None = Query(None, ge=-90, le=90),
     lon: float | None = Query(None, ge=-180, le=180),
-    include_ai: bool = Query(True),
+    include_ai: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SleepInsightResponseSchema:
@@ -328,7 +339,7 @@ def get_sleep_insight(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if include_ai:
+    if include_ai and user_allows_gemini_health_data(db, current_user.id):
         ai_explanation = _generate_sleep_insight_explanation(insight)
         if ai_explanation is not None:
             insight["explanation"] = ai_explanation.model_dump()
@@ -340,7 +351,7 @@ def get_sleep_insight(
 def get_training_insight(
     target_date: str = Query(..., alias="date"),
     window: str = Query("7d"),
-    include_ai: bool = Query(True),
+    include_ai: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TrainingInsightResponseSchema:
@@ -367,7 +378,7 @@ def get_training_insight(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if include_ai:
+    if include_ai and user_allows_gemini_health_data(db, current_user.id):
         ai_explanation = _generate_training_insight_explanation(insight)
         if ai_explanation is not None:
             insight["explanation"] = ai_explanation.model_dump()

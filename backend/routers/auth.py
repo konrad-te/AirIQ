@@ -418,6 +418,8 @@ def update_preferences(
         pref.language_code = update.language_code
     if "timezone" in set_fields:
         pref.timezone = update.timezone
+    if "allow_gemini_health_insights" in set_fields:
+        pref.allow_gemini_health_insights = bool(update.allow_gemini_health_insights)
 
     db.commit()
     db.refresh(pref)

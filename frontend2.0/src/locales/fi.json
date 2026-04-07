@@ -84,6 +84,8 @@
   "settings.themeDark": "Tumma",
   "settings.language": "Kieli",
   "settings.timezone": "Aikavyöhyke",
+  "settings.geminiHealthInsightsLabel": "Tekoälypohjaiset terveysnäkymät (Google Gemini)",
+  "settings.geminiHealthInsightsHelp": "Kun tämä on käytössä, valinnaiset tekoälytekstit unen ja harjoittelun näkymiin voivat lähettää tiivistettyjä terveyteen liittyviä tietoja Googlelle. Voit poistaa käytöstä milloin tahansa.",
   "settings.preferencesSaved": "Asetukset tallennettu.",
   "settings.savePreferences": "Tallenna asetukset",
   "settings.loadingPreferences": "Ladataan asetuksia…",

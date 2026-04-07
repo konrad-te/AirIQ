@@ -357,6 +357,7 @@ function PreferencesSection() {
   const { token } = useAuth()
   const [language, setLanguage] = useState('')
   const [timezone, setTimezone] = useState('')
+  const [allowGeminiHealthInsights, setAllowGeminiHealthInsights] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -367,6 +368,7 @@ function PreferencesSection() {
       .then((prefs) => {
         setLanguage(prefs.language_code ?? '')
         setTimezone(prefs.timezone ?? '')
+        setAllowGeminiHealthInsights(Boolean(prefs.allow_gemini_health_insights))
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -378,8 +380,13 @@ function PreferencesSection() {
     setError('')
     setSuccess(false)
     try {
-      await updatePreferences(token, { language_code: language || null, timezone: timezone || null })
+      await updatePreferences(token, {
+        language_code: language || null,
+        timezone: timezone || null,
+        allow_gemini_health_insights: allowGeminiHealthInsights,
+      })
       i18n.changeLanguage(language || 'en')
+      window.dispatchEvent(new CustomEvent('airtq-preferences-updated'))
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
@@ -407,6 +414,22 @@ function PreferencesSection() {
           <select id="s-timezone" className="settings-select" value={timezone} onChange={(e) => setTimezone(e.target.value)} disabled={saving}>
             {TIMEZONES.map((tz) => (<option key={tz.value} value={tz.value}>{tz.label}</option>))}
           </select>
+        </div>
+        <div className="settings-field">
+          <label className="settings-label settings-label--checkbox">
+            <input
+              type="checkbox"
+              checked={allowGeminiHealthInsights}
+              onChange={(e) => {
+                setAllowGeminiHealthInsights(e.target.checked)
+                setError('')
+                setSuccess(false)
+              }}
+              disabled={saving}
+            />
+            <span>{t('settings.geminiHealthInsightsLabel')}</span>
+          </label>
+          <p className="settings-field-hint">{t('settings.geminiHealthInsightsHelp')}</p>
         </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
         {success && <p className="settings-success" role="status">{t('settings.preferencesSaved')}</p>}

@@ -16,6 +16,7 @@ from backend.schemas.training import (
     TrainingSportSummarySchema,
 )
 from backend.security import get_current_user
+from backend.services.garmin_import_limits import garmin_import_max_bytes, garmin_import_max_files
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -472,6 +473,14 @@ async def import_training_files(
     if not files:
         raise HTTPException(status_code=400, detail="Choose at least one Garmin activity JSON file.")
 
+    max_files = garmin_import_max_files()
+    if len(files) > max_files:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many files in one request (maximum {max_files}).",
+        )
+
+    max_bytes = garmin_import_max_bytes()
     file_results: list[TrainingImportFileResultSchema] = []
     imported_total = 0
     updated_total = 0
@@ -479,6 +488,15 @@ async def import_training_files(
 
     for upload in files:
         raw_bytes = await upload.read()
+        if len(raw_bytes) > max_bytes:
+            fname = upload.filename or "upload"
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"File '{fname}' is too large "
+                    f"(maximum {max_bytes // (1024 * 1024)} MB per file)."
+                ),
+            )
         rows = _parse_json_file(upload, raw_bytes)
         normalized_rows = [
             normalized

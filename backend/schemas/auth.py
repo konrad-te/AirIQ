@@ -45,6 +45,7 @@ class UserPreferenceOutSchema(BaseModel):
     theme: str
     language_code: str | None
     timezone: str | None
+    allow_gemini_health_insights: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,6 +54,7 @@ class UserPreferenceUpdateSchema(BaseModel):
     theme: str | None = Field(default=None, pattern="^(light|dark)$")
     language_code: str | None = None
     timezone: str | None = None
+    allow_gemini_health_insights: bool | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

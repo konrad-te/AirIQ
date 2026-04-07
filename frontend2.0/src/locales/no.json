@@ -84,6 +84,8 @@
   "settings.themeDark": "Mørk",
   "settings.language": "Språk",
   "settings.timezone": "Tidssone",
+  "settings.geminiHealthInsightsLabel": "AI-helseinnsikt (Google Gemini)",
+  "settings.geminiHealthInsightsHelp": "Når dette er på, kan valgfri AI-tekst for søvn- og treningsinnsikt sende sammendrag av helserelaterte data til Google. Du kan slå det av når som helst.",
   "settings.preferencesSaved": "Preferanser lagret.",
   "settings.savePreferences": "Lagre preferanser",
   "settings.loadingPreferences": "Laster preferanser…",

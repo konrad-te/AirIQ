@@ -222,6 +222,28 @@
   color: #0F172A;
 }
 
+.settings-label.settings-label--checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.settings-label--checkbox input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.settings-field-hint {
+  font-size: 0.75rem;
+  color: #64748B;
+  margin: -0.1rem 0 0 0;
+  padding-left: 1.6rem;
+  line-height: 1.45;
+}
+
 .settings-input,
 .settings-select {
   border: 1px solid #E2E8F0;

@@ -355,6 +355,7 @@ export default function App() {
   const [requestedTrainingInsightDate, setRequestedTrainingInsightDate] = useState('')
   const [requestedTrainingInsightWindow, setRequestedTrainingInsightWindow] = useState('7d')
   const [trainingInsightRefreshNonce, setTrainingInsightRefreshNonce] = useState(0)
+  const [allowGeminiHealthInsights, setAllowGeminiHealthInsights] = useState(false)
   const [isImportingTrainingData, setIsImportingTrainingData] = useState(false)
   const [trainingImportNotice, setTrainingImportNotice] = useState('')
   const [trainingImportError, setTrainingImportError] = useState('')
@@ -761,14 +762,31 @@ export default function App() {
     }
     if (!token) {
       i18n.changeLanguage('en')
+      setAllowGeminiHealthInsights(false)
       return
     }
     getPreferences(token)
       .then((prefs) => {
         i18n.changeLanguage(prefs.language_code || 'en')
+        setAllowGeminiHealthInsights(Boolean(prefs.allow_gemini_health_insights))
       })
-      .catch(() => {})
+      .catch(() => {
+        setAllowGeminiHealthInsights(false)
+      })
   }, [token, isLoadingAuth, i18n])
+
+  useEffect(() => {
+    const onPrefsUpdated = () => {
+      if (!token || isLoadingAuth) return
+      getPreferences(token)
+        .then((prefs) => {
+          setAllowGeminiHealthInsights(Boolean(prefs.allow_gemini_health_insights))
+        })
+        .catch(() => {})
+    }
+    window.addEventListener('airtq-preferences-updated', onPrefsUpdated)
+    return () => window.removeEventListener('airtq-preferences-updated', onPrefsUpdated)
+  }, [token, isLoadingAuth])
 
   useEffect(() => {
     if (isLoadingAuth || !token) {
@@ -1039,6 +1057,7 @@ export default function App() {
           setSleepInsight(null)
         }
         const payload = await getSleepInsight(token, requestedSleepInsightDate, {
+          includeAi: allowGeminiHealthInsights,
           lat: requestedSleepInsightLat,
           lon: requestedSleepInsightLon,
         })
@@ -1063,7 +1082,16 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, isLoadingAuth, route, requestedSleepInsightDate, requestedSleepInsightLat, requestedSleepInsightLon, sleepInsightRefreshNonce])
+  }, [
+    token,
+    isLoadingAuth,
+    route,
+    requestedSleepInsightDate,
+    requestedSleepInsightLat,
+    requestedSleepInsightLon,
+    sleepInsightRefreshNonce,
+    allowGeminiHealthInsights,
+  ])
   useEffect(() => {
     if (!selectedSleepInsightDate) {
       clearSleepInsight()
@@ -1168,6 +1196,7 @@ export default function App() {
           setTrainingInsight(null)
         }
         const payload = await getTrainingInsight(token, requestedTrainingInsightDate, {
+          includeAi: allowGeminiHealthInsights,
           window: requestedTrainingInsightWindow,
         })
         if (!cancelled) {
@@ -1190,7 +1219,16 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, isLoadingAuth, route, requestedTrainingInsightDate, requestedTrainingInsightWindow, selectedTrainingInsightWindow, trainingInsightRefreshNonce])
+  }, [
+    token,
+    isLoadingAuth,
+    route,
+    requestedTrainingInsightDate,
+    requestedTrainingInsightWindow,
+    selectedTrainingInsightWindow,
+    trainingInsightRefreshNonce,
+    allowGeminiHealthInsights,
+  ])
   useEffect(() => {
     if (!selectedTrainingInsightDate) {
       clearTrainingInsight()

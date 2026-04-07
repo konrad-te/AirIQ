@@ -13,6 +13,7 @@ from backend.schemas.sleep import (
     SleepImportResponseSchema,
 )
 from backend.security import get_current_user
+from backend.services.garmin_import_limits import garmin_import_max_bytes, garmin_import_max_files
 from backend.services.garmin_sleep import (
     normalize_garmin_sleep_entry,
     serialize_sleep_history_point,
@@ -176,6 +177,14 @@ async def import_sleep_files(
     if not files:
         raise HTTPException(status_code=400, detail="Choose at least one Garmin JSON file.")
 
+    max_files = garmin_import_max_files()
+    if len(files) > max_files:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many files in one request (maximum {max_files}).",
+        )
+
+    max_bytes = garmin_import_max_bytes()
     file_results: list[SleepImportFileResultSchema] = []
     imported_total = 0
     updated_total = 0
@@ -183,6 +192,15 @@ async def import_sleep_files(
 
     for upload in files:
         raw_bytes = await upload.read()
+        if len(raw_bytes) > max_bytes:
+            fname = upload.filename or "upload"
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"File '{fname}' is too large "
+                    f"(maximum {max_bytes // (1024 * 1024)} MB per file)."
+                ),
+            )
         rows = _parse_json_file(upload, raw_bytes)
         normalized_rows = [
             normalized

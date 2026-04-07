@@ -80,7 +80,6 @@ def debug_environment() -> dict[str, Any]:
 
 
 DATABASE_URL_OBJECT = build_database_url()
-DATABASE_URL = DATABASE_URL_OBJECT.render_as_string(hide_password=False)
 DATABASE_URL_SAFE = DATABASE_URL_OBJECT.render_as_string(hide_password=True)
 
 engine = create_engine(

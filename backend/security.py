@@ -28,6 +28,15 @@ def get_access_token_expire_minutes() -> int:
     return int(raw)
 
 
+def get_max_active_sessions_per_user() -> int:
+    raw = os.getenv("MAX_ACTIVE_SESSIONS_PER_USER", "20").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        return 20
+    return max(1, min(n, 500))
+
+
 def hash_password(password: str) -> str:
     return password_hash.hash(password)
 
@@ -87,6 +96,25 @@ def create_database_token(
     randomized_token = token_urlsafe()
     now = datetime.now(UTC)
     ttl = timedelta(minutes=get_access_token_expire_minutes())
+
+    max_sessions = get_max_active_sessions_per_user()
+    active_sessions = (
+        db.execute(
+            select(UserSession)
+            .where(
+                UserSession.user_id == user_id,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at >= now,
+            )
+            .order_by(UserSession.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+    overflow = len(active_sessions) - max_sessions + 1
+    if overflow > 0:
+        for old in active_sessions[:overflow]:
+            old.revoked_at = now
 
     new_token = UserSession(
         id=reserve_next_id(db, "user_sessions"),

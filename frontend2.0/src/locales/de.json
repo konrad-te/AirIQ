@@ -84,6 +84,8 @@
   "settings.themeDark": "Dunkel",
   "settings.language": "Sprache",
   "settings.timezone": "Zeitzone",
+  "settings.geminiHealthInsightsLabel": "KI-Gesundheitseinblicke (Google Gemini)",
+  "settings.geminiHealthInsightsHelp": "Wenn aktiviert, können optionale KI-Texte für Schlaf- und Trainingseinblicke zusammengefasste gesundheitsbezogene Daten an Google senden. Du kannst dies jederzeit deaktivieren.",
   "settings.preferencesSaved": "Präferenzen gespeichert.",
   "settings.savePreferences": "Präferenzen speichern",
   "settings.loadingPreferences": "Präferenzen werden geladen…",

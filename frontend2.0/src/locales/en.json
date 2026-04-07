@@ -84,6 +84,8 @@
   "settings.themeDark": "Dark",
   "settings.language": "Language",
   "settings.timezone": "Timezone",
+  "settings.geminiHealthInsightsLabel": "AI health insights (Google Gemini)",
+  "settings.geminiHealthInsightsHelp": "When enabled, optional AI text for sleep and training insights may send summarized health-related data to Google. You can turn this off anytime.",
   "settings.preferencesSaved": "Preferences saved.",
   "settings.savePreferences": "Save preferences",
   "settings.loadingPreferences": "Loading preferences…",
