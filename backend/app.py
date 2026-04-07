@@ -1058,7 +1058,10 @@ def get_admin_stats(
 
 
 @app.get("/api/admin/providers")
-def get_admin_providers(db: Session = Depends(get_db)) -> dict:
+def get_admin_providers(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
     providers = (
         db.execute(select(DataProvider).order_by(DataProvider.provider_code.asc()))
         .scalars()
@@ -1085,7 +1088,11 @@ def get_admin_providers(db: Session = Depends(get_db)) -> dict:
 
 
 @app.get("/api/admin/ingest-runs/latest")
-def get_latest_ingest_runs(limit: int = 10, db: Session = Depends(get_db)) -> dict:
+def get_latest_ingest_runs(
+    limit: int = 10,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
     safe_limit = max(1, min(limit, 50))
 
     rows = db.execute(
@@ -1112,7 +1119,10 @@ def get_latest_ingest_runs(limit: int = 10, db: Session = Depends(get_db)) -> di
 
 
 @app.get("/api/admin/debug-overview")
-def get_admin_debug_overview(db: Session = Depends(get_db)) -> dict:
+def get_admin_debug_overview(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
     provider_count = db.execute(select(func.count(DataProvider.id))).scalar_one()
     city_point_count = db.execute(select(func.count(CityPoint.id))).scalar_one()
     globe_cache_count = db.execute(
