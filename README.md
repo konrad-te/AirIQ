@@ -27,31 +27,10 @@ AirIQ brings together multiple data sources and turns them into user-facing insi
 
 ## Screenshots
 
-Add a few strong screenshots here before sharing the repo with interviewers. The best set would be:
-
-- landing page
-- main dashboard
-- indoor sensor history
-- sleep or training insights
-- map view or recommendations panel
-
-Suggested filenames if you want to add them later:
-
-- `docs/readme/landing.png`
-- `docs/readme/dashboard.png`
-- `docs/readme/indoor-history.png`
-- `docs/readme/training-insights.png`
-- `docs/readme/map-view.png`
-
-Example markdown once you have them:
-
-```md
 ![Landing page](docs/readme/landing.png)
-![Dashboard](docs/readme/dashboard.png)
 ![Indoor history](docs/readme/indoor-history.png)
 ![Training insights](docs/readme/training-insights.png)
 ![Map view](docs/readme/map-view.png)
-```
 
 ## Tech Stack
 
