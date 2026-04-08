@@ -107,6 +107,7 @@ class SleepInsightResponseSchema(BaseModel):
     findings: list[SleepInsightFindingSchema]
     actions: list[SleepInsightActionSchema]
     explanation: SleepInsightExplanationSchema
+    gemini_explanation_note: str | None = None
 
 
 class TrainingInsightSportShareSchema(BaseModel):
@@ -196,3 +197,4 @@ class TrainingInsightResponseSchema(BaseModel):
     findings: list[SleepInsightFindingSchema]
     actions: list[SleepInsightActionSchema]
     explanation: SleepInsightExplanationSchema
+    gemini_explanation_note: str | None = None

@@ -356,6 +356,7 @@ export default function App() {
   const [requestedTrainingInsightWindow, setRequestedTrainingInsightWindow] = useState('7d')
   const [trainingInsightRefreshNonce, setTrainingInsightRefreshNonce] = useState(0)
   const [allowGeminiHealthInsights, setAllowGeminiHealthInsights] = useState(false)
+  const prevAllowGeminiHealthInsightsRef = useRef(null)
   const [isImportingTrainingData, setIsImportingTrainingData] = useState(false)
   const [trainingImportNotice, setTrainingImportNotice] = useState('')
   const [trainingImportError, setTrainingImportError] = useState('')
@@ -787,6 +788,40 @@ export default function App() {
     window.addEventListener('airtq-preferences-updated', onPrefsUpdated)
     return () => window.removeEventListener('airtq-preferences-updated', onPrefsUpdated)
   }, [token, isLoadingAuth])
+
+  useEffect(() => {
+    if (prevAllowGeminiHealthInsightsRef.current === null) {
+      prevAllowGeminiHealthInsightsRef.current = allowGeminiHealthInsights
+      return
+    }
+    const prev = prevAllowGeminiHealthInsightsRef.current
+    prevAllowGeminiHealthInsightsRef.current = allowGeminiHealthInsights
+    if (prev !== false || allowGeminiHealthInsights !== true || !canAccessPremiumInsights) {
+      return
+    }
+    if (route === '/sleep' && selectedSleepInsightDate && sleepInsight?.date === selectedSleepInsightDate) {
+      setRequestedSleepInsightDate(selectedSleepInsightDate)
+      setRequestedSleepInsightLat(currentCoords?.lat ?? null)
+      setRequestedSleepInsightLon(currentCoords?.lon ?? null)
+      setSleepInsightRefreshNonce((n) => n + 1)
+    }
+    if (route === '/training' && selectedTrainingInsightDate && trainingInsight?.date === selectedTrainingInsightDate) {
+      setRequestedTrainingInsightDate(selectedTrainingInsightDate)
+      setRequestedTrainingInsightWindow(selectedTrainingInsightWindow)
+      setTrainingInsightRefreshNonce((n) => n + 1)
+    }
+  }, [
+    allowGeminiHealthInsights,
+    route,
+    canAccessPremiumInsights,
+    selectedSleepInsightDate,
+    selectedTrainingInsightDate,
+    selectedTrainingInsightWindow,
+    sleepInsight?.date,
+    trainingInsight?.date,
+    currentCoords?.lat,
+    currentCoords?.lon,
+  ])
 
   useEffect(() => {
     if (isLoadingAuth || !token) {

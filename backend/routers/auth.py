@@ -38,10 +38,29 @@ from backend.security import (
 )
 from backend.services.email_service import send_activation_email, send_password_reset_email
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def _reraise_preferences_schema_error(exc: BaseException) -> None:
+    """If the DB is missing preference columns (e.g. before alembic upgrade), explain how to fix."""
+    parts = [str(exc).lower()]
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        parts.append(str(orig).lower())
+    blob = " ".join(parts)
+    if "allow_gemini_health_insights" not in blob:
+        return
+    if any(s in blob for s in ("does not exist", "no such column", "undefinedcolumn")):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Database schema is out of date (missing allow_gemini_health_insights). "
+                "From the backend directory run: alembic upgrade head"
+            ),
+        ) from exc
 
 
 def build_default_household_name(user: User) -> str:
@@ -379,51 +398,67 @@ def update_profile(
 
 @router.get("/preferences", response_model=UserPreferenceOutSchema)
 def get_preferences(
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UserPreference:
-    pref = (
-        db.execute(select(UserPreference).where(UserPreference.user_id == current_user.id))
-        .scalars()
-        .first()
-    )
-    if not pref:
-        pref = UserPreference(user_id=current_user.id)
-        db.add(pref)
-        db.commit()
-        db.refresh(pref)
-    return pref
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    try:
+        pref = (
+            db.execute(select(UserPreference).where(UserPreference.user_id == current_user.id))
+            .scalars()
+            .first()
+        )
+        if not pref:
+            pref = UserPreference(user_id=current_user.id)
+            db.add(pref)
+            db.commit()
+            db.refresh(pref)
+        return pref
+    except (OperationalError, ProgrammingError) as exc:
+        db.rollback()
+        _reraise_preferences_schema_error(exc)
+        raise
 
 
 @router.patch("/preferences", response_model=UserPreferenceOutSchema)
 def update_preferences(
+    response: Response,
     update: UserPreferenceUpdateSchema,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UserPreference:
-    pref = (
-        db.execute(select(UserPreference).where(UserPreference.user_id == current_user.id))
-        .scalars()
-        .first()
-    )
-    if not pref:
-        pref = UserPreference(user_id=current_user.id)
-        db.add(pref)
-        db.flush()
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    try:
+        pref = (
+            db.execute(select(UserPreference).where(UserPreference.user_id == current_user.id))
+            .scalars()
+            .first()
+        )
+        if not pref:
+            pref = UserPreference(user_id=current_user.id)
+            db.add(pref)
+            db.flush()
 
-    set_fields = update.model_fields_set
-    if "theme" in set_fields and update.theme is not None:
-        pref.theme = update.theme
-    if "language_code" in set_fields:
-        pref.language_code = update.language_code
-    if "timezone" in set_fields:
-        pref.timezone = update.timezone
-    if "allow_gemini_health_insights" in set_fields:
-        pref.allow_gemini_health_insights = bool(update.allow_gemini_health_insights)
+        set_fields = update.model_fields_set
+        if "theme" in set_fields and update.theme is not None:
+            pref.theme = update.theme
+        if "language_code" in set_fields:
+            pref.language_code = update.language_code
+        if "timezone" in set_fields:
+            pref.timezone = update.timezone
+        if "allow_gemini_health_insights" in set_fields:
+            pref.allow_gemini_health_insights = bool(update.allow_gemini_health_insights)
 
-    db.commit()
-    db.refresh(pref)
-    return pref
+        db.commit()
+        db.refresh(pref)
+        return pref
+    except (OperationalError, ProgrammingError) as exc:
+        db.rollback()
+        _reraise_preferences_schema_error(exc)
+        raise
 
 
 # ── Password ──────────────────────────────────────────────────────────────────

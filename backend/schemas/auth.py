@@ -56,8 +56,6 @@ class UserPreferenceUpdateSchema(BaseModel):
     timezone: str | None = None
     allow_gemini_health_insights: bool | None = None
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 class PasswordChangeSchema(BaseModel):
     current_password: str

@@ -1,12 +1,15 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 function extractDetail(data, fallback) {
-  if (!data || !data.detail) return fallback
+  if (!data || data.detail === undefined || data.detail === null) return fallback
   if (typeof data.detail === 'string') return data.detail
   // Pydantic v2 validation errors: detail is an array of error objects
   if (Array.isArray(data.detail) && data.detail.length > 0) {
     const first = data.detail[0]
-    if (typeof first.msg === 'string') return first.msg
+    if (typeof first.msg === 'string') {
+      const loc = Array.isArray(first.loc) ? first.loc.filter(Boolean).join('.') : ''
+      return loc ? `${loc}: ${first.msg}` : first.msg
+    }
   }
   return fallback
 }
@@ -86,6 +89,7 @@ export async function updateUserPlan(token, plan) {
 
 export async function getPreferences(token) {
   const response = await fetch(`${API_BASE_URL}/api/auth/preferences`, {
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await response.json().catch(() => ({}))
@@ -96,6 +100,7 @@ export async function getPreferences(token) {
 export async function updatePreferences(token, prefs) {
   const response = await fetch(`${API_BASE_URL}/api/auth/preferences`, {
     method: 'PATCH',
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(prefs),
   })

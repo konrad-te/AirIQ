@@ -175,6 +175,13 @@
   "dashboard.adminClearPreview": "Clear preview",
   "dashboard.adminAtLeastOneValue": "Enter at least one test value to preview the dashboard.",
 
+  "insight.aiPrivacyTitle": "About AI wording and your data",
+  "insight.aiPrivacyP1": "When AI health insights are enabled, AirIQ may send a structured summary of your sleep or training data to Google Gemini to generate optional wording on top of the analysis we already computed.",
+  "insight.aiPrivacyP2": "Google may use prompts and outputs from the Gemini API to improve its models, as described in Google's terms for the product and tier you use.",
+  "insight.aiPrivacyP3": "You can turn this off anytime: open Settings, choose Preferences, switch off AI health insights (Google Gemini), then click Save preferences.",
+  "insight.aiPrivacyP4": "You can still generate insights without AI: findings and numbers always come from your Garmin and sensor data first. With AI off, you get the same analysis with a standard (rule-based) explanation instead of Gemini-written text.",
+  "insight.geminiUnavailableTitle": "AI wording unavailable",
+
   "metrics.pm25": "PM2.5",
   "metrics.pm10": "PM10",
   "metrics.co2": "CO2",

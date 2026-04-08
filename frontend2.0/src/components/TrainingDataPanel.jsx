@@ -1,5 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+import { shortHealthDataSourceLabel } from '../utils/insightDisplay'
 import './IndoorHistoryPanel.css'
 import './SleepHistoryPanel.css'
 import './TrainingDataPanel.css'
@@ -239,6 +241,7 @@ export default function TrainingDataPanel({
   locale = 'en-GB',
   timeZone = 'Europe/Warsaw',
 }) {
+  const { t } = useTranslation()
   const [selectedFiles, setSelectedFiles] = useState([])
   const [selectedMetric, setSelectedMetric] = useState('training_time_hours')
   const [activityPage, setActivityPage] = useState(0)
@@ -275,7 +278,7 @@ export default function TrainingDataPanel({
     { key: 'training-time', label: 'Training time', value: formatDuration(selectedInsightPoint.total_duration_minutes) },
     { key: 'burn', label: 'Active burn', value: formatCalories(selectedInsightPoint.total_calories) },
     { key: 'avg-hr', label: 'Avg HR', value: formatHeartRate(selectedInsightPoint.weighted_average_heart_rate) },
-    { key: 'source', label: 'Source', value: trainingData?.source_label || 'Garmin activity import' },
+    { key: 'source', label: 'Source', value: shortHealthDataSourceLabel(trainingData?.source_label) },
   ], [selectedInsightPoint, trainingData?.source_label])
   const selectedDayActivities = useMemo(() => activities.filter((activity) => getActivityCalendarDate(activity) === selectedInsightPoint?.calendar_date).slice(0, 6), [activities, selectedInsightPoint?.calendar_date])
   const canGenerateForSelection = canGenerateInsight && typeof onGenerateInsight === 'function' && Boolean(selectedInsightPoint?.calendar_date)
@@ -347,16 +350,11 @@ export default function TrainingDataPanel({
     }
     onSelectInsightDate(nearest.point.calendar_date)
   }
-  const importSection = (
+  const renderImportSection = ({ showTitle = true } = {}) => (
     <div className="training-data-panel__import">
-      <div className="training-data-panel__import-copy">
-        <h3>Import Garmin activity files</h3>
-        <p>
-          Upload Garmin summarized activity exports like <code className="training-data-panel__inline-code">*_summarizedActivities.json</code>.
-          AirIQ stores each session and groups them into daily training summaries for AI analysis.
-        </p>
-      </div>
-      <div className="training-data-panel__import-actions">
+      <div className="training-data-panel__import-head">
+        {showTitle ? <h3>Import Garmin activity files</h3> : null}
+        <div className="training-data-panel__import-actions">
         <input
           ref={fileInputRef}
           className="training-data-panel__file-input"
@@ -371,6 +369,7 @@ export default function TrainingDataPanel({
         <button type="button" className="training-data-panel__help-btn" onClick={() => setIsHelpOpen(true)}>
           How to import the training data
         </button>
+        </div>
       </div>
       {selectedFiles.length > 0 ? <p className="training-data-panel__import-meta">Selected: {selectedFiles.map((file) => file.name).join(', ')}</p> : null}
       {importNotice ? <p className="training-data-panel__import-notice">{importNotice}</p> : null}
@@ -387,7 +386,7 @@ export default function TrainingDataPanel({
             <h3 id="training-import-help-title">How to import the training data</h3>
           </div>
           <button type="button" className="training-data-panel__modal-close" onClick={() => setIsHelpOpen(false)} aria-label="Close import instructions">
-            x
+            ×
           </button>
         </div>
         <div className="training-data-panel__modal-body">
@@ -400,8 +399,8 @@ export default function TrainingDataPanel({
             <li><strong>Upload that file here.</strong> AirIQ uses it to build training history, daily summaries, and AI training insights.</li>
           </ol>
           <p className="training-data-panel__modal-note">
-            Quick path recap:
-            <code className="training-data-panel__path">Garmin export/DI_CONNECT/DI-Connect-Fitness/(your-email)_0_summarizedActivities.json</code>.
+            <strong>Quick path recap</strong>
+            <code className="training-data-panel__path">Garmin export/DI_CONNECT/DI-Connect-Fitness/(your-email)_0_summarizedActivities.json</code>
           </p>
         </div>
       </div>
@@ -424,7 +423,7 @@ export default function TrainingDataPanel({
     return (
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
-          {importSection}
+          {renderImportSection()}
           <div className="indoor-history-panel__state indoor-history-panel__state--error"><h4>Could not load training history</h4><p>{error}</p></div>
         </section>
         {helpModal}
@@ -436,8 +435,11 @@ export default function TrainingDataPanel({
     return (
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
-          {importSection}
-          <div className="indoor-history-panel__state"><h4>No imported training data yet</h4><p>Upload a Garmin <code className="training-data-panel__inline-code">*_summarizedActivities.json</code> file above and your sessions will appear here.</p></div>
+          {renderImportSection()}
+          <div className="indoor-history-panel__state indoor-history-panel__state--empty">
+            <h4>No imported training data yet</h4>
+            <p>Your training chart will appear here after you import. Use <strong>How to import the training data</strong> above for step-by-step export instructions.</p>
+          </div>
         </section>
         {helpModal}
       </>
@@ -539,6 +541,13 @@ export default function TrainingDataPanel({
                 {insightData && canGenerateForSelection ? <button type="button" className="sleep-history-panel__insight-action-btn" onClick={onGenerateInsight} disabled={insightLoading}>{insightLoading ? 'Generating...' : 'Regenerate insight'}</button> : null}
               </div>
             </div>
+            <div className="sleep-history-panel__insight-info" role="region" aria-label={t('insight.aiPrivacyTitle')}>
+              <p className="sleep-history-panel__insight-info__title">{t('insight.aiPrivacyTitle')}</p>
+              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP1')}</p>
+              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP2')}</p>
+              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP3')}</p>
+              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP4')}</p>
+            </div>
             {!canGenerateInsight ? (
               <div className="sleep-history-panel__insight-state">
                 <div>
@@ -575,6 +584,13 @@ export default function TrainingDataPanel({
                     <div key={item.key} className="sleep-history-panel__insight-stat"><span>{item.label}</span><strong>{item.value}</strong></div>
                   ))}
                 </div>
+
+                {typeof insightData.gemini_explanation_note === 'string' && insightData.gemini_explanation_note.trim() !== '' ? (
+                  <div className="sleep-history-panel__insight-gemini-note" role="status">
+                    <p className="sleep-history-panel__insight-gemini-note__title">{t('insight.geminiUnavailableTitle')}</p>
+                    <p className="sleep-history-panel__insight-gemini-note__body">{insightData.gemini_explanation_note}</p>
+                  </div>
+                ) : null}
 
                 <div className="sleep-history-panel__insight-summary">
                   <div className="sleep-history-panel__insight-summary-copy">
@@ -762,9 +778,9 @@ export default function TrainingDataPanel({
                 <p className="sleep-history-panel__modal-eyebrow">Garmin Import</p>
                 <h3 id="training-import-modal-title">Import Garmin activity files</h3>
               </div>
-              <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsImportModalOpen(false)} aria-label="Close import dialog">x</button>
+              <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsImportModalOpen(false)} aria-label="Close import dialog">×</button>
             </div>
-            <div className="sleep-history-panel__modal-body">{importSection}</div>
+            <div className="sleep-history-panel__modal-body">{renderImportSection({ showTitle: false })}</div>
           </div>
         </div>
       ) : null}

@@ -380,12 +380,15 @@ function PreferencesSection() {
     setError('')
     setSuccess(false)
     try {
-      await updatePreferences(token, {
+      const updated = await updatePreferences(token, {
         language_code: language || null,
         timezone: timezone || null,
         allow_gemini_health_insights: allowGeminiHealthInsights,
       })
-      i18n.changeLanguage(language || 'en')
+      setLanguage(updated.language_code ?? '')
+      setTimezone(updated.timezone ?? '')
+      setAllowGeminiHealthInsights(Boolean(updated.allow_gemini_health_insights))
+      i18n.changeLanguage(updated.language_code || 'en')
       window.dispatchEvent(new CustomEvent('airtq-preferences-updated'))
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)

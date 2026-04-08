@@ -53,7 +53,6 @@
 
 .training-data-panel__hero-copy,
 .training-data-panel__hero-meta,
-.training-data-panel__import,
 .training-data-panel__stat-card,
 .training-data-panel__section,
 .training-data-panel__sport-card,
@@ -152,32 +151,55 @@
 
 .training-data-panel__import {
   display: grid;
-  gap: 0.9rem;
-  padding: 1rem 1.1rem;
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(242, 250, 251, 0.96), rgba(234, 246, 248, 0.98));
-  border: 1px solid rgba(188, 224, 228, 0.92);
+  gap: 0.75rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--app-radius, 14px);
+  background: var(--app-white, #fff);
+  border: 1px solid var(--app-border, #e2e8f0);
+  box-shadow: none;
 }
 
-.training-data-panel__import-copy h3,
-.training-data-panel__import-copy p,
+.training-data-panel__import-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+}
+
+.training-data-panel__import-head .training-data-panel__import-actions {
+  flex: 1 1 280px;
+  justify-content: flex-end;
+}
+
+.training-data-panel__import-head h3,
 .training-data-panel__import-meta,
 .training-data-panel__import-notice,
 .training-data-panel__import-error {
   margin: 0;
 }
 
-.training-data-panel__import-copy h3,
-.training-data-panel__modal-head h3,
+.training-data-panel__import-head h3,
 .training-data-panel__path {
-  color: #1a3152;
+  color: var(--app-text, #0f172a);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
 }
 
-.training-data-panel__import-copy p,
+.training-data-panel__modal-head h3 {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.08rem, 2.2vw, 1.28rem);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--app-text, #0f172a);
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
+}
+
 .training-data-panel__import-meta {
-  color: #5c789a;
-  font-size: 0.88rem;
-  line-height: 1.55;
+  color: var(--app-muted, #64748b);
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .training-data-panel__import-actions {
@@ -195,35 +217,48 @@
 }
 
 .training-data-panel__file-input::file-selector-button {
-  margin-right: 0.8rem;
-  border: 1px solid rgba(91, 201, 184, 0.5);
-  background: rgba(255, 255, 255, 0.82);
-  color: #1f6f78;
-  border-radius: 12px;
-  padding: 0.55rem 0.85rem;
-  font-weight: 700;
+  margin-right: 0.75rem;
+  border: 1px solid var(--app-border, #e2e8f0);
+  background: var(--app-bg, #f8fafc);
+  color: var(--app-text, #0f172a);
+  border-radius: 10px;
+  padding: 0.5rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.82rem;
   cursor: pointer;
 }
 
 .training-data-panel__import-btn,
 .training-data-panel__help-btn {
-  border-radius: 12px;
-  padding: 0.7rem 1rem;
-  font-size: 0.88rem;
-  font-weight: 700;
+  border-radius: 10px;
+  padding: 0.55rem 1rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
   cursor: pointer;
 }
 
 .training-data-panel__import-btn {
   border: none;
-  background: linear-gradient(135deg, #1f6f78, #56beae);
+  background: var(--app-primary, #1a6bf0);
   color: #fff;
+  transition: background 0.2s;
+}
+
+.training-data-panel__import-btn:hover:not(:disabled) {
+  background: var(--app-primary-hover, #1559cc);
 }
 
 .training-data-panel__help-btn {
-  border: 1px solid rgba(31, 111, 120, 0.25);
-  background: rgba(255, 255, 255, 0.78);
-  color: #1f6f78;
+  border: 1px solid var(--app-border, #e2e8f0);
+  background: var(--app-white, #fff);
+  color: var(--app-text, #0f172a);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.training-data-panel__help-btn:hover {
+  border-color: var(--app-primary, #1a6bf0);
+  background: var(--app-bg, #f8fafc);
 }
 
 .training-data-panel__import-btn:disabled {
@@ -232,7 +267,7 @@
 }
 
 .training-data-panel__import-notice {
-  color: #1f6f78;
+  color: var(--app-green, #16a34a);
   font-weight: 600;
 }
 
@@ -435,17 +470,20 @@
   align-items: center;
   justify-content: center;
   padding: 1.25rem;
-  background: rgba(14, 28, 38, 0.42);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
 }
 
 .training-data-panel__modal {
-  width: min(760px, 100%);
+  width: min(720px, 100%);
   max-height: min(88vh, 900px);
   overflow: auto;
-  border-radius: 26px;
-  padding: 1.4rem;
-  background: #fff;
-  box-shadow: 0 28px 72px rgba(14, 28, 38, 0.22);
+  border-radius: var(--app-radius, 14px);
+  padding: 0;
+  background: var(--app-white, #fff);
+  border: 1px solid var(--app-border, #e2e8f0);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
 }
 
 .training-data-panel__modal-head {
@@ -453,53 +491,131 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  padding: 1.25rem 1.35rem 1rem;
+  border-bottom: 1px solid var(--app-border, #e2e8f0);
+}
+
+.training-data-panel__modal-body {
+  padding: 1.15rem 1.35rem 1.35rem;
 }
 
 .training-data-panel__modal-eyebrow {
-  margin: 0 0 0.25rem;
-  color: #1f6f78;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  margin: 0;
+  color: var(--app-muted, #64748b);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .training-data-panel__modal-close {
-  border: none;
-  background: rgba(236, 247, 244, 0.95);
-  color: #1f6f78;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  font-size: 1.2rem;
-  font-weight: 800;
+  flex-shrink: 0;
+  border: 1px solid var(--app-border, #e2e8f0);
+  background: var(--app-bg, #f8fafc);
+  color: var(--app-muted, #64748b);
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  font-size: 1.35rem;
+  font-weight: 400;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.training-data-panel__modal-close:hover {
+  background: var(--app-white, #fff);
+  color: var(--app-text, #0f172a);
+  border-color: var(--app-border, #cbd5e1);
 }
 
 .training-data-panel__steps {
+  list-style: none;
   margin: 0;
-  padding-left: 1.2rem;
+  padding: 0;
   display: grid;
-  gap: 0.8rem;
-  color: #4b6474;
-  line-height: 1.6;
+  gap: 1rem;
+  counter-reset: garmin-step;
+  color: var(--app-body, #475569);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.training-data-panel__steps li {
+  position: relative;
+  margin: 0;
+  padding-left: 2.65rem;
+  counter-increment: garmin-step;
+}
+
+.training-data-panel__steps li::before {
+  content: counter(garmin-step);
+  position: absolute;
+  left: 0;
+  top: 0.12em;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--app-bg, #f8fafc);
+  border: 1px solid var(--app-border, #e2e8f0);
+  color: var(--app-text, #0f172a);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+  text-align: center;
+}
+
+.training-data-panel__steps a {
+  color: var(--app-primary, #1a6bf0);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.training-data-panel__steps a:hover {
+  text-decoration: underline;
 }
 
 .training-data-panel__path {
-  display: inline-block;
-  margin-left: 0.35rem;
+  display: inline;
+  margin: 0 0.15rem;
   padding: 0.15rem 0.45rem;
-  border-radius: 8px;
-  background: rgba(236, 247, 244, 0.98);
+  border-radius: 6px;
+  background: var(--app-bg, #f8fafc);
+  border: 1px solid var(--app-border, #e2e8f0);
+  color: var(--app-text, #0f172a);
+  font-size: 0.86em;
 }
 
 .training-data-panel__modal-note {
-  margin-top: 1rem;
-  color: #5c789a;
-  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1.25rem 0 0;
+  padding: 1rem 1.1rem;
+  border-radius: var(--app-radius, 12px);
+  background: var(--app-bg, #f8fafc);
+  border: 1px solid var(--app-border, #e2e8f0);
+  color: var(--app-muted, #64748b);
+  font-size: 0.88rem;
   line-height: 1.55;
+}
+
+.training-data-panel__modal-note strong {
+  color: var(--app-text, #0f172a);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.training-data-panel__modal-note .training-data-panel__path {
+  display: block;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  word-break: break-all;
 }
 
 @keyframes training-data-panel-spin {
@@ -519,6 +635,16 @@
 }
 
 @media (max-width: 720px) {
+  .training-data-panel__import-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .training-data-panel__import-head .training-data-panel__import-actions {
+    flex: 1 1 auto;
+    justify-content: stretch;
+  }
+
   .training-data-panel__file-input,
   .training-data-panel__import-btn,
   .training-data-panel__help-btn {
@@ -537,8 +663,15 @@
   }
 
   .training-data-panel__modal {
-    padding: 1.05rem;
-    border-radius: 20px;
+    border-radius: 12px;
+  }
+
+  .training-data-panel__modal-head {
+    padding: 1rem 1rem 0.85rem;
+  }
+
+  .training-data-panel__modal-body {
+    padding: 1rem 1rem 1.15rem;
   }
 }
 
@@ -556,8 +689,8 @@
   gap: 0.35rem;
   padding: 0.25rem;
   border-radius: 999px;
-  background: rgba(235, 243, 250, 0.92);
-  border: 1px solid rgba(188, 214, 233, 0.78);
+  background: var(--app-bg, #f8fafc);
+  border: 1px solid var(--app-border, #e2e8f0);
 }
 
 .training-data-panel__insight-mode-btn {
@@ -565,14 +698,15 @@
   border-radius: 999px;
   padding: 0.45rem 0.8rem;
   background: transparent;
-  color: #6280a2;
+  color: var(--app-body, #475569);
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
   cursor: pointer;
 }
 
 .training-data-panel__insight-mode-btn--active {
-  background: linear-gradient(135deg, #3e8ae0, #67b8ee);
+  background: var(--app-primary, #1a6bf0);
   color: #fff;
 }
 

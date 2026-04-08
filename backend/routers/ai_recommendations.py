@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 try:
     from google import genai
@@ -28,6 +31,49 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 GEMINI_MODEL = "gemini-2.5-flash"
+
+_GEMINI_NOTE_NO_PACKAGE = (
+    "AI wording is not available because the Gemini client library is not installed on this server. "
+    "The explanation below is still generated from your data."
+)
+_GEMINI_NOTE_NO_API_KEY = (
+    "AI wording is not available because this server has no Google API key configured. "
+    "The explanation below is still generated from your data."
+)
+_GEMINI_NOTE_CONSENT = (
+    "To use AI-written wording, turn on AI health insights (Google Gemini) in Settings under Preferences "
+    "and save. The explanation below is a standard summary from your data."
+)
+
+
+def _gemini_failure_user_note(exc: BaseException) -> str:
+    raw = str(exc)
+    text = raw.lower()
+    if "429" in raw or "resource_exhausted" in text:
+        return (
+            "AI wording is temporarily limited by rate limits. "
+            "The explanation below is still from your data—try again in a few minutes."
+        )
+    if (
+        "503" in raw
+        or "unavailable" in text
+        or "high demand" in text
+        or "overloaded" in text
+        or "try again later" in text
+    ):
+        return (
+            "Google’s AI service is busy right now. "
+            "The explanation below is still from your data—try again shortly."
+        )
+    if "401" in raw or "403" in raw or "permission denied" in text or "invalid api key" in text:
+        return (
+            "The AI service rejected the request (often an API key or access issue). "
+            "The explanation below is still from your data."
+        )
+    return (
+        "We could not generate AI wording for this insight. "
+        "The explanation below is still from your data—try again later."
+    )
 
 
 class OutdoorData(BaseModel):
@@ -156,12 +202,16 @@ def _build_sleep_insight_prompt(insight: dict[str, object]) -> str:
     )
 
 
-def _generate_sleep_insight_explanation(insight: dict[str, object]) -> SleepInsightExplanationSchema | None:
+def _generate_sleep_insight_explanation(
+    insight: dict[str, object],
+) -> tuple[SleepInsightExplanationSchema | None, str | None]:
     if genai is None or genai_types is None:
-        return None
+        logger.warning("sleep-insight: Gemini skipped (google-genai package not installed)")
+        return None, _GEMINI_NOTE_NO_PACKAGE
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        return None
+        logger.warning("sleep-insight: Gemini skipped (GOOGLE_API_KEY is not set for the API process)")
+        return None, _GEMINI_NOTE_NO_API_KEY
 
     client = genai.Client(api_key=api_key)
     try:
@@ -172,16 +222,20 @@ def _generate_sleep_insight_explanation(insight: dict[str, object]) -> SleepInsi
         )
         payload = json.loads(response.text)
         parsed = _SleepInsightExplanationResponse.model_validate(payload)
-        return SleepInsightExplanationSchema(
-            source="gemini",
-            headline=parsed.headline,
-            summary=parsed.summary,
-            action_items=parsed.action_items,
-            training_note=parsed.training_note,
-            caveats=parsed.caveats,
+        return (
+            SleepInsightExplanationSchema(
+                source="gemini",
+                headline=parsed.headline,
+                summary=parsed.summary,
+                action_items=parsed.action_items,
+                training_note=parsed.training_note,
+                caveats=parsed.caveats,
+            ),
+            None,
         )
-    except Exception:
-        return None
+    except Exception as exc:
+        logger.warning("sleep-insight: Gemini call failed, using rule-based explanation: %s", exc)
+        return None, _gemini_failure_user_note(exc)
 
 
 def _build_training_insight_prompt(insight: dict[str, object]) -> str:
@@ -215,12 +269,16 @@ def _build_training_insight_prompt(insight: dict[str, object]) -> str:
     )
 
 
-def _generate_training_insight_explanation(insight: dict[str, object]) -> SleepInsightExplanationSchema | None:
+def _generate_training_insight_explanation(
+    insight: dict[str, object],
+) -> tuple[SleepInsightExplanationSchema | None, str | None]:
     if genai is None or genai_types is None:
-        return None
+        logger.warning("training-insight: Gemini skipped (google-genai package not installed)")
+        return None, _GEMINI_NOTE_NO_PACKAGE
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        return None
+        logger.warning("training-insight: Gemini skipped (GOOGLE_API_KEY is not set for the API process)")
+        return None, _GEMINI_NOTE_NO_API_KEY
 
     client = genai.Client(api_key=api_key)
     try:
@@ -231,16 +289,20 @@ def _generate_training_insight_explanation(insight: dict[str, object]) -> SleepI
         )
         payload = json.loads(response.text)
         parsed = _SleepInsightExplanationResponse.model_validate(payload)
-        return SleepInsightExplanationSchema(
-            source="gemini",
-            headline=parsed.headline,
-            summary=parsed.summary,
-            action_items=parsed.action_items,
-            training_note=parsed.training_note,
-            caveats=parsed.caveats,
+        return (
+            SleepInsightExplanationSchema(
+                source="gemini",
+                headline=parsed.headline,
+                summary=parsed.summary,
+                action_items=parsed.action_items,
+                training_note=parsed.training_note,
+                caveats=parsed.caveats,
+            ),
+            None,
         )
-    except Exception:
-        return None
+    except Exception as exc:
+        logger.warning("training-insight: Gemini call failed, using rule-based explanation: %s", exc)
+        return None, _gemini_failure_user_note(exc)
 
 
 @router.post("/recommendation", response_model=RecommendationResponse)
@@ -339,10 +401,19 @@ def get_sleep_insight(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if include_ai and user_allows_gemini_health_data(db, current_user.id):
-        ai_explanation = _generate_sleep_insight_explanation(insight)
-        if ai_explanation is not None:
-            insight["explanation"] = ai_explanation.model_dump()
+    gemini_note: str | None = None
+    if include_ai:
+        if user_allows_gemini_health_data(db, current_user.id):
+            ai_explanation, fail_note = _generate_sleep_insight_explanation(insight)
+            if ai_explanation is not None:
+                insight["explanation"] = ai_explanation.model_dump()
+            else:
+                gemini_note = fail_note
+        else:
+            logger.info("sleep-insight: include_ai=true but user has not enabled Gemini in preferences")
+            gemini_note = _GEMINI_NOTE_CONSENT
+
+    insight["gemini_explanation_note"] = gemini_note
 
     return SleepInsightResponseSchema.model_validate(insight)
 
@@ -378,9 +449,18 @@ def get_training_insight(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if include_ai and user_allows_gemini_health_data(db, current_user.id):
-        ai_explanation = _generate_training_insight_explanation(insight)
-        if ai_explanation is not None:
-            insight["explanation"] = ai_explanation.model_dump()
+    gemini_note: str | None = None
+    if include_ai:
+        if user_allows_gemini_health_data(db, current_user.id):
+            ai_explanation, fail_note = _generate_training_insight_explanation(insight)
+            if ai_explanation is not None:
+                insight["explanation"] = ai_explanation.model_dump()
+            else:
+                gemini_note = fail_note
+        else:
+            logger.info("training-insight: include_ai=true but user has not enabled Gemini in preferences")
+            gemini_note = _GEMINI_NOTE_CONSENT
+
+    insight["gemini_explanation_note"] = gemini_note
 
     return TrainingInsightResponseSchema.model_validate(insight)

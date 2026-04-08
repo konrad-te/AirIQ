@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { clearMockIndoorReadings, seedMockIndoorReadings } from '../services/airDataService'
+import { shortHealthDataSourceLabel } from '../utils/insightDisplay'
 import FeedbackComposer from './FeedbackComposer'
 import './IndoorHistoryPanel.css'
 import './SleepHistoryPanel.css'
@@ -259,6 +261,7 @@ export default function SleepHistoryPanel({
   locale = 'en-GB',
   timeZone = 'Europe/Warsaw',
 }) {
+  const { t } = useTranslation()
   const [selectedMetric, setSelectedMetric] = useState('sleep_duration_hours')
   const [selectedFiles, setSelectedFiles] = useState([])
   const [hover, setHover] = useState(null)
@@ -315,9 +318,7 @@ export default function SleepHistoryPanel({
   }, [pointsByDate, selectedInsightPoint?.calendar_date, visibleCalendarMonth])
   const selectedDayStats = useMemo(() => {
     if (!selectedInsightPoint) return []
-    const sourceDisplay = historyData?.source_label
-      ? formatSourceLabel(historyData.source_label)
-      : 'Garmin import'
+    const sourceDisplay = shortHealthDataSourceLabel(historyData?.source_label)
     const windowRow = { key: 'window', label: 'Sleep window', value: formatSleepWindow(selectedInsightPoint, locale, timeZone) }
     const sourceRow = { key: 'source', label: 'Source', value: sourceDisplay }
     if (Number(selectedInsightPoint.sample_count) <= 0) return [windowRow, sourceRow]
@@ -476,11 +477,9 @@ export default function SleepHistoryPanel({
 
   const renderImportPanel = ({ showTitle = true } = {}) => (
     <div className="sleep-history-panel__import">
-      <div className="sleep-history-panel__import-copy">
+      <div className="sleep-history-panel__import-head">
         {showTitle ? <h3>Import Garmin files</h3> : null}
-        <p>Upload Garmin summary files like <code className="sleep-history-panel__inline-code">UDSFile...json</code> and detailed sleep stage files like <code className="sleep-history-panel__inline-code">*_sleepData.json</code>. AirIQ stores the nights in the database and merges both file types into the same sleep history.</p>
-      </div>
-      <div className="sleep-history-panel__import-actions">
+        <div className="sleep-history-panel__import-actions">
         <input
           ref={fileInputRef}
           className="sleep-history-panel__file-input"
@@ -495,6 +494,7 @@ export default function SleepHistoryPanel({
         <button type="button" className="sleep-history-panel__help-btn" onClick={() => setIsHelpOpen(true)}>
           How to import the sleep data
         </button>
+        </div>
       </div>
       {selectedFiles.length > 0 ? <p className="sleep-history-panel__import-meta">Selected: {selectedFiles.map((file) => file.name).join(', ')}</p> : null}
       {importNotice ? <p className="sleep-history-panel__import-notice">{importNotice}</p> : null}
@@ -543,7 +543,7 @@ export default function SleepHistoryPanel({
             <h3 id="sleep-import-modal-title">Import Garmin files</h3>
           </div>
           <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsImportModalOpen(false)} aria-label="Close import dialog">
-            x
+            ×
           </button>
         </div>
         <div className="sleep-history-panel__modal-body">
@@ -562,7 +562,7 @@ export default function SleepHistoryPanel({
             <h3 id="sleep-mock-modal-title">Sleep insight sensor demo</h3>
           </div>
           <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsMockModalOpen(false)} aria-label="Close demo tools">
-            x
+            ×
           </button>
         </div>
         <div className="sleep-history-panel__modal-body">
@@ -581,7 +581,7 @@ export default function SleepHistoryPanel({
             <h3 id="sleep-import-help-title">How to import the sleep data</h3>
           </div>
           <button type="button" className="sleep-history-panel__modal-close" onClick={() => setIsHelpOpen(false)} aria-label="Close import instructions">
-            x
+            ×
           </button>
         </div>
         <div className="sleep-history-panel__modal-body">
@@ -641,7 +641,10 @@ export default function SleepHistoryPanel({
         hasImportedDays ? (
           <div className="indoor-history-panel__state"><h4>No data for this metric yet</h4><p>Those Garmin days are stored, but the selected metric is missing in this range. Import the matching Garmin file type or switch to another metric.</p></div>
         ) : (
-        <div className="indoor-history-panel__state"><h4>No imported sleep data yet</h4><p>Upload a Garmin summary export or a <code className="sleep-history-panel__inline-code">*_sleepData.json</code> file above and your sleep metrics will appear here.</p></div>
+        <div className="indoor-history-panel__state indoor-history-panel__state--empty">
+          <h4>No imported sleep data yet</h4>
+          <p>Your sleep chart will appear here after you import. Use <strong>How to import the sleep data</strong> above for step-by-step export instructions.</p>
+        </div>
         )
       ) : (
         <>
@@ -756,6 +759,14 @@ export default function SleepHistoryPanel({
                 </div>
               </div>
 
+              <div className="sleep-history-panel__insight-info" role="region" aria-label={t('insight.aiPrivacyTitle')}>
+                <p className="sleep-history-panel__insight-info__title">{t('insight.aiPrivacyTitle')}</p>
+                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP1')}</p>
+                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP2')}</p>
+                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP3')}</p>
+                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP4')}</p>
+              </div>
+
               {!canGenerateInsight ? (
                 <div className="sleep-history-panel__insight-state">
                   <div>
@@ -811,6 +822,13 @@ export default function SleepHistoryPanel({
                       <strong>{formatSourceLabel(insightData.indoor?.data_source || 'unknown')}</strong>
                     </div>
                   </div>
+
+                  {typeof insightData.gemini_explanation_note === 'string' && insightData.gemini_explanation_note.trim() !== '' ? (
+                    <div className="sleep-history-panel__insight-gemini-note" role="status">
+                      <p className="sleep-history-panel__insight-gemini-note__title">{t('insight.geminiUnavailableTitle')}</p>
+                      <p className="sleep-history-panel__insight-gemini-note__body">{insightData.gemini_explanation_note}</p>
+                    </div>
+                  ) : null}
 
                   <div className="sleep-history-panel__insight-summary">
                     <div className="sleep-history-panel__insight-summary-copy">
