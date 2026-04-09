@@ -46,6 +46,8 @@ class UserPreferenceOutSchema(BaseModel):
     language_code: str | None
     timezone: str | None
     allow_gemini_health_insights: bool = False
+    discord_morning_outlook_enabled: bool = False
+    discord_outlook_webhook_configured: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,6 +57,8 @@ class UserPreferenceUpdateSchema(BaseModel):
     language_code: str | None = None
     timezone: str | None = None
     allow_gemini_health_insights: bool | None = None
+    discord_morning_outlook_enabled: bool | None = None
+    discord_outlook_webhook_url: str | None = Field(default=None, max_length=512)
 
 
 class PasswordChangeSchema(BaseModel):

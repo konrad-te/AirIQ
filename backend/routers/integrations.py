@@ -20,7 +20,11 @@ from backend.schemas.integrations import (
     QingpingStatusResponseSchema,
 )
 from backend.security import get_current_user
-from backend.services.credential_encryption import decrypt_credential, encrypt_credential
+from backend.services.credential_encryption import (
+    CredentialEncryptionError,
+    decrypt_credential,
+    encrypt_credential,
+)
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -41,11 +45,17 @@ class QingpingSyncSummary:
 
 
 def _qingping_plain_credentials(integration: UserQingpingIntegration) -> tuple[str, str, str]:
-    return (
-        decrypt_credential(integration.app_key),
-        decrypt_credential(integration.app_secret),
-        decrypt_credential(integration.access_token),
-    )
+    try:
+        return (
+            decrypt_credential(integration.app_key),
+            decrypt_credential(integration.app_secret),
+            decrypt_credential(integration.access_token),
+        )
+    except CredentialEncryptionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Qingping credentials are unavailable because FIELD_ENCRYPTION_KEY is not configured.",
+        ) from exc
 
 
 def _qingping_token_url() -> str:
@@ -422,7 +432,13 @@ def _refresh_qingping_token_if_needed(
     )
 
     expires_in = _parse_int(payload.get("expires_in"))
-    integration.access_token = encrypt_credential(payload["access_token"])
+    try:
+        integration.access_token = encrypt_credential(payload["access_token"])
+    except CredentialEncryptionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Qingping token refresh is unavailable because FIELD_ENCRYPTION_KEY is not configured.",
+        ) from exc
     integration.token_expires_at = (
         now + timedelta(seconds=expires_in) if expires_in is not None else None
     )
@@ -612,22 +628,32 @@ def connect_qingping(
         .first()
     )
 
+    try:
+        encrypted_app_key = encrypt_credential(body.app_key.strip())
+        encrypted_app_secret = encrypt_credential(body.app_secret.strip())
+        encrypted_access_token = encrypt_credential(payload["access_token"])
+    except CredentialEncryptionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Qingping integration cannot be saved because FIELD_ENCRYPTION_KEY is not configured.",
+        ) from exc
+
     if integration is None:
         integration = UserQingpingIntegration(
             user_id=current_user.id,
             provider="qingping",
-            app_key=encrypt_credential(body.app_key.strip()),
-            app_secret=encrypt_credential(body.app_secret.strip()),
-            access_token=encrypt_credential(payload["access_token"]),
+            app_key=encrypted_app_key,
+            app_secret=encrypted_app_secret,
+            access_token=encrypted_access_token,
             token_expires_at=token_expires_at,
             status="connected",
             last_validated_at=now,
         )
         db.add(integration)
     else:
-        integration.app_key = encrypt_credential(body.app_key.strip())
-        integration.app_secret = encrypt_credential(body.app_secret.strip())
-        integration.access_token = encrypt_credential(payload["access_token"])
+        integration.app_key = encrypted_app_key
+        integration.app_secret = encrypted_app_secret
+        integration.access_token = encrypted_access_token
         integration.token_expires_at = token_expires_at
         integration.status = "connected"
         integration.last_validated_at = now

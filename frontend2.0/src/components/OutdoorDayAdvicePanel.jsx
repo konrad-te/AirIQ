@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import './OutdoorDayAdvicePanel.css'
 
 const DEFAULT_LOCALE = 'pl-PL'
 const DEFAULT_TIMEZONE = 'Europe/Warsaw'
-const TOMORROW_PLAN_START_HOUR = 18
-const TOMORROW_PLAN_END_HOUR = 23
+/** From this local hour onward, the panel shows the next calendar day’s outlook (if forecast exists). */
+const NEXT_DAY_PLAN_START_HOUR = 18
 
 function isFiniteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value)
@@ -279,334 +280,331 @@ function getAirQualityBand(pm25, pm10) {
   return { label: 'Very polluted', tone: 'danger' }
 }
 
-function scoreRowForOutdoors(row) {
-  let score = 0
-
-  const pm25 = row?.pm25
-  const pm10 = row?.pm10
-  const rain = row?.rain_mm
-  const uv = row?.uv_index
-  const temp = row?.temperature_c
-  const windMs = row?.wind_speed_ms
-  const windKmh = isFiniteNumber(windMs) ? windMs * 3.6 : null
-
-  if (isFiniteNumber(pm25)) score += pm25 <= 15 ? 0 : pm25 <= 25 ? 1 : pm25 <= 35 ? 2 : 4
-  if (isFiniteNumber(pm10)) score += pm10 <= 25 ? 0 : pm10 <= 40 ? 1 : pm10 <= 60 ? 2 : 3
-  if (isFiniteNumber(rain)) score += rain === 0 ? 0 : rain < 0.5 ? 1 : rain < 2 ? 3 : 5
-  if (isFiniteNumber(windKmh)) score += windKmh < 20 ? 0 : windKmh < 30 ? 1 : windKmh < 45 ? 2 : 4
-  if (isFiniteNumber(uv)) score += uv <= 3 ? 0 : uv <= 5 ? 1 : uv <= 7 ? 2 : 3
-  if (isFiniteNumber(temp)) score += temp >= 10 && temp <= 24 ? 0 : temp >= 5 && temp <= 28 ? 1 : 2
-
-  return score
+/**
+ * Rows that represent typical outdoor / cycling hours: daylight (when marked) and ~6:00–21:00 local,
+ * so late-evening pollution spikes do not define the whole-day plan headline.
+ */
+function getPlanDaytimeOutdoorRows(rows, timeZone) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows
+  let work = rows.filter((row) => row?.is_day !== 0)
+  if (work.length === 0) work = rows
+  const clockFiltered = work.filter((row) => {
+    if (!row?.__date) return true
+    const { hour } = getDateParts(row.__date, timeZone)
+    return hour >= 6 && hour <= 21
+  })
+  return clockFiltered.length > 0 ? clockFiltered : work
 }
 
-function findBestWindow(rows, minimumStart) {
-  const candidates = rows.filter((row) => row.__date >= minimumStart && row.is_day !== 0)
-  if (candidates.length === 0) return null
-
-  if (candidates.length === 1) {
-    return {
-      start: candidates[0].__date,
-      end: new Date(candidates[0].__date.getTime() + 60 * 60 * 1000),
-    }
-  }
-
-  let bestWindow = null
-
-  for (let index = 0; index < candidates.length - 1; index += 1) {
-    const score = (scoreRowForOutdoors(candidates[index]) + scoreRowForOutdoors(candidates[index + 1])) / 2
-    if (!bestWindow || score < bestWindow.score) {
-      bestWindow = {
-        score,
-        start: candidates[index].__date,
-        end: new Date(candidates[index + 1].__date.getTime() + 60 * 60 * 1000),
-      }
-    }
-  }
-
-  return bestWindow
+function getPlanDayAirBand(selectedRows, baselineCurrentRow, timeZone) {
+  const planRows = getPlanDaytimeOutdoorRows(selectedRows, timeZone)
+  const peakPm25Plan = getPeakRow(planRows, 'pm25')
+  const peakPm10Plan = getPeakRow(planRows, 'pm10')
+  const pm25 = isFiniteNumber(peakPm25Plan?.pm25) ? peakPm25Plan.pm25 : baselineCurrentRow?.pm25
+  const pm10 = isFiniteNumber(peakPm10Plan?.pm10) ? peakPm10Plan.pm10 : baselineCurrentRow?.pm10
+  return getAirQualityBand(pm25, pm10)
 }
 
-function buildDressAdvice(tempRange, peakWindRow) {
-  const minTemp = tempRange?.min
-  const maxTemp = tempRange?.max
+function getCloudSentence(cloudCoverRange, representativeSkyRow) {
+  const sky = getSkyCondition(representativeSkyRow || {})
+  const minC = cloudCoverRange?.min
+  const maxC = cloudCoverRange?.max
+  if (isFiniteNumber(minC) && isFiniteNumber(maxC)) {
+    const span = maxC - minC
+    const avg = (minC + maxC) / 2
+    if (span >= 70) return 'Cloud cover swings widely through the day.'
+    if (avg >= 65) return 'Expect mostly cloudy skies.'
+    if (avg <= 40) return 'Skies look fairly bright overall.'
+    return 'Expect a mix of sun and cloud.'
+  }
+  if (sky.label === 'Sunny' || sky.label === 'Mostly sunny') return 'Plenty of sunshine is expected.'
+  if (sky.label === 'Very cloudy' || sky.label === 'Foggy') return 'Skies stay mostly grey or overcast.'
+  if (sky.label === 'Rainy' || sky.label === 'Storm risk' || sky.label === 'Snowy') {
+    return 'Clouds hang around with unsettled-looking skies.'
+  }
+  return 'Sky conditions may shift during the day.'
+}
+
+function getOverallOutdoorLabel({
+  tempRange,
+  totalRain,
+  peakWindRow,
+  airBand,
+  representativeSkyRow,
+}) {
+  const maxT = tempRange?.max
+  const minT = tempRange?.min
   const windKmh = isFiniteNumber(peakWindRow?.wind_speed_ms) ? peakWindRow.wind_speed_ms * 3.6 : null
+  const code = representativeSkyRow?.weather_code
 
-  if (!isFiniteNumber(minTemp) && !isFiniteNumber(maxTemp)) {
-    return 'Dress by the current weather. Temperature forecast is limited for this location.'
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return { label: 'Snowy', tone: 'caution' }
   }
 
-  if (isFiniteNumber(maxTemp) && maxTemp >= 28) {
-    return 'Go with light, breathable clothes and keep water nearby. It will feel warm outdoors.'
+  if ([95, 96, 99].includes(code) || (isFiniteNumber(totalRain) && totalRain >= 6)) {
+    return { label: 'Stormy', tone: 'danger' }
   }
 
-  if (isFiniteNumber(minTemp) && minTemp <= 3) {
-    return 'Start with a warm coat or insulated layer. The early part of the day looks cold.'
+  const rainy = isFiniteNumber(totalRain) && totalRain >= 1
+  const windy = isFiniteNumber(windKmh) && windKmh >= 28
+  const veryWindy = isFiniteNumber(windKmh) && windKmh >= 40
+
+  if (rainy && veryWindy) return { label: 'Rainy and windy', tone: 'caution' }
+  if (rainy && totalRain >= 4) return { label: 'Rainy day', tone: 'caution' }
+  if (rainy) return { label: 'Showers', tone: 'caution' }
+
+  if (isFiniteNumber(maxT) && maxT <= 8) {
+    return { label: 'Cold day', tone: 'cold' }
   }
 
-  if (isFiniteNumber(minTemp) && isFiniteNumber(maxTemp) && maxTemp - minTemp >= 8) {
-    return 'Wear layers you can take off later. The day swings enough to make one outfit feel wrong by afternoon.'
+  if (isFiniteNumber(minT) && minT <= 2 && isFiniteNumber(maxT) && maxT <= 14) {
+    return { label: 'Cold day', tone: 'cold' }
   }
 
-  if (isFiniteNumber(windKmh) && windKmh >= 30) {
-    return 'A light windproof layer will help more than a bulky jacket today.'
+  if (isFiniteNumber(maxT) && maxT >= 29) {
+    return { label: 'Hot day', tone: veryWindy ? 'caution' : 'good' }
   }
-
-  if (isFiniteNumber(maxTemp) && maxTemp >= 20) {
-    return 'A light layer should be enough for most of the day.'
-  }
-
-  return 'A jacket or hoodie should keep you comfortable outside today.'
-}
-
-function buildRainAdvice(totalRain, wettestRow, locale, timeZone) {
-  if (!isFiniteNumber(totalRain) || totalRain === 0) {
-    return 'Rain does not look like a factor today, so you can skip the umbrella.'
-  }
-
-  const wettestTime = wettestRow ? formatTimeLabel(wettestRow.__date, locale, timeZone) : null
-  if (totalRain >= 4) {
-    return wettestTime
-      ? `Expect steady rain today, with the roughest spell around ${wettestTime}. Bring a proper umbrella or rain shell.`
-      : 'Expect steady rain today. Bring a proper umbrella or rain shell.'
-  }
-
-  return wettestTime
-    ? `There is a fair chance of showers, especially around ${wettestTime}. A compact umbrella is worth carrying.`
-    : 'There is a fair chance of showers later, so a compact umbrella is worth carrying.'
-}
-
-function buildAirAdvice(currentRow, peakPm25Row, peakPm10Row) {
-  const currentPm25 = currentRow?.pm25
-  const currentPm10 = currentRow?.pm10
-  const peakPm25 = peakPm25Row?.pm25
-  const peakPm10 = peakPm10Row?.pm10
-  const airBand = getAirQualityBand(
-    isFiniteNumber(peakPm25) ? peakPm25 : currentPm25,
-    isFiniteNumber(peakPm10) ? peakPm10 : currentPm10,
-  )
 
   if (airBand.tone === 'danger' || airBand.tone === 'warning') {
-    return 'Air pollution is the biggest outdoor risk today. Keep hard exercise short and consider a mask if you are sensitive.'
+    return { label: 'Poor air', tone: 'danger' }
   }
 
-  if (airBand.tone === 'caution') {
-    return 'Air quality is acceptable for short outdoor trips, but longer workouts are better when pollution eases.'
-  }
+  if (veryWindy) return { label: 'Very windy', tone: 'caution' }
 
-  if (airBand.tone === 'ok' || airBand.tone === 'good') {
-    return 'Air quality looks manageable for normal outdoor plans.'
-  }
+  if (airBand.tone === 'caution') return { label: 'Mixed conditions', tone: 'caution' }
 
-  return 'Air pollution forecast is limited right now, so check current conditions before a long time outside.'
-}
+  if (windy) return { label: 'Breezy', tone: 'good' }
 
-function buildWindAdvice(peakWindRow, locale, timeZone) {
-  const windKmh = isFiniteNumber(peakWindRow?.wind_speed_ms) ? peakWindRow.wind_speed_ms * 3.6 : null
-  const peakTime = peakWindRow ? formatTimeLabel(peakWindRow.__date, locale, timeZone) : null
-
-  if (!isFiniteNumber(windKmh)) {
-    return 'Wind forecast is limited, so conditions may still shift during the day.'
-  }
-
-  if (windKmh >= 45) {
-    return peakTime
-      ? `Very windy conditions are likely around ${peakTime}. Expect stronger gusts and a less useful umbrella.`
-      : 'Very windy conditions are likely later today. Expect stronger gusts and a less useful umbrella.'
-  }
-
-  if (windKmh >= 28) {
-    return peakTime
-      ? `It will get breezy around ${peakTime}. A hooded or windproof outer layer will feel better.`
-      : 'It will get breezy later, so a hooded or windproof outer layer will feel better.'
-  }
-
-  return 'Wind should stay manageable for walking and everyday outdoor plans.'
-}
-
-function buildUvAdvice(peakUvRow, locale, timeZone) {
-  const uv = peakUvRow?.uv_index
-  const peakTime = peakUvRow ? formatTimeLabel(peakUvRow.__date, locale, timeZone) : null
-
-  if (!isFiniteNumber(uv)) {
-    return 'UV forecast is limited today, so use your usual sun protection if you will be out for long.'
-  }
-
-  if (uv >= 7) {
-    return peakTime
-      ? `Strong sun is expected around ${peakTime}. Sunscreen, sunglasses, and shade breaks are a good idea.`
-      : 'Strong sun is expected later today. Sunscreen, sunglasses, and shade breaks are a good idea.'
-  }
-
-  if (uv >= 4) {
-    return peakTime
-      ? `UV becomes noticeable around ${peakTime}, so protect exposed skin if you will be outside for a while.`
-      : 'UV becomes noticeable later, so protect exposed skin if you will be outside for a while.'
-  }
-
-  return 'UV stays fairly tame today, so sun exposure is not the main concern.'
-}
-
-function buildHeadline({ totalRain, peakWindRow, peakUvRow, airBand, tempRange }) {
-  const windKmh = isFiniteNumber(peakWindRow?.wind_speed_ms) ? peakWindRow.wind_speed_ms * 3.6 : null
-  const peakUv = peakUvRow?.uv_index
-  const maxTemp = tempRange?.max
-  const minTemp = tempRange?.min
-
-  if (isFiniteNumber(totalRain) && totalRain >= 4 && (airBand.tone === 'warning' || airBand.tone === 'danger')) {
-    return 'Rain and pollution are the two outdoor things to plan around.'
-  }
-
-  if (airBand.tone === 'warning' || airBand.tone === 'danger') {
-    return 'Outdoor air quality needs extra attention.'
-  }
-
-  if (isFiniteNumber(totalRain) && totalRain >= 4) {
-    return 'This looks like a rain-first kind of day.'
-  }
-
-  if (isFiniteNumber(windKmh) && windKmh >= 35) {
-    return 'Wind will shape how the day feels outdoors.'
-  }
-
-  if (isFiniteNumber(peakUv) && peakUv >= 7 && isFiniteNumber(maxTemp) && maxTemp >= 24) {
-    return 'Warm sunshine is nice, but UV protection matters.'
-  }
-
-  if (isFiniteNumber(minTemp) && minTemp <= 3) {
-    return 'A colder start means you will want an extra layer outside.'
-  }
-
-  return 'Outdoor conditions look fairly manageable.'
-}
-
-function buildSubline({ bestWindow, currentRow, locationLabel, locale, timeZone, selectedLabel }) {
-  const currentTemp = formatTemperature(currentRow?.temperature_c)
-  const currentPm25 = formatPm(currentRow?.pm25)
-
-  if (bestWindow) {
-    const start = formatTimeLabel(bestWindow.start, locale, timeZone)
-    const end = formatTimeLabel(bestWindow.end, locale, timeZone)
-    return `${locationLabel || 'Your area'} looks most comfortable for being outside on ${selectedLabel.toLowerCase()} between ${start} and ${end}. Current conditions are ${currentTemp} with PM2.5 at ${currentPm25}.`
-  }
-
-  return `${locationLabel || 'Your area'} currently sits at ${currentTemp} with PM2.5 at ${currentPm25}.`
-}
-
-function buildQuickNotes({ bestWindow, wettestRow, peakUvRow, peakWindRow, locale, timeZone, coverageLabel }) {
-  const notes = []
-
-  if (coverageLabel) {
-    notes.push({
-      label: 'Forecast applies',
-      value: coverageLabel,
-    })
-  }
-
-  if (bestWindow) {
-    notes.push({
-      label: 'Best window',
-      value: `${formatTimeLabel(bestWindow.start, locale, timeZone)}-${formatTimeLabel(bestWindow.end, locale, timeZone)}`,
-    })
-  }
-
-  if (wettestRow && isFiniteNumber(wettestRow.rain_mm) && wettestRow.rain_mm > 0) {
-    notes.push({
-      label: 'Wettest around',
-      value: formatTimeLabel(wettestRow.__date, locale, timeZone),
-    })
-  }
-
-  if (peakWindRow && isFiniteNumber(peakWindRow.wind_speed_ms) && peakWindRow.wind_speed_ms * 3.6 >= 28) {
-    notes.push({
-      label: 'Windiest around',
-      value: formatTimeLabel(peakWindRow.__date, locale, timeZone),
-    })
-  }
-
-  if (peakUvRow && isFiniteNumber(peakUvRow.uv_index) && peakUvRow.uv_index >= 4) {
-    notes.push({
-      label: 'Peak UV',
-      value: `${formatUv(peakUvRow.uv_index)} at ${formatTimeLabel(peakUvRow.__date, locale, timeZone)}`,
-    })
-  }
-
-  return notes
-}
-
-function getCoverageLabel(rows, locale, timeZone) {
-  if (!Array.isArray(rows) || rows.length === 0) return null
-
-  const start = rows[0].__date
-  const end = new Date(rows[rows.length - 1].__date.getTime() + 60 * 60 * 1000)
-  return `${formatTimeLabel(start, locale, timeZone)}-${formatTimeLabel(end, locale, timeZone)}`
-}
-
-function buildSkyAdvice(rows, peakUvRow, cloudCoverRange) {
-  const skyLabels = rows
-    .map((row) => getSkyCondition(row).label)
-    .filter(Boolean)
-  const cloudCopy = cloudCoverRange
-    ? `with cloud cover around ${formatCloudCoverRange(cloudCoverRange)}`
-    : 'with limited cloud-cover detail'
-
-  const labelCounts = skyLabels.reduce((acc, label) => {
-    acc[label] = (acc[label] || 0) + 1
-    return acc
-  }, {})
-
-  const dominantSky = Object.entries(labelCounts)
-    .sort((first, second) => second[1] - first[1])[0]?.[0]
-
-  const peakUv = peakUvRow?.uv_index
-
-  if (dominantSky === 'Sunny' || dominantSky === 'Mostly sunny') {
-    if (isFiniteNumber(peakUv) && peakUv >= 6) {
-      return `Expect fairly open sun for much of the day, ${cloudCopy}. Even if it feels mild, UV exposure can still build up quickly.`
+  if (airBand.tone === 'good' || airBand.tone === 'ok' || airBand.tone === 'muted') {
+    if (isFiniteNumber(maxT) && maxT >= 18 && maxT <= 27 && isFiniteNumber(minT) && minT >= 6) {
+      return { label: 'Perfect', tone: 'good' }
     }
-    return `The sky looks mostly bright, ${cloudCopy}, so expect noticeable sun exposure during outdoor plans.`
+    return { label: 'Great day', tone: 'good' }
   }
 
-  if (dominantSky === 'Partly cloudy') {
-    return `Expect a mix of sun and cloud, ${cloudCopy}. Bright breaks can still make the sun feel stronger than the sky first suggests.`
+  return { label: 'Mixed conditions', tone: 'caution' }
+}
+
+function buildOutdoorActivitySummary({
+  dayName,
+  tempRange,
+  peakWindRow,
+  totalRain,
+  wettestRow,
+  airBand,
+  fullDayAirBand,
+  cloudCoverRange,
+  peakUvRow,
+  representativeSkyRow,
+  locale,
+  timeZone,
+}) {
+  const parts = []
+  const maxT = tempRange?.max
+  const minT = tempRange?.min
+
+  if (isFiniteNumber(maxT) && isFiniteNumber(minT)) {
+    if (maxT <= 8) {
+      parts.push(`${dayName} will be cold (high around ${Math.round(maxT)}\u00B0C).`)
+    } else if (maxT >= 29) {
+      parts.push(`${dayName} will be hot (high around ${Math.round(maxT)}\u00B0C).`)
+    } else if (minT <= 3) {
+      parts.push(`${dayName} starts cold and climbs to about ${Math.round(maxT)}\u00B0C.`)
+    } else {
+      parts.push(`${dayName} reaches about ${Math.round(maxT)}\u00B0C.`)
+    }
+  } else if (isFiniteNumber(maxT)) {
+    parts.push(`${dayName} peaks near ${Math.round(maxT)}\u00B0C.`)
+  } else {
+    parts.push(`${dayName}'s temperature forecast is limited.`)
   }
 
-  if (dominantSky === 'Very cloudy' || dominantSky === 'Foggy') {
-    return `Skies look mostly overcast, ${cloudCopy}, so direct sun exposure should stay limited for most of the day.`
+  const windKmh = isFiniteNumber(peakWindRow?.wind_speed_ms) ? peakWindRow.wind_speed_ms * 3.6 : null
+  if (!isFiniteNumber(windKmh)) {
+    parts.push('Wind strength is unclear from the forecast.')
+  } else if (windKmh >= 45) {
+    parts.push('Strong winds are likely—cycling will feel harder.')
+  } else if (windKmh >= 28) {
+    parts.push('Breezy at times; expect a bit more effort on the bike.')
+  } else if (windKmh >= 15) {
+    parts.push('Winds look mild to moderate.')
+  } else {
+    parts.push('Winds stay light.')
   }
 
-  if (dominantSky === 'Rainy' || dominantSky === 'Storm risk' || dominantSky === 'Snowy') {
-    return `Cloud cover should stay heavy, ${cloudCopy}, so sun exposure is not the main issue.`
+  if (!isFiniteNumber(totalRain) || totalRain === 0) {
+    parts.push('Little or no rain is expected.')
+  } else if (totalRain >= 4) {
+    const t = wettestRow ? formatTimeLabel(wettestRow.__date, locale, timeZone) : null
+    parts.push(t ? `Wet weather is likely, especially around ${t}.` : 'A wet day overall—plan rain gear if you ride.')
+  } else if (totalRain >= 1) {
+    const t = wettestRow ? formatTimeLabel(wettestRow.__date, locale, timeZone) : null
+    parts.push(t ? `Some showers are possible, notably around ${t}.` : 'A few showers are possible.')
+  } else {
+    parts.push('Only light precipitation may show up.')
   }
 
-  return `Sky conditions look changeable, ${cloudCopy}, with periods of both sun and cloud through the day.`
+  if (airBand.tone === 'danger' || airBand.tone === 'warning') {
+    parts.push('Daytime air may be rough for hard breathing—check the PM tiles below before an intense ride.')
+  } else if (airBand.tone === 'caution') {
+    parts.push('Daytime air is middling; shorter or easier rides are the safer bet.')
+  } else if (airBand.tone === 'good' || airBand.tone === 'ok') {
+    parts.push('Daytime air looks fine for riding.')
+  } else {
+    parts.push('Pollution readings are thin—peek at the metrics below before a long effort outside.')
+  }
+
+  const planEasy = ['good', 'ok', 'muted'].includes(airBand.tone)
+  const fullRough = fullDayAirBand.tone === 'warning' || fullDayAirBand.tone === 'danger'
+  if (planEasy && fullRough) {
+    parts.push('Pollution may rise later in the evening; the PM2.5 tile shows the full-day peak.')
+  }
+
+  parts.push(getCloudSentence(cloudCoverRange, representativeSkyRow))
+
+  const uv = peakUvRow?.uv_index
+  if (isFiniteNumber(uv) && uv >= 4) {
+    const peakTime = peakUvRow ? formatTimeLabel(peakUvRow.__date, locale, timeZone) : null
+    if (uv >= 7) {
+      parts.push(
+        peakTime
+          ? `UV is strong around ${peakTime}; sunscreen or cover helps on a long ride.`
+          : 'UV is strong; sun protection helps on a long ride.',
+      )
+    } else {
+      parts.push(peakTime ? `Moderate UV around ${peakTime}.` : 'UV is moderate.')
+    }
+  }
+
+  return parts.join(' ')
+}
+
+function buildBikeRideClosingLine(airBand, totalRain, windKmh, maxTemp) {
+  if (isFiniteNumber(maxTemp) && maxTemp <= 8) {
+    return 'Dress warmly in layers; cold air hits harder on a bike than a short walk.'
+  }
+  if (airBand.tone === 'danger' || airBand.tone === 'warning') {
+    return 'Hard efforts may feel harsh on the lungs until air improves—use the readings below to decide.'
+  }
+  if (isFiniteNumber(totalRain) && totalRain >= 4) {
+    return 'Riding is still possible with waterproof kit; watch for slick roads.'
+  }
+  if (isFiniteNumber(windKmh) && windKmh >= 40) {
+    return 'Gusty wind can drain energy quickly—consider a shorter route.'
+  }
+  if (airBand.tone === 'caution') {
+    return 'An easy spin is reasonable; save all-out intervals for a clearer-air day if you feel it.'
+  }
+  return 'Overall reasonable for a bike ride if you dress for the temperature.'
 }
 
 export default function OutdoorDayAdvicePanel({
   airData,
-  locationLabel,
   locale = DEFAULT_LOCALE,
   timeZone = DEFAULT_TIMEZONE,
-  hidePlanEyebrow = false,
+  onOpenSettingsPreferences,
 }) {
-  const [planMode, setPlanMode] = useState('today')
+  const { t } = useTranslation()
+  const discordModalTitleId = useId()
+  const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isDiscordModalOpen) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') setIsDiscordModalOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isDiscordModalOpen])
 
   const now = new Date()
   const nowParts = getDateParts(now, timeZone)
   const currentRow = getCurrentRow(airData, timeZone)
   const todayRows = getRowsForOffset(airData, timeZone, 0)
   const tomorrowRows = getRowsForOffset(airData, timeZone, 1)
-  const canOpenTomorrowPlan = (
-    nowParts.hour >= TOMORROW_PLAN_START_HOUR
-    && nowParts.hour <= TOMORROW_PLAN_END_HOUR
-    && tomorrowRows.length > 0
-  )
+  const useNextDayPlan = nowParts.hour >= NEXT_DAY_PLAN_START_HOUR && tomorrowRows.length > 0
 
-  useEffect(() => {
-    if (planMode === 'tomorrow' && !canOpenTomorrowPlan) {
-      setPlanMode('today')
-    }
-  }, [canOpenTomorrowPlan, planMode])
+  const discordHelpButton = onOpenSettingsPreferences ? (
+    <button
+      type="button"
+      className="outdoor-day-advice__discord-btn"
+      onClick={() => setIsDiscordModalOpen(true)}
+    >
+      {t('dashboard.discordNotifications')}
+    </button>
+  ) : null
+
+  const discordModal = isDiscordModalOpen ? (
+    <>
+      <div
+        className="plan-modal-backdrop"
+        onClick={() => setIsDiscordModalOpen(false)}
+        aria-hidden
+      />
+      <div
+        className="plan-modal outdoor-day-advice__discord-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={discordModalTitleId}
+      >
+        <div className="plan-modal__header">
+          <div>
+            <p className="plan-modal__eyebrow">{t('dashboard.discordModalEyebrow')}</p>
+            <h2 id={discordModalTitleId} className="plan-modal__title">
+              {t('dashboard.discordModalTitle')}
+            </h2>
+            <p className="plan-modal__copy">{t('dashboard.discordModalIntro')}</p>
+          </div>
+          <button
+            type="button"
+            className="plan-modal__close"
+            onClick={() => setIsDiscordModalOpen(false)}
+            aria-label={t('common.close')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <ol className="outdoor-day-advice__discord-steps">
+          <li>
+            <strong>{t('dashboard.discordModalStep1Title')}</strong>
+            <span>{t('dashboard.discordModalStep1Body')}</span>
+          </li>
+          <li>
+            <strong>{t('dashboard.discordModalStep2Title')}</strong>
+            <span>{t('dashboard.discordModalStep2Body')}</span>
+          </li>
+          <li>
+            <strong>{t('dashboard.discordModalStep3Title')}</strong>
+            <span>{t('dashboard.discordModalStep3Body')}</span>
+          </li>
+        </ol>
+        <p className="outdoor-day-advice__discord-note">{t('dashboard.discordModalNote')}</p>
+        <div className="outdoor-day-advice__discord-modal-actions">
+          {onOpenSettingsPreferences ? (
+            <button
+              type="button"
+              className="app-btn-primary outdoor-day-advice__discord-cta"
+              onClick={() => {
+                setIsDiscordModalOpen(false)
+                onOpenSettingsPreferences()
+              }}
+            >
+              {t('dashboard.discordModalOpenSettings')}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="outdoor-day-advice__discord-dismiss"
+            onClick={() => setIsDiscordModalOpen(false)}
+          >
+            {t('dashboard.discordModalClose')}
+          </button>
+        </div>
+      </div>
+    </>
+  ) : null
 
   if (todayRows.length === 0 && !currentRow) {
     return (
@@ -617,17 +615,21 @@ export default function OutdoorDayAdvicePanel({
         <div>
           <h3>Your plan for the day is not ready yet.</h3>
           <p>We need forecast data for this location before we can build a day summary.</p>
+          {discordHelpButton ? (
+            <div className="outdoor-day-advice__empty-discord">{discordHelpButton}</div>
+          ) : null}
         </div>
+        {discordModal}
       </section>
     )
   }
 
-  const selectedOffset = planMode === 'tomorrow' ? 1 : 0
+  const selectedOffset = useNextDayPlan ? 1 : 0
   const selectedDate = addDays(now, selectedOffset)
   const selectedLabel = selectedOffset === 0 ? 'Today' : 'Tomorrow'
-  const selectedRows = selectedOffset === 0
-    ? (todayRows.length > 0 ? todayRows : currentRow ? [currentRow] : [])
-    : tomorrowRows
+  const selectedRows = useNextDayPlan
+    ? tomorrowRows
+    : (todayRows.length > 0 ? todayRows : currentRow ? [currentRow] : [])
   const baselineCurrentRow = currentRow
   const tempRange = getRange(selectedRows, 'temperature_c')
   const humidityRange = getRange(selectedRows, 'humidity_pct')
@@ -641,58 +643,69 @@ export default function OutdoorDayAdvicePanel({
   const peakPm10Row = getPeakRow(selectedRows, 'pm10')
   const representativeSkyRow = selectedRows.find((row) => row?.weather_code != null) ?? selectedRows[0] ?? null
   const skyCondition = getSkyCondition(representativeSkyRow)
-  const minimumStart = selectedOffset === 0 ? now : selectedRows[0]?.__date ?? now
-  const bestWindow = findBestWindow(selectedRows, minimumStart)
-  const airBand = getAirQualityBand(
+  const airBandFullDay = getAirQualityBand(
     peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25,
     peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10,
   )
-  const coverageLabel = selectedOffset === 1 ? getCoverageLabel(selectedRows, locale, timeZone) : null
-  const headline = buildHeadline({ totalRain, peakWindRow, peakUvRow, airBand, tempRange })
-  const subline = buildSubline({
-    bestWindow,
-    currentRow: baselineCurrentRow,
-    locationLabel,
-    locale,
-    timeZone,
-    selectedLabel,
-  })
-  const quickNotes = buildQuickNotes({
-    bestWindow,
-    wettestRow,
-    peakUvRow,
+  const airBandPlan = getPlanDayAirBand(selectedRows, baselineCurrentRow, timeZone)
+  const overallDay = getOverallOutdoorLabel({
+    tempRange,
+    totalRain,
     peakWindRow,
+    airBand: airBandPlan,
+    representativeSkyRow,
+  })
+  const summaryTone = (
+    overallDay.tone === 'danger'
+      ? 'danger'
+      : overallDay.tone === 'caution'
+        ? 'caution'
+        : overallDay.tone === 'cold'
+          ? 'cold'
+          : 'good'
+  )
+  const dayName = selectedLabel
+  const windKmhForClose = isFiniteNumber(peakWindRow?.wind_speed_ms) ? peakWindRow.wind_speed_ms * 3.6 : null
+  const activitySummary = buildOutdoorActivitySummary({
+    dayName,
+    tempRange,
+    peakWindRow,
+    totalRain,
+    wettestRow,
+    airBand: airBandPlan,
+    fullDayAirBand: airBandFullDay,
+    cloudCoverRange,
+    peakUvRow,
+    representativeSkyRow,
     locale,
     timeZone,
-    coverageLabel,
   })
-  const tomorrowHelpText = canOpenTomorrowPlan
-    ? 'Tomorrow is available now because it is between 18:00 and 23:59 local time.'
-    : tomorrowRows.length > 0
-      ? 'Tomorrow unlocks daily planning between 18:00 and 23:59 local time.'
-      : 'Tomorrow will appear here when forecast hours for the next day are available.'
+  const summaryParagraph = `${activitySummary} ${buildBikeRideClosingLine(airBandPlan, totalRain, windKmhForClose, tempRange?.max)}`
 
-  const readinessTone = (() => {
-    const concernCount = [
-      isFiniteNumber(totalRain) && totalRain >= 1,
-      airBand.tone === 'caution' || airBand.tone === 'warning' || airBand.tone === 'danger',
-      isFiniteNumber(peakWindRow?.wind_speed_ms) && peakWindRow.wind_speed_ms * 3.6 >= 28,
-      isFiniteNumber(peakUvRow?.uv_index) && peakUvRow.uv_index >= 6,
-    ].filter(Boolean).length
-
-    if (concernCount >= 3) return { label: 'Challenging day', tone: 'danger' }
-    if (concernCount >= 1) return { label: 'Mixed conditions', tone: 'caution' }
-    return { label: 'Easy outdoors', tone: 'good' }
-  })()
-  const statusTone = (
-    readinessTone.tone === 'danger'
-    || airBand.tone === 'danger'
-    || airBand.tone === 'warning'
-  )
-    ? 'danger'
-    : (readinessTone.tone === 'caution' || airBand.tone === 'caution')
-      ? 'caution'
-      : 'good'
+  const coldNotifChips = []
+  if (summaryTone === 'cold') {
+    if (isFiniteNumber(tempRange?.max)) {
+      coldNotifChips.push({ variant: 'filled', text: `Max ${Math.round(tempRange.max)}°C`, key: 't' })
+    }
+    if (isFiniteNumber(windKmhForClose)) {
+      coldNotifChips.push({
+        variant: 'outline',
+        text: windKmhForClose >= 28 ? 'Breezy' : 'Mild wind',
+        key: 'w',
+      })
+    }
+    if (airBandPlan.tone === 'good' || airBandPlan.tone === 'ok') {
+      coldNotifChips.push({ variant: 'outline', text: 'Daytime air OK', key: 'a' })
+    } else if (airBandPlan.tone === 'caution') {
+      coldNotifChips.push({ variant: 'outline', text: 'Check air below', key: 'a' })
+    } else if (airBandPlan.tone === 'warning' || airBandPlan.tone === 'danger') {
+      coldNotifChips.push({ variant: 'outline', text: 'Air: use metrics', key: 'a' })
+    }
+    const uv = peakUvRow?.uv_index
+    if (isFiniteNumber(uv) && uv < 4) {
+      coldNotifChips.push({ variant: 'outline', text: 'UV low', key: 'u' })
+    }
+  }
 
   const metricCards = [
     { label: 'Temperature', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone) },
@@ -706,64 +719,56 @@ export default function OutdoorDayAdvicePanel({
     { label: 'UV', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index') },
   ]
 
-  const adviceItems = [
-    { title: 'How to dress', body: buildDressAdvice(tempRange, peakWindRow) },
-    { title: 'Sun exposure', body: buildSkyAdvice(selectedRows, peakUvRow, cloudCoverRange) },
-    { title: 'Rain outlook', body: buildRainAdvice(totalRain, wettestRow, locale, timeZone) },
-    { title: 'Air quality', body: buildAirAdvice(baselineCurrentRow, peakPm25Row, peakPm10Row) },
-    { title: 'Wind', body: buildWindAdvice(peakWindRow, locale, timeZone) },
-    { title: 'Sun and UV', body: buildUvAdvice(peakUvRow, locale, timeZone) },
-  ]
-
   return (
-    <section className="outdoor-day-advice" aria-label="Daily outdoor advice">
-      <div className="outdoor-day-advice__header">
+    <section
+      className="outdoor-day-advice"
+      aria-label={useNextDayPlan ? 'Outdoor outlook for tomorrow' : 'Outdoor outlook for today'}
+    >
+      <div className="outdoor-day-advice__header outdoor-day-advice__header--row">
         <div>
-          {hidePlanEyebrow ? null : <p className="outdoor-day-advice__eyebrow">Plan for the day</p>}
-          <div className="outdoor-day-advice__mode-switch" role="tablist" aria-label="Plan day selection">
-            <button
-              type="button"
-              className={`outdoor-day-advice__mode-tab${planMode === 'today' ? ' outdoor-day-advice__mode-tab--active' : ''}`}
-              onClick={() => setPlanMode('today')}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              className={`outdoor-day-advice__mode-tab${planMode === 'tomorrow' ? ' outdoor-day-advice__mode-tab--active' : ''}`}
-              onClick={() => setPlanMode('tomorrow')}
-              disabled={!canOpenTomorrowPlan}
-              title={tomorrowHelpText}
-            >
-              Tomorrow
-            </button>
-          </div>
+          {useNextDayPlan ? (
+            <p className="outdoor-day-advice__plan-shift">Plan for next day</p>
+          ) : null}
           <h3 className="outdoor-day-advice__title">{formatDayLabel(selectedDate, locale, timeZone)}</h3>
-          <p className="outdoor-day-advice__location">{locationLabel || 'Selected location'}</p>
-          <p className="outdoor-day-advice__availability">{tomorrowHelpText}</p>
         </div>
+        {discordHelpButton}
       </div>
 
-      <div className="outdoor-day-advice__hero">
-        <div className="outdoor-day-advice__hero-copy">
-          <h4>{headline}</h4>
-          <p>{subline}</p>
-        </div>
-        <div className={`outdoor-day-advice__status-card outdoor-day-advice__status-card--${statusTone}`}>
-          <span className="outdoor-day-advice__status-eyebrow">Day status</span>
-          <strong>{readinessTone.label}</strong>
-          <p>Air outlook: {airBand.label}</p>
-        </div>
-      </div>
-
-      {quickNotes.length > 0 && (
-        <div className="outdoor-day-advice__quick-notes">
-          {quickNotes.map((note) => (
-            <div key={note.label} className="outdoor-day-advice__quick-note">
-              <span>{note.label}</span>
-              <strong>{note.value}</strong>
+      {summaryTone === 'cold' ? (
+        <div className="outdoor-day-advice__summary outdoor-day-advice__summary--cold outdoor-day-advice__summary--notif">
+          <div className="outdoor-day-advice__notif">
+            <div className="outdoor-day-advice__notif-header">
+              <span className="outdoor-day-advice__notif-priority">
+                <span className="outdoor-day-advice__notif-priority-dot" aria-hidden />
+                {overallDay.label}
+              </span>
+              <span className="outdoor-day-advice__notif-category">Outdoor activity</span>
             </div>
-          ))}
+            {coldNotifChips.length > 0 ? (
+              <div className="outdoor-day-advice__notif-chips">
+                {coldNotifChips.map((chip) => (
+                  <span
+                    key={chip.key}
+                    className={`outdoor-day-advice__notif-chip outdoor-day-advice__notif-chip--${chip.variant}`}
+                  >
+                    {chip.text}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <p className="outdoor-day-advice__notif-section-label">Summary</p>
+            <p className="outdoor-day-advice__notif-body">{summaryParagraph}</p>
+          </div>
+        </div>
+      ) : (
+        <div className={`outdoor-day-advice__summary outdoor-day-advice__summary--${summaryTone}`}>
+          <div className="outdoor-day-advice__summary-inner">
+            <div className="outdoor-day-advice__summary-head">
+              <p className="outdoor-day-advice__summary-kicker">Outdoor outlook</p>
+              <span className="outdoor-day-advice__summary-badge">{overallDay.label}</span>
+            </div>
+            <p className="outdoor-day-advice__summary-text">{summaryParagraph}</p>
+          </div>
         </div>
       )}
 
@@ -776,15 +781,7 @@ export default function OutdoorDayAdvicePanel({
           </article>
         ))}
       </div>
-
-      <div className="outdoor-day-advice__advice-list">
-        {adviceItems.map((item) => (
-          <article key={item.title} className="outdoor-day-advice__advice-card">
-            <span>{item.title}</span>
-            <p>{item.body}</p>
-          </article>
-        ))}
-      </div>
+      {discordModal}
     </section>
   )
 }

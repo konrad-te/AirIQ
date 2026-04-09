@@ -36,12 +36,31 @@ from backend.security import (
     verify_email_token,
     verify_password,
 )
+from backend.services.credential_encryption import encrypt_credential
 from backend.services.email_service import send_activation_email, send_password_reset_email
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+_DISCORD_WEBHOOK_PREFIXES = (
+    "https://discord.com/api/webhooks/",
+    "https://discordapp.com/api/webhooks/",
+)
+
+
+def user_preference_to_out(pref: UserPreference) -> UserPreferenceOutSchema:
+    return UserPreferenceOutSchema(
+        theme=pref.theme,
+        language_code=pref.language_code,
+        timezone=pref.timezone,
+        allow_gemini_health_insights=pref.allow_gemini_health_insights,
+        discord_morning_outlook_enabled=getattr(pref, "discord_morning_outlook_enabled", False),
+        discord_outlook_webhook_configured=bool(
+            getattr(pref, "discord_outlook_webhook_encrypted", None)
+        ),
+    )
 
 
 def _reraise_preferences_schema_error(exc: BaseException) -> None:
@@ -51,13 +70,20 @@ def _reraise_preferences_schema_error(exc: BaseException) -> None:
     if orig is not None:
         parts.append(str(orig).lower())
     blob = " ".join(parts)
-    if "allow_gemini_health_insights" not in blob:
+    if not any(
+        m in blob
+        for m in (
+            "allow_gemini_health_insights",
+            "discord_morning_outlook",
+            "discord_outlook_webhook",
+        )
+    ):
         return
     if any(s in blob for s in ("does not exist", "no such column", "undefinedcolumn")):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "Database schema is out of date (missing allow_gemini_health_insights). "
+                "Database schema is out of date (missing user preference columns). "
                 "From the backend directory run: alembic upgrade head"
             ),
         ) from exc
@@ -401,7 +427,7 @@ def get_preferences(
     response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> UserPreference:
+) -> UserPreferenceOutSchema:
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     try:
@@ -415,7 +441,7 @@ def get_preferences(
             db.add(pref)
             db.commit()
             db.refresh(pref)
-        return pref
+        return user_preference_to_out(pref)
     except (OperationalError, ProgrammingError) as exc:
         db.rollback()
         _reraise_preferences_schema_error(exc)
@@ -428,7 +454,7 @@ def update_preferences(
     update: UserPreferenceUpdateSchema,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> UserPreference:
+) -> UserPreferenceOutSchema:
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     try:
@@ -451,10 +477,30 @@ def update_preferences(
             pref.timezone = update.timezone
         if "allow_gemini_health_insights" in set_fields:
             pref.allow_gemini_health_insights = bool(update.allow_gemini_health_insights)
+        if "discord_morning_outlook_enabled" in set_fields:
+            pref.discord_morning_outlook_enabled = bool(update.discord_morning_outlook_enabled)
+        if "discord_outlook_webhook_url" in set_fields:
+            raw = update.discord_outlook_webhook_url
+            if raw is None or not str(raw).strip():
+                pref.discord_outlook_webhook_encrypted = None
+            else:
+                url = str(raw).strip()
+                if not any(url.startswith(p) for p in _DISCORD_WEBHOOK_PREFIXES):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Discord webhook URL must start with https://discord.com/api/webhooks/",
+                    )
+                pref.discord_outlook_webhook_encrypted = encrypt_credential(url)
+
+        if pref.discord_morning_outlook_enabled and not pref.discord_outlook_webhook_encrypted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Add a Discord webhook URL before enabling the morning outdoor outlook.",
+            )
 
         db.commit()
         db.refresh(pref)
-        return pref
+        return user_preference_to_out(pref)
     except (OperationalError, ProgrammingError) as exc:
         db.rollback()
         _reraise_preferences_schema_error(exc)

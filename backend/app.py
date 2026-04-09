@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -106,6 +107,7 @@ from backend.routers.integrations import (
 )
 
 limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AirIQ API")
 app.state.limiter = limiter
@@ -328,6 +330,7 @@ def _build_dashboard_suggestions_payload(
         ventilation_context,
         settings=settings,
         outdoor_data=outdoor_data,
+        include_outdoor_activity_suggestion=False,
     )
 
 
@@ -337,9 +340,14 @@ def _build_suggestions_payload_from_context(
     settings: dict[str, float],
     outdoor_data: dict | None = None,
     respect_sleep_time_window: bool = True,
+    include_outdoor_activity_suggestion: bool = True,
 ) -> dict:
     ventilation_suggestion = evaluate_ventilation(ventilation_context)
-    outdoor_activity_suggestion = evaluate_outdoor_activity(ventilation_context)
+    outdoor_activity_suggestion = (
+        evaluate_outdoor_activity(ventilation_context)
+        if include_outdoor_activity_suggestion
+        else None
+    )
     indoor_pm25_suggestion = evaluate_high_indoor_pm25(
         ventilation_context,
         threshold=settings["indoor_pm25_high_threshold"],
@@ -373,7 +381,7 @@ def _build_suggestions_payload_from_context(
         suggestions.append(indoor_temperature_suggestion.model_dump())
     if outdoor_temperature_suggestion is not None:
         suggestions.append(outdoor_temperature_suggestion.model_dump())
-    if outdoor_activity_suggestion is not None:
+    if include_outdoor_activity_suggestion and outdoor_activity_suggestion is not None:
         suggestions.append(outdoor_activity_suggestion.model_dump())
 
     priority_rank = {"high": 0, "medium": 1, "low": 2}
@@ -483,6 +491,14 @@ def on_startup() -> None:
             _run_discord_status,
             trigger=IntervalTrigger(hours=1),
             id="discord_status_hourly",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        scheduler.add_job(
+            _run_discord_morning_outlooks,
+            trigger=IntervalTrigger(minutes=3),
+            id="discord_morning_outlook",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -697,8 +713,9 @@ def get_home_suggestions(
             db=db,
         ).model_dump()
     except HTTPException as exc:
-        if exc.status_code not in {404}:
+        if exc.status_code not in {404, 502, 503}:
             raise
+        logger.warning("Skipping Qingping data for home suggestions: %s", exc.detail)
 
     return _build_dashboard_suggestions_payload(
         settings=settings,
@@ -764,6 +781,15 @@ def _run_discord_status() -> None:
     from backend.services.discord_monitor import send_discord_status
 
     send_discord_status()
+
+
+def _run_discord_morning_outlooks() -> None:
+    try:
+        from backend.services.discord_outlook_digest import run_morning_discord_outlooks
+
+        run_morning_discord_outlooks()
+    except Exception:
+        logger.exception("Morning Discord outlook job failed")
 
 
 def _run_account_cleanup() -> None:

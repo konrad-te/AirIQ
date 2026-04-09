@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -55,6 +56,22 @@ class UserPreference(Base):
         Boolean,
         nullable=False,
         server_default="false",
+    )
+
+    discord_morning_outlook_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false",
+    )
+
+    discord_outlook_webhook_encrypted: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    discord_outlook_last_sent_on: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

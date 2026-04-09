@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from fastapi import HTTPException
 
 from backend.routers.integrations import (
+    _refresh_qingping_token_if_needed,
     get_qingping_sync_interval_minutes,
     sync_all_qingping_integrations,
     sync_qingping_integration,
@@ -38,6 +39,25 @@ class QingpingSyncTests(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 404)
         self.assertIn("selected", str(context.exception.detail))
+
+    def test_refresh_qingping_token_returns_503_when_field_encryption_key_is_missing(self) -> None:
+        integration = SimpleNamespace(
+            app_key="plain-app-key",
+            app_secret="plain-app-secret",
+            access_token="",
+            token_expires_at=None,
+        )
+        db = Mock()
+
+        with patch.dict(os.environ, {}, clear=True), patch(
+            "backend.routers.integrations.exchange_qingping_token",
+            return_value={"access_token": "fresh-token", "expires_in": 3600},
+        ):
+            with self.assertRaises(HTTPException) as context:
+                _refresh_qingping_token_if_needed(db=db, integration=integration)
+
+        self.assertEqual(context.exception.status_code, 503)
+        self.assertIn("FIELD_ENCRYPTION_KEY", str(context.exception.detail))
 
     def test_sync_all_qingping_integrations_counts_successes_and_failures(self) -> None:
         integrations = [

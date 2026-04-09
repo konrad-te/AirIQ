@@ -21,13 +21,17 @@ _PREFIX = "f1:"
 _fernet: Fernet | None = None
 
 
+class CredentialEncryptionError(RuntimeError):
+    """Raised when encrypted credentials cannot be used due to app configuration."""
+
+
 def _load_fernet() -> Fernet:
     global _fernet
     if _fernet is not None:
         return _fernet
     raw = os.getenv("FIELD_ENCRYPTION_KEY", "").strip()
     if not raw:
-        raise RuntimeError(
+        raise CredentialEncryptionError(
             "FIELD_ENCRYPTION_KEY is not set. Generate a key with: "
             'python -c "from cryptography.fernet import Fernet; '
             'print(Fernet.generate_key().decode())"'

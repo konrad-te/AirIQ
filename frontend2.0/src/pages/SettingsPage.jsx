@@ -358,6 +358,10 @@ function PreferencesSection() {
   const [language, setLanguage] = useState('')
   const [timezone, setTimezone] = useState('')
   const [allowGeminiHealthInsights, setAllowGeminiHealthInsights] = useState(false)
+  const [discordMorningOutlook, setDiscordMorningOutlook] = useState(false)
+  const [discordWebhookConfigured, setDiscordWebhookConfigured] = useState(false)
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState('')
+  const [removeDiscordWebhook, setRemoveDiscordWebhook] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -369,6 +373,10 @@ function PreferencesSection() {
         setLanguage(prefs.language_code ?? '')
         setTimezone(prefs.timezone ?? '')
         setAllowGeminiHealthInsights(Boolean(prefs.allow_gemini_health_insights))
+        setDiscordMorningOutlook(Boolean(prefs.discord_morning_outlook_enabled))
+        setDiscordWebhookConfigured(Boolean(prefs.discord_outlook_webhook_configured))
+        setDiscordWebhookUrl('')
+        setRemoveDiscordWebhook(false)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -379,15 +387,37 @@ function PreferencesSection() {
     setSaving(true)
     setError('')
     setSuccess(false)
+    if (
+      discordMorningOutlook
+      && !removeDiscordWebhook
+      && !discordWebhookConfigured
+      && !discordWebhookUrl.trim()
+    ) {
+      setError(t('settings.discordWebhookRequired'))
+      setSaving(false)
+      return
+    }
     try {
-      const updated = await updatePreferences(token, {
+      const payload = {
         language_code: language || null,
         timezone: timezone || null,
         allow_gemini_health_insights: allowGeminiHealthInsights,
-      })
+        discord_morning_outlook_enabled: discordMorningOutlook,
+      }
+      if (removeDiscordWebhook) {
+        payload.discord_outlook_webhook_url = null
+        payload.discord_morning_outlook_enabled = false
+      } else if (discordWebhookUrl.trim()) {
+        payload.discord_outlook_webhook_url = discordWebhookUrl.trim()
+      }
+      const updated = await updatePreferences(token, payload)
       setLanguage(updated.language_code ?? '')
       setTimezone(updated.timezone ?? '')
       setAllowGeminiHealthInsights(Boolean(updated.allow_gemini_health_insights))
+      setDiscordMorningOutlook(Boolean(updated.discord_morning_outlook_enabled))
+      setDiscordWebhookConfigured(Boolean(updated.discord_outlook_webhook_configured))
+      setDiscordWebhookUrl('')
+      setRemoveDiscordWebhook(false)
       i18n.changeLanguage(updated.language_code || 'en')
       window.dispatchEvent(new CustomEvent('airtq-preferences-updated'))
       setSuccess(true)
@@ -434,6 +464,61 @@ function PreferencesSection() {
           </label>
           <p className="settings-field-hint">{t('settings.geminiHealthInsightsHelp')}</p>
         </div>
+        <div className="settings-field">
+          <label className="settings-label settings-label--checkbox">
+            <input
+              type="checkbox"
+              checked={discordMorningOutlook}
+              onChange={(e) => {
+                setDiscordMorningOutlook(e.target.checked)
+                setError('')
+                setSuccess(false)
+              }}
+              disabled={saving}
+            />
+            <span>{t('settings.discordMorningOutlookLabel')}</span>
+          </label>
+          <p className="settings-field-hint">{t('settings.discordMorningOutlookHelp')}</p>
+          {discordMorningOutlook ? (
+            <>
+              <label htmlFor="s-discord-webhook" className="settings-label">{t('settings.discordWebhookUrl')}</label>
+              <input
+                id="s-discord-webhook"
+                type="url"
+                autoComplete="off"
+                className="settings-input"
+                value={discordWebhookUrl}
+                placeholder={
+                  discordWebhookConfigured
+                    ? t('settings.discordWebhookPlaceholderSaved')
+                    : t('settings.discordWebhookPlaceholder')
+                }
+                onChange={(e) => {
+                  setDiscordWebhookUrl(e.target.value)
+                  setError('')
+                  setSuccess(false)
+                }}
+                disabled={saving}
+              />
+              {discordWebhookConfigured ? (
+                <label className="settings-label settings-label--checkbox">
+                  <input
+                    type="checkbox"
+                    checked={removeDiscordWebhook}
+                    onChange={(e) => {
+                      setRemoveDiscordWebhook(e.target.checked)
+                      setError('')
+                      setSuccess(false)
+                    }}
+                    disabled={saving}
+                  />
+                  <span>{t('settings.discordWebhookRemove')}</span>
+                </label>
+              ) : null}
+              <p className="settings-field-hint">{t('settings.discordMorningOutlookTimeHint')}</p>
+            </>
+          ) : null}
+        </div>
         {error && <p className="settings-error" role="alert">{error}</p>}
         {success && <p className="settings-success" role="status">{t('settings.preferencesSaved')}</p>}
         <button type="submit" className="btn btn-primary settings-save-btn" disabled={saving}>
@@ -447,6 +532,18 @@ function PreferencesSection() {
 export default function SettingsPage({ onBack, onAccountDeleted }) {
   const { t } = useTranslation()
   const [activeSection, setActiveSection] = useState('profile')
+
+  useEffect(() => {
+    try {
+      const section = sessionStorage.getItem('airtq-settings-section')
+      if (section === 'preferences') {
+        setActiveSection('preferences')
+        sessionStorage.removeItem('airtq-settings-section')
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
 
   const renderSection = () => {
     switch (activeSection) {

@@ -53,186 +53,250 @@
   gap: 0.5rem;
 }
 
-.outdoor-day-advice__eyebrow {
-  margin: 0;
-  font-size: 0.68rem;
+.outdoor-day-advice__plan-shift {
+  margin: 0 0 0.2rem;
+  font-size: 0.65rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: #1A6BF0;
-}
-
-.outdoor-day-advice__mode-switch {
-  display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.2rem;
-  border-radius: 8px;
-  background: #F1F5F9;
-  border: 1px solid #E2E8F0;
-  width: fit-content;
-}
-
-.outdoor-day-advice__mode-tab {
-  border: none;
-  background: transparent;
   color: #64748B;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.outdoor-day-advice__mode-tab:hover:not(:disabled) {
-  background: rgba(255,255,255,0.7);
-  color: #0F172A;
-}
-
-.outdoor-day-advice__mode-tab--active {
-  background: #fff;
-  color: #0F172A;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-
-.outdoor-day-advice__mode-tab:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .outdoor-day-advice__title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #0F172A;
   letter-spacing: -0.01em;
 }
 
-.outdoor-day-advice__location {
-  margin: 0;
-  font-size: 0.78rem;
-  color: #94A3B8;
+/* Single narrative summary + overall status */
+.outdoor-day-advice__summary {
+  position: relative;
+  border-radius: var(--app-radius, 14px);
+  border: 1px solid var(--app-border, #e2e8f0);
+  background: var(--app-white, #fff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
 }
 
-.outdoor-day-advice__availability {
-  margin: 0;
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: #94A3B8;
+.outdoor-day-advice__summary::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--app-border, #e2e8f0);
+  border-radius: 3px 0 0 3px;
 }
 
-/* Hero: headline + status badge */
-.outdoor-day-advice__hero {
+.outdoor-day-advice__summary-inner {
+  padding: 1.15rem 1.25rem 1.2rem 1.35rem;
   display: flex;
-  gap: 0.85rem;
-  align-items: stretch;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.outdoor-day-advice__hero-copy {
-  flex: 1;
-  min-width: 0;
-  padding: 0.75rem 0.85rem;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
+.outdoor-day-advice__summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
 }
 
-.outdoor-day-advice__hero-copy h4 {
-  margin: 0 0 0.3rem;
-  font-size: 0.88rem;
+.outdoor-day-advice__summary-kicker {
+  margin: 0;
+  font-size: 0.65rem;
   font-weight: 600;
-  color: #0F172A;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-muted, #64748b);
 }
 
-.outdoor-day-advice__hero-copy p {
+.outdoor-day-advice__summary--good::before {
+  background: var(--app-primary, #1a6bf0);
+}
+
+.outdoor-day-advice__summary--good {
+  background: #fafbfc;
+  border-color: var(--app-border, #e2e8f0);
+}
+
+.outdoor-day-advice__summary--cold::before {
+  background: #0284c7;
+}
+
+.outdoor-day-advice__summary--cold {
+  background: #f8fafc;
+  border-color: #e0f2fe;
+}
+
+.outdoor-day-advice__summary--caution::before {
+  background: #ca8a04;
+}
+
+.outdoor-day-advice__summary--caution {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.outdoor-day-advice__summary--danger::before {
+  background: #dc2626;
+}
+
+.outdoor-day-advice__summary--danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.outdoor-day-advice__summary-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.38rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  border: 1px solid transparent;
+}
+
+.outdoor-day-advice__summary--good .outdoor-day-advice__summary-badge {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.outdoor-day-advice__summary--cold .outdoor-day-advice__summary-badge {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #7dd3fc;
+}
+
+.outdoor-day-advice__summary--caution .outdoor-day-advice__summary-badge {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.outdoor-day-advice__summary--danger .outdoor-day-advice__summary-badge {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.outdoor-day-advice__summary-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.62;
+  color: var(--app-body, #475569);
+  max-width: 62ch;
+}
+
+/* Cold day: compact “notification” card (reference UI) */
+.outdoor-day-advice__summary--notif {
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.outdoor-day-advice__summary--notif::before {
+  display: none;
+}
+
+.outdoor-day-advice__summary--cold.outdoor-day-advice__summary--notif {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+
+.outdoor-day-advice__notif {
+  padding: 0.65rem 0.75rem 0.7rem;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
+}
+
+.outdoor-day-advice__notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.outdoor-day-advice__notif-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.5rem 0.18rem 0.4rem;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.outdoor-day-advice__notif-priority-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #0284c7;
+  flex-shrink: 0;
+}
+
+.outdoor-day-advice__notif-category {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #64748b;
+  text-align: right;
+}
+
+.outdoor-day-advice__notif-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.outdoor-day-advice__notif-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.outdoor-day-advice__notif-chip--filled {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.outdoor-day-advice__notif-chip--outline {
+  background: #fff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.outdoor-day-advice__notif-section-label {
+  margin: 0.45rem 0 0.2rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.outdoor-day-advice__notif-body {
   margin: 0;
   font-size: 0.78rem;
   line-height: 1.5;
   color: #475569;
-}
-
-.outdoor-day-advice__status-card {
-  min-width: 140px;
-  border-radius: 10px;
-  padding: 0.75rem 0.85rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.2rem;
-  border: 1px solid transparent;
-}
-
-.outdoor-day-advice__status-card::before { display: none; }
-
-.outdoor-day-advice__status-eyebrow {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
-  opacity: 0.7;
-}
-
-.outdoor-day-advice__status-card strong {
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.outdoor-day-advice__status-card p {
-  margin: 0;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  opacity: 0.8;
-}
-
-.outdoor-day-advice__status-card--good {
-  background: #F0FDF4;
-  color: #166534;
-  border-color: #BBF7D0;
-}
-
-.outdoor-day-advice__status-card--caution {
-  background: #FFFBEB;
-  color: #92400E;
-  border-color: #FDE68A;
-}
-
-.outdoor-day-advice__status-card--danger {
-  background: #FEF2F2;
-  color: #991B1B;
-  border-color: #FECACA;
-}
-
-/* Quick notes */
-.outdoor-day-advice__quick-notes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.outdoor-day-advice__quick-note {
-  flex: 1 1 120px;
-  min-width: 0;
-  padding: 0.5rem 0.65rem;
-  border-radius: 8px;
-  border: 1px solid #E2E8F0;
-  background: #fff;
-}
-
-.outdoor-day-advice__quick-note span {
-  display: block;
-  font-size: 0.62rem;
-  color: #94A3B8;
-  font-weight: 600;
-  margin-bottom: 0.15rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.outdoor-day-advice__quick-note strong {
-  color: #0F172A;
-  font-size: 0.78rem;
-  font-weight: 700;
 }
 
 /* Metrics grid */
@@ -271,58 +335,124 @@
   font-size: 0.68rem;
 }
 
-/* Advice cards */
-.outdoor-day-advice__advice-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
+/* ── Discord notifications help ── */
+.outdoor-day-advice__header--row {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.outdoor-day-advice__advice-card {
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  background: #fff;
-  padding: 0.6rem 0.7rem;
-}
-
-.outdoor-day-advice__advice-card span {
-  display: inline-block;
-  margin-bottom: 0.3rem;
-  font-size: 0.68rem;
-  color: #1A6BF0;
-  background: #EFF6FF;
+.outdoor-day-advice__discord-btn {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
+  color: var(--app-primary, #1a6bf0);
+  background: rgba(26, 107, 240, 0.08);
+  border: 1px solid rgba(26, 107, 240, 0.22);
   border-radius: 999px;
-  padding: 0.15rem 0.5rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.outdoor-day-advice__discord-btn:hover {
+  background: rgba(26, 107, 240, 0.12);
+  border-color: rgba(26, 107, 240, 0.35);
+}
+
+.outdoor-day-advice__empty-discord {
+  margin-top: 1rem;
+}
+
+.outdoor-day-advice__discord-modal {
+  width: min(520px, 92vw);
+}
+
+.outdoor-day-advice__discord-steps {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--app-body, #334155);
+}
+
+.outdoor-day-advice__discord-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.outdoor-day-advice__discord-steps strong {
+  color: var(--app-text, #0f172a);
   font-weight: 600;
 }
 
-.outdoor-day-advice__advice-card p {
-  margin: 0;
-  color: #475569;
+.outdoor-day-advice__discord-note {
+  margin: 0 0 1.25rem;
   font-size: 0.78rem;
-  line-height: 1.5;
+  line-height: 1.45;
+  color: var(--app-muted, #64748b);
+  padding: 0.65rem 0.75rem;
+  background: var(--app-bg, #f8fafc);
+  border-radius: 8px;
+  border: 1px solid var(--app-border, #e2e8f0);
+}
+
+.outdoor-day-advice__discord-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.outdoor-day-advice__discord-cta {
+  margin-top: 0 !important;
+}
+
+.outdoor-day-advice__discord-dismiss {
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
+  color: var(--app-muted, #64748b);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem 0.25rem;
+}
+
+.outdoor-day-advice__discord-dismiss:hover {
+  color: var(--app-text, #0f172a);
+  text-decoration: underline;
 }
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
-  .outdoor-day-advice__hero {
-    flex-direction: column;
-  }
-
-  .outdoor-day-advice__status-card {
-    min-width: 0;
-  }
-
   .outdoor-day-advice__metrics {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .outdoor-day-advice__advice-list {
-    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 480px) {
+  .outdoor-day-advice__summary-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .outdoor-day-advice__header--row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .outdoor-day-advice__discord-btn {
+    align-self: flex-start;
+  }
+
   .outdoor-day-advice__metrics {
     grid-template-columns: 1fr;
   }

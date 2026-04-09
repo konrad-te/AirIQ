@@ -426,6 +426,14 @@ export default function App() {
     window.history.pushState({}, '', '/settings')
     setRoute('/settings')
   }
+  const handleOpenSettingsPreferences = () => {
+    try {
+      sessionStorage.setItem('airtq-settings-section', 'preferences')
+    } catch {
+      // ignore
+    }
+    handleOpenSettings()
+  }
   const handleOpenIndoor = () => {
     window.history.pushState({}, '', '/indoor')
     setRoute('/indoor')
@@ -2149,9 +2157,9 @@ export default function App() {
             <div className="app-dash-card">
               <OutdoorDayAdvicePanel
                 airData={liveAirData}
-                locationLabel={currentLocationLabel}
                 locale={intlLocale}
                 timeZone={intlTimezone}
+                onOpenSettingsPreferences={handleOpenSettingsPreferences}
               />
             </div>
           </div>
