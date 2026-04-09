@@ -20,6 +20,7 @@ import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
+import DiscordAlertsPanel from './components/DiscordAlertsPanel'
 import ActivatePage from './pages/ActivatePage'
 import FarewellPage from './pages/FarewellPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
@@ -304,7 +305,6 @@ export default function App() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [isForgotOpen, setIsForgotOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isDeviceSetupOpen, setIsDeviceSetupOpen] = useState(false)
   const [route, setRoute] = useState(() => window.location.pathname)
   const [searchAddress, setSearchAddress] = useState(() => readStoredActiveLocation()?.label || mockData.location)
@@ -405,7 +405,14 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
   const canAccessPremiumInsights = Boolean(user && (user.role === 'admin' || user.plan === 'plus'))
-  const notificationCount = user && !user.email_verified ? 1 : 0
+  const [navDiscordWebhookConfigured, setNavDiscordWebhookConfigured] = useState(false)
+  const [navDiscordMorning, setNavDiscordMorning] = useState(false)
+  const [navDiscordIndoor, setNavDiscordIndoor] = useState(false)
+  const emailUnverifiedCount = user && !user.email_verified ? 1 : 0
+  const discordNeedsWebhookCount =
+    user && (navDiscordMorning || navDiscordIndoor) && !navDiscordWebhookConfigured ? 1 : 0
+  const headerNotificationBadgeCount = emailUnverifiedCount + discordNeedsWebhookCount
+  const formatNavBadge = (n) => (n > 9 ? '9+' : String(n))
   const handleOpenGlobe = () => {
     window.history.pushState({}, '', '/globe')
     setRoute('/globe')
@@ -426,13 +433,13 @@ export default function App() {
     window.history.pushState({}, '', '/settings')
     setRoute('/settings')
   }
-  const handleOpenSettingsPreferences = () => {
-    try {
-      sessionStorage.setItem('airtq-settings-section', 'preferences')
-    } catch {
-      // ignore
-    }
-    handleOpenSettings()
+  const handleOpenDiscordAlerts = () => {
+    setIsHealthDropOpen(false)
+    window.history.pushState({}, '', '/discord-alerts')
+    setRoute('/discord-alerts')
+  }
+  const handleOpenNotificationCenter = () => {
+    handleOpenDiscordAlerts()
   }
   const handleOpenIndoor = () => {
     window.history.pushState({}, '', '/indoor')
@@ -450,10 +457,6 @@ export default function App() {
     setPlanUpdateNotice('')
     setPlanUpdateError('')
     setIsPlanModalOpen(true)
-  }
-  const handleToggleNotifications = () => {
-    setIsUserMenuOpen(false)
-    setIsNotificationsOpen((prev) => !prev)
   }
   const clearSleepInsight = () => {
     setRequestedSleepInsightDate('')
@@ -772,15 +775,24 @@ export default function App() {
     if (!token) {
       i18n.changeLanguage('en')
       setAllowGeminiHealthInsights(false)
+      setNavDiscordWebhookConfigured(false)
+      setNavDiscordMorning(false)
+      setNavDiscordIndoor(false)
       return
     }
     getPreferences(token)
       .then((prefs) => {
         i18n.changeLanguage(prefs.language_code || 'en')
         setAllowGeminiHealthInsights(Boolean(prefs.allow_gemini_health_insights))
+        setNavDiscordWebhookConfigured(Boolean(prefs.discord_outlook_webhook_configured))
+        setNavDiscordMorning(Boolean(prefs.discord_morning_outlook_enabled))
+        setNavDiscordIndoor(Boolean(prefs.discord_indoor_alerts_enabled))
       })
       .catch(() => {
         setAllowGeminiHealthInsights(false)
+        setNavDiscordWebhookConfigured(false)
+        setNavDiscordMorning(false)
+        setNavDiscordIndoor(false)
       })
   }, [token, isLoadingAuth, i18n])
 
@@ -790,6 +802,9 @@ export default function App() {
       getPreferences(token)
         .then((prefs) => {
           setAllowGeminiHealthInsights(Boolean(prefs.allow_gemini_health_insights))
+          setNavDiscordWebhookConfigured(Boolean(prefs.discord_outlook_webhook_configured))
+          setNavDiscordMorning(Boolean(prefs.discord_morning_outlook_enabled))
+          setNavDiscordIndoor(Boolean(prefs.discord_indoor_alerts_enabled))
         })
         .catch(() => {})
     }
@@ -1403,7 +1418,6 @@ export default function App() {
   useEffect(() => {
     if (user?.email_verified) {
       setVerificationNotificationSent(false)
-      setIsNotificationsOpen(false)
     }
   }, [user?.email_verified])
   const { suggestionsBannerCount, suggestionsBannerCountLabel } = useMemo(() => {
@@ -1825,6 +1839,7 @@ export default function App() {
                 </>
               )}
             </div>
+            <button type="button" className={`app-nav-link${route === '/discord-alerts' ? ' app-nav-link--active' : ''}`} onClick={handleOpenDiscordAlerts}>{t('nav.discordAlerts')}</button>
             <button type="button" className={`app-nav-link${route === '/globe' ? ' app-nav-link--active' : ''}`} onClick={handleOpenGlobe}>Globe</button>
           </div>
 
@@ -1834,40 +1849,26 @@ export default function App() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
               </button>
             )}
-            <div className="app-notif-wrap">
-              <button type="button" className="app-nav-icon-btn" aria-label={t('nav.notifications')} onClick={handleToggleNotifications}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
-                {notificationCount > 0 && <span className="app-notif-badge">{notificationCount}</span>}
-              </button>
-              {isNotificationsOpen && (
-                <>
-                  <div className="app-backdrop" onClick={() => setIsNotificationsOpen(false)} />
-                  <div className="app-dropdown app-dropdown--notif">
-                    <div className="app-dropdown-head"><span>{t('nav.notifications')}</span>{notificationCount > 0 ? <strong>{notificationCount}</strong> : null}</div>
-                    {notificationCount > 0 ? (
-                      <div className="app-dropdown-notif-card">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,4 12,13 2,4" /></svg>
-                        <div>
-                          <strong>Verify your email</strong>
-                          <p>{verificationNotificationSent ? 'Verification email sent. Check your inbox.' : 'Please verify your email address.'}</p>
-                          {!verificationNotificationSent && (
-                            <button type="button" className="app-link-btn" onClick={handleSendVerificationNotification} disabled={isSendingVerificationNotification}>
-                              {isSendingVerificationNotification ? 'Sending...' : 'Resend email'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="app-dropdown-empty">No notifications right now.</p>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
             <div className="app-user-wrap">
-              <button type="button" className="app-nav-avatar" onClick={() => { setIsNotificationsOpen(false); setIsUserMenuOpen(v => !v) }} aria-label="User menu">
-                {user?.profile_image_data ? <img src={user.profile_image_data} alt={userDisplayName} className="app-nav-avatar-img" /> : userInitials}
-              </button>
+              <div className="app-nav-avatar-wrap">
+                <button
+                  type="button"
+                  className="app-nav-avatar"
+                  onClick={() => setIsUserMenuOpen((v) => !v)}
+                  aria-label={
+                    headerNotificationBadgeCount > 0
+                      ? `${t('nav.userMenu')}, ${t('nav.notificationsBadge', { count: headerNotificationBadgeCount })}`
+                      : t('nav.userMenu')
+                  }
+                >
+                  {user?.profile_image_data ? <img src={user.profile_image_data} alt={userDisplayName} className="app-nav-avatar-img" /> : userInitials}
+                </button>
+                {headerNotificationBadgeCount > 0 ? (
+                  <span className="app-notif-badge app-notif-badge--avatar" aria-hidden>
+                    {formatNavBadge(headerNotificationBadgeCount)}
+                  </span>
+                ) : null}
+              </div>
               {isUserMenuOpen && (
                 <>
                   <div className="app-backdrop" onClick={() => setIsUserMenuOpen(false)} />
@@ -1875,6 +1876,42 @@ export default function App() {
                     <div className="app-dropdown-profile">
                       <div className="app-dropdown-profile-avatar">{user?.profile_image_data ? <img src={user.profile_image_data} alt={userDisplayName} /> : <span>{userInitials}</span>}</div>
                       <div><strong>{userDisplayName}</strong><span>{user?.email}</span><span className={`app-user-tier app-user-tier--${user?.role === 'admin' ? 'admin' : user?.plan === 'plus' ? 'premium' : 'free'}`}>{userTierLabel}</span></div>
+                    </div>
+                    <div className="app-dropdown-sep" />
+                    <div className="app-dropdown-notif-section">
+                      <div className="app-dropdown-notif-section-head">
+                        <span>{t('nav.notifications')}</span>
+                      </div>
+                      {emailUnverifiedCount > 0 ? (
+                        <div className="app-dropdown-notif-card app-dropdown-notif-card--in-menu">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <polyline points="22,4 12,13 2,4" />
+                          </svg>
+                          <div>
+                            <strong>{t('nav.verifyEmailTitle')}</strong>
+                            {verificationNotificationSent ? <p>{t('nav.verifyEmailSent')}</p> : null}
+                            {!verificationNotificationSent && (
+                              <button type="button" className="app-link-btn" onClick={handleSendVerificationNotification} disabled={isSendingVerificationNotification}>
+                                {isSendingVerificationNotification ? t('nav.verifyEmailSending') : t('nav.verifyEmailResend')}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                      {discordNeedsWebhookCount > 0 ? (
+                        <p className="app-dropdown-notif-hint">{t('nav.discordWebhookMissingHint')}</p>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="app-dropdown-btn"
+                        onClick={() => {
+                          setIsUserMenuOpen(false)
+                          handleOpenNotificationCenter()
+                        }}
+                      >
+                        {t('nav.notificationSettings')}
+                      </button>
                     </div>
                     <div className="app-dropdown-sep" />
                     <button type="button" className="app-dropdown-btn" onClick={() => { setIsUserMenuOpen(false); handleOpenSettings() }}>{t('nav.settings')}</button>
@@ -1910,6 +1947,12 @@ export default function App() {
               sourceMethod={sourceMethod}
               sourceDistanceKm={liveAirData?.source?.distance_km}
             />
+          </div>
+        </div>
+      </>) : route === '/discord-alerts' ? (<>
+        <div className="app-page">
+          <div className="app-card discord-alerts-page-card">
+            <DiscordAlertsPanel />
           </div>
         </div>
       </>) : route === '/indoor' ? (<>
@@ -2159,7 +2202,6 @@ export default function App() {
                 airData={liveAirData}
                 locale={intlLocale}
                 timeZone={intlTimezone}
-                onOpenSettingsPreferences={handleOpenSettingsPreferences}
               />
             </div>
           </div>

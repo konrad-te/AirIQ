@@ -335,102 +335,6 @@
   font-size: 0.68rem;
 }
 
-/* ── Discord notifications help ── */
-.outdoor-day-advice__header--row {
-  flex-direction: row;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.outdoor-day-advice__discord-btn {
-  flex-shrink: 0;
-  font-size: 0.72rem;
-  font-weight: 600;
-  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
-  color: var(--app-primary, #1a6bf0);
-  background: rgba(26, 107, 240, 0.08);
-  border: 1px solid rgba(26, 107, 240, 0.22);
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.outdoor-day-advice__discord-btn:hover {
-  background: rgba(26, 107, 240, 0.12);
-  border-color: rgba(26, 107, 240, 0.35);
-}
-
-.outdoor-day-advice__empty-discord {
-  margin-top: 1rem;
-}
-
-.outdoor-day-advice__discord-modal {
-  width: min(520px, 92vw);
-}
-
-.outdoor-day-advice__discord-steps {
-  margin: 0 0 1rem;
-  padding-left: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  font-size: 0.86rem;
-  line-height: 1.45;
-  color: var(--app-body, #334155);
-}
-
-.outdoor-day-advice__discord-steps li {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.outdoor-day-advice__discord-steps strong {
-  color: var(--app-text, #0f172a);
-  font-weight: 600;
-}
-
-.outdoor-day-advice__discord-note {
-  margin: 0 0 1.25rem;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--app-muted, #64748b);
-  padding: 0.65rem 0.75rem;
-  background: var(--app-bg, #f8fafc);
-  border-radius: 8px;
-  border: 1px solid var(--app-border, #e2e8f0);
-}
-
-.outdoor-day-advice__discord-modal-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.outdoor-day-advice__discord-cta {
-  margin-top: 0 !important;
-}
-
-.outdoor-day-advice__discord-dismiss {
-  font-size: 0.85rem;
-  font-weight: 500;
-  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
-  color: var(--app-muted, #64748b);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.5rem 0.25rem;
-}
-
-.outdoor-day-advice__discord-dismiss:hover {
-  color: var(--app-text, #0f172a);
-  text-decoration: underline;
-}
-
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .outdoor-day-advice__metrics {
@@ -442,15 +346,6 @@
   .outdoor-day-advice__summary-head {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .outdoor-day-advice__header--row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .outdoor-day-advice__discord-btn {
-    align-self: flex-start;
   }
 
   .outdoor-day-advice__metrics {

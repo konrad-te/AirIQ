@@ -1,0 +1,63 @@
+.discord-setup-modal {
+  width: min(520px, 92vw);
+}
+
+.discord-setup-modal__steps {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--app-body, #334155);
+}
+
+.discord-setup-modal__steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.discord-setup-modal__steps strong {
+  color: var(--app-text, #0f172a);
+  font-weight: 600;
+}
+
+.discord-setup-modal__note {
+  margin: 0 0 1.25rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--app-muted, #64748b);
+  padding: 0.65rem 0.75rem;
+  background: var(--app-bg, #f8fafc);
+  border-radius: 8px;
+  border: 1px solid var(--app-border, #e2e8f0);
+}
+
+.discord-setup-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.discord-setup-modal__cta {
+  margin-top: 0 !important;
+}
+
+.discord-setup-modal__dismiss {
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
+  color: var(--app-muted, #64748b);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem 0.25rem;
+}
+
+.discord-setup-modal__dismiss:hover {
+  color: var(--app-text, #0f172a);
+  text-decoration: underline;
+}

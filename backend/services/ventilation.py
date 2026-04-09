@@ -203,8 +203,8 @@ def _assess_indoor_need(context: VentilationContext) -> _IndoorAssessment | None
     clear_particle_fields = tuple(
         field_name
         for field_name, value, threshold in (
-            ("indoor_pm25", context.indoor_pm25, 15),
-            ("indoor_pm10", context.indoor_pm10, 25),
+            ("indoor_pm25", context.indoor_pm25, 40),
+            ("indoor_pm10", context.indoor_pm10, 40),
         )
         if value is not None and value >= threshold
     )
@@ -230,8 +230,8 @@ def _assess_indoor_need(context: VentilationContext) -> _IndoorAssessment | None
     slight_particle_fields = tuple(
         field_name
         for field_name, value, lower, upper in (
-            ("indoor_pm25", context.indoor_pm25, 10, 15),
-            ("indoor_pm10", context.indoor_pm10, 15, 25),
+            ("indoor_pm25", context.indoor_pm25, 10, 40),
+            ("indoor_pm10", context.indoor_pm10, 15, 40),
         )
         if value is not None and lower <= value < upper
     )

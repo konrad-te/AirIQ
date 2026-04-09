@@ -1,5 +1,3 @@
-import { useEffect, useId, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import './OutdoorDayAdvicePanel.css'
 
 const DEFAULT_LOCALE = 'pl-PL'
@@ -502,109 +500,13 @@ export default function OutdoorDayAdvicePanel({
   airData,
   locale = DEFAULT_LOCALE,
   timeZone = DEFAULT_TIMEZONE,
-  onOpenSettingsPreferences,
 }) {
-  const { t } = useTranslation()
-  const discordModalTitleId = useId()
-  const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false)
-
-  useEffect(() => {
-    if (!isDiscordModalOpen) return undefined
-    const onKey = (e) => {
-      if (e.key === 'Escape') setIsDiscordModalOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [isDiscordModalOpen])
-
   const now = new Date()
   const nowParts = getDateParts(now, timeZone)
   const currentRow = getCurrentRow(airData, timeZone)
   const todayRows = getRowsForOffset(airData, timeZone, 0)
   const tomorrowRows = getRowsForOffset(airData, timeZone, 1)
   const useNextDayPlan = nowParts.hour >= NEXT_DAY_PLAN_START_HOUR && tomorrowRows.length > 0
-
-  const discordHelpButton = onOpenSettingsPreferences ? (
-    <button
-      type="button"
-      className="outdoor-day-advice__discord-btn"
-      onClick={() => setIsDiscordModalOpen(true)}
-    >
-      {t('dashboard.discordNotifications')}
-    </button>
-  ) : null
-
-  const discordModal = isDiscordModalOpen ? (
-    <>
-      <div
-        className="plan-modal-backdrop"
-        onClick={() => setIsDiscordModalOpen(false)}
-        aria-hidden
-      />
-      <div
-        className="plan-modal outdoor-day-advice__discord-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={discordModalTitleId}
-      >
-        <div className="plan-modal__header">
-          <div>
-            <p className="plan-modal__eyebrow">{t('dashboard.discordModalEyebrow')}</p>
-            <h2 id={discordModalTitleId} className="plan-modal__title">
-              {t('dashboard.discordModalTitle')}
-            </h2>
-            <p className="plan-modal__copy">{t('dashboard.discordModalIntro')}</p>
-          </div>
-          <button
-            type="button"
-            className="plan-modal__close"
-            onClick={() => setIsDiscordModalOpen(false)}
-            aria-label={t('common.close')}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <ol className="outdoor-day-advice__discord-steps">
-          <li>
-            <strong>{t('dashboard.discordModalStep1Title')}</strong>
-            <span>{t('dashboard.discordModalStep1Body')}</span>
-          </li>
-          <li>
-            <strong>{t('dashboard.discordModalStep2Title')}</strong>
-            <span>{t('dashboard.discordModalStep2Body')}</span>
-          </li>
-          <li>
-            <strong>{t('dashboard.discordModalStep3Title')}</strong>
-            <span>{t('dashboard.discordModalStep3Body')}</span>
-          </li>
-        </ol>
-        <p className="outdoor-day-advice__discord-note">{t('dashboard.discordModalNote')}</p>
-        <div className="outdoor-day-advice__discord-modal-actions">
-          {onOpenSettingsPreferences ? (
-            <button
-              type="button"
-              className="app-btn-primary outdoor-day-advice__discord-cta"
-              onClick={() => {
-                setIsDiscordModalOpen(false)
-                onOpenSettingsPreferences()
-              }}
-            >
-              {t('dashboard.discordModalOpenSettings')}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="outdoor-day-advice__discord-dismiss"
-            onClick={() => setIsDiscordModalOpen(false)}
-          >
-            {t('dashboard.discordModalClose')}
-          </button>
-        </div>
-      </div>
-    </>
-  ) : null
 
   if (todayRows.length === 0 && !currentRow) {
     return (
@@ -615,11 +517,7 @@ export default function OutdoorDayAdvicePanel({
         <div>
           <h3>Your plan for the day is not ready yet.</h3>
           <p>We need forecast data for this location before we can build a day summary.</p>
-          {discordHelpButton ? (
-            <div className="outdoor-day-advice__empty-discord">{discordHelpButton}</div>
-          ) : null}
         </div>
-        {discordModal}
       </section>
     )
   }
@@ -724,14 +622,13 @@ export default function OutdoorDayAdvicePanel({
       className="outdoor-day-advice"
       aria-label={useNextDayPlan ? 'Outdoor outlook for tomorrow' : 'Outdoor outlook for today'}
     >
-      <div className="outdoor-day-advice__header outdoor-day-advice__header--row">
+      <div className="outdoor-day-advice__header">
         <div>
           {useNextDayPlan ? (
             <p className="outdoor-day-advice__plan-shift">Plan for next day</p>
           ) : null}
           <h3 className="outdoor-day-advice__title">{formatDayLabel(selectedDate, locale, timeZone)}</h3>
         </div>
-        {discordHelpButton}
       </div>
 
       {summaryTone === 'cold' ? (
@@ -781,7 +678,6 @@ export default function OutdoorDayAdvicePanel({
           </article>
         ))}
       </div>
-      {discordModal}
     </section>
   )
 }

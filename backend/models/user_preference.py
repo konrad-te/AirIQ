@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -25,6 +26,14 @@ class UserPreference(Base):
         CheckConstraint(
             "theme IN ('light','dark')",
             name="ck_user_preferences_theme",
+        ),
+        CheckConstraint(
+            "discord_outlook_local_hour >= 0 AND discord_outlook_local_hour <= 23",
+            name="ck_user_preferences_discord_outlook_local_hour",
+        ),
+        CheckConstraint(
+            "discord_outlook_local_minute >= 0 AND discord_outlook_local_minute <= 59",
+            name="ck_user_preferences_discord_outlook_local_minute",
         ),
     )
 
@@ -71,6 +80,34 @@ class UserPreference(Base):
 
     discord_outlook_last_sent_on: Mapped[str | None] = mapped_column(
         String(10),
+        nullable=True,
+    )
+
+    discord_outlook_local_hour: Mapped[int] = mapped_column(
+        SmallInteger,
+        nullable=False,
+        server_default="7",
+    )
+
+    discord_outlook_local_minute: Mapped[int] = mapped_column(
+        SmallInteger,
+        nullable=False,
+        server_default="0",
+    )
+
+    discord_indoor_alerts_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false",
+    )
+
+    discord_indoor_last_alert_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    discord_indoor_last_alert_hash: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
     )
 

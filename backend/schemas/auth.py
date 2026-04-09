@@ -48,6 +48,9 @@ class UserPreferenceOutSchema(BaseModel):
     allow_gemini_health_insights: bool = False
     discord_morning_outlook_enabled: bool = False
     discord_outlook_webhook_configured: bool = False
+    discord_outlook_local_hour: int = 7
+    discord_outlook_local_minute: int = 0
+    discord_indoor_alerts_enabled: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -59,6 +62,9 @@ class UserPreferenceUpdateSchema(BaseModel):
     allow_gemini_health_insights: bool | None = None
     discord_morning_outlook_enabled: bool | None = None
     discord_outlook_webhook_url: str | None = Field(default=None, max_length=512)
+    discord_outlook_local_hour: int | None = Field(default=None, ge=0, le=23)
+    discord_outlook_local_minute: int | None = Field(default=None, ge=0, le=59)
+    discord_indoor_alerts_enabled: bool | None = None
 
 
 class PasswordChangeSchema(BaseModel):

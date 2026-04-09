@@ -503,6 +503,14 @@ def on_startup() -> None:
             max_instances=1,
             coalesce=True,
         )
+        scheduler.add_job(
+            _run_discord_indoor_alerts,
+            trigger=IntervalTrigger(minutes=5),
+            id="discord_indoor_alerts",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         scheduler.start()
 
 
@@ -790,6 +798,15 @@ def _run_discord_morning_outlooks() -> None:
         run_morning_discord_outlooks()
     except Exception:
         logger.exception("Morning Discord outlook job failed")
+
+
+def _run_discord_indoor_alerts() -> None:
+    try:
+        from backend.services.discord_indoor_alerts import run_discord_indoor_alerts
+
+        run_discord_indoor_alerts()
+    except Exception:
+        logger.exception("Discord indoor alerts job failed")
 
 
 def _run_account_cleanup() -> None:

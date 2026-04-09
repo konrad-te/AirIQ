@@ -219,9 +219,25 @@
   transition: box-shadow 0.15s;
 }
 
+.app-notif-badge--avatar {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 17px;
+  height: 17px;
+  font-size: 0.62rem;
+}
+
 .app-nav-avatar:hover { box-shadow: 0 0 0 2px rgba(26,107,240,0.3); }
 .app-nav-avatar-img { width: 100%; height: 100%; object-fit: cover; }
 .app-user-wrap { position: relative; }
+
+.app-nav-avatar-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* ───────────────────────────── DROPDOWNS ─────────────────────────── */
 .app-backdrop {
@@ -299,7 +315,31 @@
 .app-link-btn:hover { text-decoration: underline; }
 
 /* User dropdown */
-.app-dropdown--user { min-width: 240px; }
+.app-dropdown--user { min-width: 280px; }
+
+.app-dropdown-notif-section-head {
+  padding: 0.5rem 1rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--app-muted);
+}
+
+.app-dropdown-notif-card--in-menu {
+  margin: 0 0.5rem 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--app-radius);
+  border: 1px solid var(--app-border);
+  background: var(--app-bg);
+}
+
+.app-dropdown-notif-hint {
+  margin: 0 1rem 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--app-muted);
+}
 
 .app-dropdown-profile {
   display: flex;
@@ -401,6 +441,11 @@
   border-radius: var(--app-radius);
   padding: 1.25rem;
   overflow: hidden;
+}
+
+.app-card.discord-alerts-page-card {
+  padding: 1.5rem 1.75rem 2rem;
+  overflow: visible;
 }
 
 .app-empty-state {
@@ -694,12 +739,14 @@
   background: var(--app-primary-light);
 }
 
+/* Below the metric so sticky nav (z-index 100) does not cover the tooltip */
 .app-air-tip {
   display: none;
   position: absolute;
-  z-index: 20;
+  z-index: 120;
   left: 50%;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
+  bottom: auto;
   transform: translateX(-50%);
   width: 240px;
   padding: 0.65rem 0.8rem;
@@ -713,21 +760,22 @@
 .app-air-tip::after {
   content: '';
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: var(--app-border);
+  border-bottom-color: var(--app-border);
 }
 
 .app-air-tip::before {
   content: '';
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   left: 50%;
+  margin-bottom: -1px;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-top-color: #fff;
+  border-bottom-color: #fff;
   z-index: 1;
 }
 

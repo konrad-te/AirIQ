@@ -10,7 +10,16 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
-from backend.models import EmailToken, Household, HouseholdMember, SavedLocation, User, UserPreference, UserSession
+from backend.models import (
+    EmailToken,
+    Household,
+    HouseholdMember,
+    SavedLocation,
+    User,
+    UserPreference,
+    UserQingpingIntegration,
+    UserSession,
+)
 from backend.schemas.auth import (
     DeleteAccountSchema,
     ForgotPasswordSchema,
@@ -60,6 +69,9 @@ def user_preference_to_out(pref: UserPreference) -> UserPreferenceOutSchema:
         discord_outlook_webhook_configured=bool(
             getattr(pref, "discord_outlook_webhook_encrypted", None)
         ),
+        discord_outlook_local_hour=int(getattr(pref, "discord_outlook_local_hour", 7) or 7),
+        discord_outlook_local_minute=int(getattr(pref, "discord_outlook_local_minute", 0) or 0),
+        discord_indoor_alerts_enabled=getattr(pref, "discord_indoor_alerts_enabled", False),
     )
 
 
@@ -76,6 +88,8 @@ def _reraise_preferences_schema_error(exc: BaseException) -> None:
             "allow_gemini_health_insights",
             "discord_morning_outlook",
             "discord_outlook_webhook",
+            "discord_outlook_local",
+            "discord_indoor",
         )
     ):
         return
@@ -479,10 +493,18 @@ def update_preferences(
             pref.allow_gemini_health_insights = bool(update.allow_gemini_health_insights)
         if "discord_morning_outlook_enabled" in set_fields:
             pref.discord_morning_outlook_enabled = bool(update.discord_morning_outlook_enabled)
+        if "discord_outlook_local_hour" in set_fields and update.discord_outlook_local_hour is not None:
+            pref.discord_outlook_local_hour = int(update.discord_outlook_local_hour)
+        if "discord_outlook_local_minute" in set_fields and update.discord_outlook_local_minute is not None:
+            pref.discord_outlook_local_minute = int(update.discord_outlook_local_minute)
+        if "discord_indoor_alerts_enabled" in set_fields:
+            pref.discord_indoor_alerts_enabled = bool(update.discord_indoor_alerts_enabled)
         if "discord_outlook_webhook_url" in set_fields:
             raw = update.discord_outlook_webhook_url
             if raw is None or not str(raw).strip():
                 pref.discord_outlook_webhook_encrypted = None
+                pref.discord_morning_outlook_enabled = False
+                pref.discord_indoor_alerts_enabled = False
             else:
                 url = str(raw).strip()
                 if not any(url.startswith(p) for p in _DISCORD_WEBHOOK_PREFIXES):
@@ -497,6 +519,30 @@ def update_preferences(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Add a Discord webhook URL before enabling the morning outdoor outlook.",
             )
+        if pref.discord_indoor_alerts_enabled:
+            if not pref.discord_outlook_webhook_encrypted:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Add a Discord webhook URL before enabling indoor air alerts.",
+                )
+            qp = (
+                db.execute(
+                    select(UserQingpingIntegration).where(
+                        UserQingpingIntegration.user_id == current_user.id
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if (
+                qp is None
+                or qp.status != "connected"
+                or not (qp.selected_device_id and str(qp.selected_device_id).strip())
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Connect a Qingping indoor sensor and select a device before enabling indoor air alerts.",
+                )
 
         db.commit()
         db.refresh(pref)

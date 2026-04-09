@@ -24,9 +24,8 @@ DISCORD_WEBHOOK_PREFIXES = (
     "https://discordapp.com/api/webhooks/",
 )
 
-MORNING_HOUR_LOCAL = 7
-# Run scheduler every few minutes; only fire once in this minute window.
-MINUTE_WINDOW_END = 10
+# Match scheduled local time within this many minutes (scheduler runs every ~3 min).
+DISPATCH_WINDOW_MINUTES = 9
 
 
 def _zone(tz_name: str | None) -> ZoneInfo:
@@ -49,12 +48,20 @@ def _local_calendar_date_str(pref: UserPreference, now_utc: datetime) -> str:
     return f"{local.year:04d}-{local.month:02d}-{local.day:02d}"
 
 
+def _minutes_since_local_midnight(local: datetime) -> int:
+    return local.hour * 60 + local.minute
+
+
 def _should_send_now(pref: UserPreference, now_utc: datetime) -> bool:
     tz = _zone(pref.timezone)
     local = now_utc.astimezone(tz)
-    if local.hour != MORNING_HOUR_LOCAL:
-        return False
-    if local.minute >= MINUTE_WINDOW_END:
+    sch_h = int(getattr(pref, "discord_outlook_local_hour", 7) or 7)
+    sch_m = int(getattr(pref, "discord_outlook_local_minute", 0) or 0)
+    scheduled = sch_h * 60 + sch_m
+    now_t = _minutes_since_local_midnight(local)
+    day_minutes = 24 * 60
+    matched = any((scheduled + delta) % day_minutes == now_t for delta in range(DISPATCH_WINDOW_MINUTES))
+    if not matched:
         return False
     today_key = f"{local.year:04d}-{local.month:02d}-{local.day:02d}"
     if pref.discord_outlook_last_sent_on == today_key:

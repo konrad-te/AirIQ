@@ -142,6 +142,27 @@
   margin: 0 0 1.5rem;
 }
 
+.settings-notification-actions {
+  margin: 0 0 1.25rem;
+}
+
+.settings-notification-help-btn {
+  font-size: 0.85rem;
+}
+
+.settings-input--time {
+  max-width: 9rem;
+}
+
+.settings-timezone-note {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-field--muted {
+  opacity: 0.72;
+}
+
 /* ── Profile image ── */
 .settings-profile-image {
   display: grid;
@@ -413,7 +434,8 @@
 }
 
 /* ── Ghost button override ── */
-.settings-page .btn-ghost {
+.settings-page .btn-ghost,
+.discord-alerts-panel .btn-ghost {
   background: none;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
@@ -426,7 +448,8 @@
   transition: background 0.15s, color 0.15s;
 }
 
-.settings-page .btn-ghost:hover {
+.settings-page .btn-ghost:hover,
+.discord-alerts-panel .btn-ghost:hover {
   background: #F1F5F9;
   color: #0F172A;
 }
