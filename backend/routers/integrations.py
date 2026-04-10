@@ -31,6 +31,7 @@ from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
@@ -54,7 +55,12 @@ def _qingping_plain_credentials(integration: UserQingpingIntegration) -> tuple[s
     except CredentialEncryptionError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Qingping credentials are unavailable because FIELD_ENCRYPTION_KEY is not configured.",
+            detail=(
+                "Qingping credentials cannot be read or updated because FIELD_ENCRYPTION_KEY is not "
+                "set on the server. Set a Fernet key in the environment (same as for other encrypted "
+                "secrets). Until then, existing plaintext tokens may still work until they expire; "
+                "reconnecting or refreshing the token will fail."
+            ),
         ) from exc
 
 
@@ -277,6 +283,8 @@ def _persist_indoor_sensor_reading(
     if normalized.updated_at is None or not integration.selected_device_id:
         return
 
+    source_type = "indoor_sensor"
+
     existing = (
         db.execute(
             select(IndoorSensorReading).where(
@@ -284,6 +292,7 @@ def _persist_indoor_sensor_reading(
                 IndoorSensorReading.provider == "qingping",
                 IndoorSensorReading.provider_device_key == integration.selected_device_id,
                 IndoorSensorReading.recorded_at == normalized.updated_at,
+                IndoorSensorReading.source_type == source_type,
             )
         )
         .scalars()
@@ -306,7 +315,7 @@ def _persist_indoor_sensor_reading(
             user_id=user_id,
             provider="qingping",
             provider_device_key=integration.selected_device_id,
-            source_type="indoor_sensor",
+            source_type=source_type,
             device_name=normalized.device_name,
             product_name=normalized.product_name,
             serial_number=normalized.serial_number,
@@ -321,7 +330,36 @@ def _persist_indoor_sensor_reading(
             raw_payload_json=raw_payload,
         )
     )
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two scheduler paths can sync the same Qingping payload at nearly the same time.
+        # If another transaction inserted this exact reading first, treat it as an update.
+        db.rollback()
+        existing = (
+            db.execute(
+                select(IndoorSensorReading).where(
+                    IndoorSensorReading.user_id == user_id,
+                    IndoorSensorReading.provider == "qingping",
+                    IndoorSensorReading.provider_device_key == integration.selected_device_id,
+                    IndoorSensorReading.recorded_at == normalized.updated_at,
+                    IndoorSensorReading.source_type == source_type,
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if existing is None:
+            raise
+
+        existing.temperature_c = normalized.temperature_c
+        existing.humidity_pct = normalized.humidity_pct
+        existing.pm25_ug_m3 = normalized.pm2_5_ug_m3
+        existing.pm10_ug_m3 = normalized.pm10_ug_m3
+        existing.co2_ppm = normalized.co2_ppm
+        existing.battery_pct = normalized.battery_pct
+        existing.raw_payload_json = raw_payload
+        db.commit()
 
 
 def exchange_qingping_token(app_key: str, app_secret: str) -> dict[str, Any]:
@@ -437,7 +475,10 @@ def _refresh_qingping_token_if_needed(
     except CredentialEncryptionError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Qingping token refresh is unavailable because FIELD_ENCRYPTION_KEY is not configured.",
+            detail=(
+                "Cannot store a refreshed Qingping token: FIELD_ENCRYPTION_KEY is not set on the server. "
+                "Configure a Fernet key and restart the API."
+            ),
         ) from exc
     integration.token_expires_at = (
         now + timedelta(seconds=expires_in) if expires_in is not None else None
@@ -572,23 +613,27 @@ def sync_all_qingping_integrations(db: Session) -> QingpingSyncSummary:
     summary = QingpingSyncSummary()
     for integration in integrations:
         summary.attempted += 1
+        integration_user_id = integration.user_id
+        integration_id = integration.id
         try:
             sync_qingping_integration(db=db, integration=integration)
             summary.synced += 1
         except HTTPException as exc:
+            db.rollback()
             summary.failed += 1
             logger.warning(
                 "Qingping background sync failed for user_id=%s integration_id=%s: %s",
-                integration.user_id,
-                integration.id,
+                integration_user_id,
+                integration_id,
                 exc.detail,
             )
         except Exception:
+            db.rollback()
             summary.failed += 1
             logger.exception(
                 "Unexpected Qingping background sync failure for user_id=%s integration_id=%s",
-                integration.user_id,
-                integration.id,
+                integration_user_id,
+                integration_id,
             )
 
     return summary
@@ -635,7 +680,10 @@ def connect_qingping(
     except CredentialEncryptionError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Qingping integration cannot be saved because FIELD_ENCRYPTION_KEY is not configured.",
+            detail=(
+                "Qingping integration cannot be saved because FIELD_ENCRYPTION_KEY is not configured "
+                "on the server. Generate a Fernet key and set it in the environment."
+            ),
         ) from exc
 
     if integration is None:

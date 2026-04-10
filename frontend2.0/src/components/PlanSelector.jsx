@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import './PlanSelector.css'
 
 const PLAN_COPY = {
   free: {
@@ -28,8 +30,11 @@ function PlanSelector({
   notice = '',
   onPlanChange,
   title = 'Choose your plan',
+  plusComingSoon = true,
 }) {
+  const { t } = useTranslation()
   const [plan, setPlan] = useState(currentPlan)
+  const plusLocked = Boolean(plusComingSoon && currentPlan !== 'plus')
 
   useEffect(() => {
     setPlan(currentPlan)
@@ -50,14 +55,26 @@ function PlanSelector({
         >
           Free
         </button>
-        <button
-          type="button"
-          className={`plan-selector-tab ${plan === 'plus' ? 'plan-selector-tab--active' : ''}`}
-          disabled={busy}
-          onClick={() => setPlan('plus')}
-        >
-          Plus
-        </button>
+        {plusLocked ? (
+          <span
+            className={`plan-selector-tab plan-selector-tab--plus plan-selector-tab--locked${plan === 'plus' ? ' plan-selector-tab--active' : ''}`}
+            tabIndex={0}
+            role="group"
+            aria-label={t('plan.plusUnavailableAria')}
+          >
+            Plus
+            <span className="plan-selector-tab-tooltip">{t('plan.comingSoon')}</span>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className={`plan-selector-tab ${plan === 'plus' ? 'plan-selector-tab--active' : ''}`}
+            disabled={busy}
+            onClick={() => setPlan('plus')}
+          >
+            Plus
+          </button>
+        )}
       </div>
 
       <ul className="plan-selector-features">

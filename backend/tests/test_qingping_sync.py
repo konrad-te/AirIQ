@@ -6,8 +6,10 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 
 from backend.routers.integrations import (
+    _persist_indoor_sensor_reading,
     _refresh_qingping_token_if_needed,
     get_qingping_sync_interval_minutes,
     sync_all_qingping_integrations,
@@ -59,6 +61,52 @@ class QingpingSyncTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 503)
         self.assertIn("FIELD_ENCRYPTION_KEY", str(context.exception.detail))
 
+    def test_persist_indoor_sensor_reading_recovers_from_duplicate_insert(self) -> None:
+        normalized = SimpleNamespace(
+            updated_at="2026-04-10T09:00:00Z",
+            temperature_c=23.4,
+            humidity_pct=58.6,
+            pm2_5_ug_m3=25.0,
+            pm10_ug_m3=25.0,
+            co2_ppm=1427.0,
+            battery_pct=100.0,
+            device_name="Qing",
+            product_name="Qingping Lite",
+            serial_number="abc",
+            wifi_mac="CCB5D132B127",
+        )
+        integration = SimpleNamespace(selected_device_id="CCB5D132B127")
+        existing = SimpleNamespace(
+            temperature_c=None,
+            humidity_pct=None,
+            pm25_ug_m3=None,
+            pm10_ug_m3=None,
+            co2_ppm=None,
+            battery_pct=None,
+            raw_payload_json=None,
+        )
+        db = Mock()
+        db.execute.return_value.scalars.return_value.first.side_effect = [None, existing]
+        db.commit.side_effect = [
+            IntegrityError("insert", {}, Exception("duplicate")),
+            None,
+        ]
+
+        _persist_indoor_sensor_reading(
+            db=db,
+            user_id=15,
+            integration=integration,
+            normalized=normalized,
+            raw_payload={"sample": True},
+        )
+
+        self.assertEqual(db.commit.call_count, 2)
+        db.rollback.assert_called_once()
+        self.assertEqual(existing.temperature_c, 23.4)
+        self.assertEqual(existing.humidity_pct, 58.6)
+        self.assertEqual(existing.pm25_ug_m3, 25.0)
+        self.assertEqual(existing.raw_payload_json, {"sample": True})
+
     def test_sync_all_qingping_integrations_counts_successes_and_failures(self) -> None:
         integrations = [
             SimpleNamespace(id=1, user_id=10, selected_device_id="dev-1"),
@@ -82,6 +130,7 @@ class QingpingSyncTests(unittest.TestCase):
         self.assertEqual(summary.synced, 1)
         self.assertEqual(summary.failed, 2)
         self.assertEqual(sync_mock.call_count, 3)
+        self.assertEqual(db.rollback.call_count, 2)
         logger_mock.warning.assert_called_once()
         logger_mock.exception.assert_called_once()
 

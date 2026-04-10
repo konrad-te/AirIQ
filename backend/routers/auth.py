@@ -45,19 +45,14 @@ from backend.security import (
     verify_email_token,
     verify_password,
 )
-from backend.services.credential_encryption import encrypt_credential
+from backend.services.credential_encryption import CredentialEncryptionError, encrypt_credential
+from backend.services.discord_webhook_url import is_valid_discord_incoming_webhook_url
 from backend.services.email_service import send_activation_email, send_password_reset_email
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-_DISCORD_WEBHOOK_PREFIXES = (
-    "https://discord.com/api/webhooks/",
-    "https://discordapp.com/api/webhooks/",
-)
-
 
 def user_preference_to_out(pref: UserPreference) -> UserPreferenceOutSchema:
     return UserPreferenceOutSchema(
@@ -507,12 +502,21 @@ def update_preferences(
                 pref.discord_indoor_alerts_enabled = False
             else:
                 url = str(raw).strip()
-                if not any(url.startswith(p) for p in _DISCORD_WEBHOOK_PREFIXES):
+                if not is_valid_discord_incoming_webhook_url(url):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Discord webhook URL must start with https://discord.com/api/webhooks/",
+                        detail=(
+                            "Invalid Discord webhook URL. Use the incoming webhook link from Discord "
+                            "(https://discord.com/api/…/webhooks/…, optionally with /v10/ in the path)."
+                        ),
                     )
-                pref.discord_outlook_webhook_encrypted = encrypt_credential(url)
+                try:
+                    pref.discord_outlook_webhook_encrypted = encrypt_credential(url)
+                except CredentialEncryptionError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail=str(exc),
+                    ) from exc
 
         if pref.discord_morning_outlook_enabled and not pref.discord_outlook_webhook_encrypted:
             raise HTTPException(

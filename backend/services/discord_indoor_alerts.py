@@ -14,7 +14,8 @@ from backend.main import get_air_quality_data
 from backend.models import SavedLocation, User, UserPreference, UserQingpingIntegration
 from backend.routers.integrations import sync_qingping_integration
 from backend.services.credential_encryption import decrypt_credential
-from backend.services.discord_outlook_digest import DISCORD_WEBHOOK_PREFIXES, _truncate_discord_content
+from backend.services.discord_webhook_url import is_valid_discord_incoming_webhook_url
+from backend.services.discord_outlook_digest import _truncate_discord_content
 from backend.services.recommendation_config import get_recommendation_config
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ def run_discord_indoor_alerts() -> None:
         )
 
         for pref in prefs:
+            pref_user_id = pref.user_id
             enc = pref.discord_outlook_webhook_encrypted
             if not enc or not str(enc).strip():
                 continue
@@ -109,18 +111,20 @@ def run_discord_indoor_alerts() -> None:
             try:
                 normalized = sync_qingping_integration(db=db, integration=integration)
             except HTTPException as exc:
+                db.rollback()
                 logger.info(
                     "discord indoor: qingping sync HTTP user_id=%s detail=%s",
-                    pref.user_id,
+                    pref_user_id,
                     exc.detail,
                 )
                 continue
             except Exception:
-                logger.exception("discord indoor: qingping sync failed user_id=%s", pref.user_id)
+                db.rollback()
+                logger.exception("discord indoor: qingping sync failed user_id=%s", pref_user_id)
                 continue
 
             indoor_data = normalized.model_dump()
-            loc = _first_saved_location(db, pref.user_id)
+            loc = _first_saved_location(db, pref_user_id)
             if not loc:
                 continue
 
@@ -162,7 +166,7 @@ def run_discord_indoor_alerts() -> None:
                 logger.exception("discord indoor: decrypt webhook user_id=%s", pref.user_id)
                 continue
 
-            if not any(webhook.startswith(p) for p in DISCORD_WEBHOOK_PREFIXES):
+            if not is_valid_discord_incoming_webhook_url(webhook):
                 continue
 
             body = _format_message(alerts)

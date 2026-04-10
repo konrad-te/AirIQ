@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Generator
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session, sessionmaker
@@ -14,6 +14,14 @@ ENV_PATH = BACKEND_DIR / ".env"
 
 if ENV_PATH.exists():
     load_dotenv(dotenv_path=ENV_PATH, override=False)
+    # If the process environment has FIELD_ENCRYPTION_KEY missing or empty (e.g. systemd sets
+    # `Environment=FIELD_ENCRYPTION_KEY=` or Docker passes an empty value), override=False leaves it
+    # blank and Qingping connect fails. Pull this one variable from the file when needed.
+    if not (os.getenv("FIELD_ENCRYPTION_KEY") or "").strip():
+        file_vals = dotenv_values(ENV_PATH)
+        fk = (file_vals.get("FIELD_ENCRYPTION_KEY") or "").strip()
+        if fk:
+            os.environ["FIELD_ENCRYPTION_KEY"] = fk
 
 
 def _get_required_env(name: str) -> str:

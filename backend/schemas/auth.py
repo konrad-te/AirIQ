@@ -61,7 +61,7 @@ class UserPreferenceUpdateSchema(BaseModel):
     timezone: str | None = None
     allow_gemini_health_insights: bool | None = None
     discord_morning_outlook_enabled: bool | None = None
-    discord_outlook_webhook_url: str | None = Field(default=None, max_length=512)
+    discord_outlook_webhook_url: str | None = Field(default=None, max_length=2048)
     discord_outlook_local_hour: int | None = Field(default=None, ge=0, le=23)
     discord_outlook_local_minute: int | None = Field(default=None, ge=0, le=59)
     discord_indoor_alerts_enabled: bool | None = None
