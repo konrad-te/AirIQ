@@ -67,6 +67,9 @@ def user_preference_to_out(pref: UserPreference) -> UserPreferenceOutSchema:
         discord_outlook_local_hour=int(getattr(pref, "discord_outlook_local_hour", 7) or 7),
         discord_outlook_local_minute=int(getattr(pref, "discord_outlook_local_minute", 0) or 0),
         discord_indoor_alerts_enabled=getattr(pref, "discord_indoor_alerts_enabled", False),
+        discord_indoor_include_medium_priority=getattr(
+            pref, "discord_indoor_include_medium_priority", False
+        ),
     )
 
 
@@ -494,12 +497,19 @@ def update_preferences(
             pref.discord_outlook_local_minute = int(update.discord_outlook_local_minute)
         if "discord_indoor_alerts_enabled" in set_fields:
             pref.discord_indoor_alerts_enabled = bool(update.discord_indoor_alerts_enabled)
+            if not pref.discord_indoor_alerts_enabled:
+                pref.discord_indoor_include_medium_priority = False
+        if "discord_indoor_include_medium_priority" in set_fields:
+            pref.discord_indoor_include_medium_priority = bool(
+                update.discord_indoor_include_medium_priority
+            )
         if "discord_outlook_webhook_url" in set_fields:
             raw = update.discord_outlook_webhook_url
             if raw is None or not str(raw).strip():
                 pref.discord_outlook_webhook_encrypted = None
                 pref.discord_morning_outlook_enabled = False
                 pref.discord_indoor_alerts_enabled = False
+                pref.discord_indoor_include_medium_priority = False
             else:
                 url = str(raw).strip()
                 if not is_valid_discord_incoming_webhook_url(url):
@@ -547,6 +557,11 @@ def update_preferences(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Connect a Qingping indoor sensor and select a device before enabling indoor air alerts.",
                 )
+        if pref.discord_indoor_include_medium_priority and not pref.discord_indoor_alerts_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Enable indoor air alerts before including medium-priority suggestions.",
+            )
 
         db.commit()
         db.refresh(pref)

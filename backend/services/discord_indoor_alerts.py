@@ -14,8 +14,8 @@ from backend.main import get_air_quality_data
 from backend.models import SavedLocation, User, UserPreference, UserQingpingIntegration
 from backend.routers.integrations import sync_qingping_integration
 from backend.services.credential_encryption import decrypt_credential
-from backend.services.discord_webhook_url import is_valid_discord_incoming_webhook_url
 from backend.services.discord_outlook_digest import _truncate_discord_content
+from backend.services.discord_webhook_url import is_valid_discord_incoming_webhook_url
 from backend.services.recommendation_config import get_recommendation_config
 
 logger = logging.getLogger(__name__)
@@ -23,10 +23,15 @@ logger = logging.getLogger(__name__)
 COOLDOWN = timedelta(hours=6)
 
 
-def _high_indoor_air_suggestions(suggestions: list[dict]) -> list[dict]:
+def _matching_indoor_air_suggestions(
+    suggestions: list[dict],
+    *,
+    include_medium_priority: bool = False,
+) -> list[dict]:
     out: list[dict] = []
+    allowed_priorities = {"high", "medium"} if include_medium_priority else {"high"}
     for s in suggestions:
-        if s.get("priority") != "high":
+        if s.get("priority") not in allowed_priorities:
             continue
         fam = s.get("family") or s.get("category")
         sid = s.get("id")
@@ -45,8 +50,19 @@ def _signature(alerts: list[dict]) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _format_message(alerts: list[dict]) -> str:
-    lines = ["**Indoor air — high priority**", ""]
+def _format_message(
+    alerts: list[dict],
+    *,
+    include_medium_priority: bool = False,
+) -> str:
+    lines = [
+        (
+            "**Indoor air alerts - high + medium priority**"
+            if include_medium_priority
+            else "**Indoor air alerts - high priority**"
+        ),
+        "",
+    ]
     for a in alerts:
         title = a.get("title") or "Alert"
         lines.append(f"**{title}**")
@@ -131,9 +147,7 @@ def run_discord_indoor_alerts() -> None:
             try:
                 outdoor_data = get_air_quality_data(float(loc.lat), float(loc.lon))
             except Exception:
-                logger.exception(
-                    "discord indoor: outdoor data failed user_id=%s", pref.user_id
-                )
+                logger.exception("discord indoor: outdoor data failed user_id=%s", pref.user_id)
                 continue
 
             try:
@@ -148,7 +162,13 @@ def run_discord_indoor_alerts() -> None:
                 outdoor_data=outdoor_data,
                 indoor_data=indoor_data,
             )
-            alerts = _high_indoor_air_suggestions(payload.get("suggestions") or [])
+            include_medium_priority = bool(
+                getattr(pref, "discord_indoor_include_medium_priority", False)
+            )
+            alerts = _matching_indoor_air_suggestions(
+                payload.get("suggestions") or [],
+                include_medium_priority=include_medium_priority,
+            )
             if not alerts:
                 continue
 
@@ -169,7 +189,10 @@ def run_discord_indoor_alerts() -> None:
             if not is_valid_discord_incoming_webhook_url(webhook):
                 continue
 
-            body = _format_message(alerts)
+            body = _format_message(
+                alerts,
+                include_medium_priority=include_medium_priority,
+            )
             try:
                 r = requests.post(
                     webhook,

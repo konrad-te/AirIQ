@@ -23,14 +23,26 @@ function toHourTimestamp(value) {
   return date.getTime()
 }
 
-function formatValue(value) {
+function formatValueWithDigits(value, digits = 1) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--'
-  return value >= 10 ? value.toFixed(1) : value.toFixed(2)
+  if (digits === 0) return value.toFixed(0)
+  return value >= 10 ? value.toFixed(Math.min(digits, 1)) : value.toFixed(digits)
 }
 
 function formatUnit(unit) {
-  if (unit === 'ug/m3') return 'µg/m³'
+  if (unit === 'ug/m3') return 'ug/m3'
+  if (unit === 'C') return '\u00B0C'
   return unit
+}
+
+function formatMetricReading(value, unit, digits = 1) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '--'
+  if (unit === 'index') {
+    return value >= 10 ? value.toFixed(0) : value.toFixed(1).replace(/\.0$/, '')
+  }
+  if (unit === '%') return `${formatValueWithDigits(value, digits).replace(/\.0$/, '')}%`
+  if (unit === 'C') return `${formatValueWithDigits(value, digits).replace(/\.0$/, '')}${formatUnit(unit)}`
+  return `${formatValueWithDigits(value, digits).replace(/\.0$/, '')} ${formatUnit(unit)}`
 }
 
 function formatHour(ts) {
@@ -64,15 +76,16 @@ function getConfidenceFromProvenance(provenance, pointOffset) {
   }
 }
 
-function buildPointMap(history = [], forecast = []) {
+function buildPointMap(history = [], forecast = [], metricKey, valueTransform = (value) => value) {
   const map = new Map()
 
   history.forEach((row) => {
     const ts = toHourTimestamp(row?.time)
-    if (ts == null || typeof row?.pm25 !== 'number') return
+    const metricValue = valueTransform(row?.[metricKey], row)
+    if (ts == null || typeof metricValue !== 'number' || Number.isNaN(metricValue)) return
     map.set(ts, {
       ts,
-      value: row.pm25,
+      value: metricValue,
       kind: 'history',
       provenance: row?.fallback_provenance ?? row?.provenance ?? null,
       primaryProvenance: row?.provenance ?? null,
@@ -82,10 +95,11 @@ function buildPointMap(history = [], forecast = []) {
 
   forecast.forEach((row) => {
     const ts = toHourTimestamp(row?.time)
-    if (ts == null || typeof row?.pm25 !== 'number' || map.has(ts)) return
+    const metricValue = valueTransform(row?.[metricKey], row)
+    if (ts == null || typeof metricValue !== 'number' || Number.isNaN(metricValue) || map.has(ts)) return
     map.set(ts, {
       ts,
-      value: row.pm25,
+      value: metricValue,
       kind: 'forecast',
       provenance: row?.fallback_provenance ?? row?.provenance ?? null,
       primaryProvenance: row?.provenance ?? null,
@@ -175,21 +189,38 @@ function PM25Chart({
   currentValue,
   currentLabel = 'Now',
   unit = 'ug/m3',
+  metricKey = 'pm25',
+  metricLabel = 'PM2.5',
+  metricOptions = [],
+  onMetricChange,
+  valueTransform,
+  valueDigits = 1,
   measurementTime,
   sourceProvider,
   sourceMethod,
   sourceDistanceKm,
 }) {
-  const pointMap = useMemo(() => buildPointMap(history, forecast), [history, forecast])
+  const transformMetricValue = valueTransform ?? ((value) => value)
+  const transformedCurrentValue = typeof currentValue === 'number'
+    ? transformMetricValue(currentValue, null)
+    : currentValue
+
+  const pointMap = useMemo(
+    () => buildPointMap(history, forecast, metricKey, transformMetricValue),
+    [history, forecast, metricKey, transformMetricValue],
+  )
   const centerTs = useMemo(() => getCenterTimestamp(pointMap, measurementTime), [pointMap, measurementTime])
-  const timeline = useMemo(() => buildTimeline(pointMap, centerTs, currentValue), [pointMap, centerTs, currentValue])
+  const timeline = useMemo(
+    () => buildTimeline(pointMap, centerTs, transformedCurrentValue),
+    [pointMap, centerTs, transformedCurrentValue],
+  )
   const plottedPoints = timeline.filter((point) => typeof point.value === 'number')
   const historyPoints = plottedPoints.filter((point) => point.offset <= 0)
   const forecastPoints = plottedPoints.filter((point) => point.offset >= 0)
 
   const values = plottedPoints.map((point) => point.value)
-  const maxY = values.length ? Math.max(...values) : (currentValue ?? 0)
-  const minY = values.length ? Math.min(...values) : (currentValue ?? 0)
+  const maxY = values.length ? Math.max(...values) : (transformedCurrentValue ?? 0)
+  const minY = values.length ? Math.min(...values) : (transformedCurrentValue ?? 0)
   const padding = (maxY - minY) * 0.18 || 2
   const scaleYMin = minY - padding
   const scaleYMax = maxY + padding
@@ -209,13 +240,19 @@ function PM25Chart({
     setSelectedTs(centerTs)
   }, [centerTs])
 
-  const selectedPoint = clickablePoints.find((point) => point.ts === selectedTs) ?? clickablePoints.find((point) => point.offset === 0) ?? clickablePoints[0] ?? null
+  const selectedPoint = clickablePoints.find((point) => point.ts === selectedTs)
+    ?? clickablePoints.find((point) => point.offset === 0)
+    ?? clickablePoints[0]
+    ?? null
+
   const defaultProvenance = {
     provider: sourceProvider,
     method: sourceMethod,
     distance_km: sourceDistanceKm,
   }
-  const selectedConfidence = selectedPoint ? getConfidenceFromProvenance(selectedPoint.provenance ?? defaultProvenance, selectedPoint.offset) : null
+  const selectedConfidence = selectedPoint
+    ? getConfidenceFromProvenance(selectedPoint.provenance ?? defaultProvenance, selectedPoint.offset)
+    : null
 
   function handleChartClick(event) {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -243,14 +280,35 @@ function PM25Chart({
       </div>
 
       <div className="pm25-chart-meta">
-        <p className="pm25-chart-label">PM2.5 Trend</p>
-        <span className="pm25-chart-info" aria-hidden>i</span>
+        <div className="pm25-chart-meta-copy">
+          <p className="pm25-chart-label">{metricLabel} Trend</p>
+          <span className="pm25-chart-info" aria-hidden>i</span>
+        </div>
+        {metricOptions.length > 1 ? (
+          <div className="pm25-chart-metric-switch" role="tablist" aria-label="Outdoor trend metric">
+            {metricOptions.map((option) => {
+              const isActive = option.key === metricKey
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`pm25-chart-metric-button${isActive ? ' pm25-chart-metric-button--active' : ''}`}
+                  onClick={() => onMetricChange?.(option.key)}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
       </div>
 
       {selectedPoint ? (
         <div className="pm25-chart-inspector" role="status" aria-live="polite">
           <div className="pm25-chart-inspector-top">
-            <span className="pm25-chart-inspector-value">{formatValue(selectedPoint.value)} {formatUnit(unit)}</span>
+            <span className="pm25-chart-inspector-value">{formatMetricReading(selectedPoint.value, unit, valueDigits)}</span>
             {selectedConfidence ? (
               <span className={`pm25-chart-inspector-confidence pm25-chart-inspector-confidence--${selectedConfidence.tone}`}>
                 {selectedConfidence.tone === 'high' ? <span className="pm25-chart-inspector-confidence-dot" aria-hidden /> : null}
@@ -273,7 +331,7 @@ function PM25Chart({
       ) : null}
 
       <div className="pm25-chart-wrap">
-        <button type="button" className="pm25-chart-hitbox" onClick={handleChartClick} aria-label="Inspect PM2.5 by hour">
+        <button type="button" className="pm25-chart-hitbox" onClick={handleChartClick} aria-label={`Inspect ${metricLabel} by hour`}>
           <svg
             className="pm25-chart-svg"
             viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
@@ -303,13 +361,30 @@ function PM25Chart({
             {Array.from({ length: GRID_LINES }, (_, i) => {
               const y = PAD.top + (i / (GRID_LINES - 1)) * INNER_H
               return (
-                <line key={`h${i}`} x1={PAD.left} y1={y} x2={CHART_WIDTH - PAD.right} y2={y}
-                  stroke="#dde3ea" strokeWidth="1" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />
+                <line
+                  key={`h${i}`}
+                  x1={PAD.left}
+                  y1={y}
+                  x2={CHART_WIDTH - PAD.right}
+                  y2={y}
+                  stroke="#dde3ea"
+                  strokeWidth="1"
+                  strokeDasharray="3 5"
+                  vectorEffect="non-scaling-stroke"
+                />
               )
             })}
 
-            <line x1={centerX} y1={PAD.top} x2={centerX} y2={PAD.top + INNER_H}
-              stroke="#e1e7ee" strokeWidth="1" strokeDasharray="2 5" vectorEffect="non-scaling-stroke" />
+            <line
+              x1={centerX}
+              y1={PAD.top}
+              x2={centerX}
+              y2={PAD.top + INNER_H}
+              stroke="#e1e7ee"
+              strokeWidth="1"
+              strokeDasharray="2 5"
+              vectorEffect="non-scaling-stroke"
+            />
 
             {historyAreaPath ? <path d={historyAreaPath} fill="url(#pm25AreaFill)" /> : null}
             {forecastAreaPath ? (
@@ -317,12 +392,29 @@ function PM25Chart({
             ) : null}
 
             {fullPath ? (
-              <path d={fullPath} clipPath="url(#pm25HistoryClip)" fill="none"
-                stroke="#5ecfff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+              <path
+                d={fullPath}
+                clipPath="url(#pm25HistoryClip)"
+                fill="none"
+                stroke="#5ecfff"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
             ) : null}
             {fullPath ? (
-              <path d={fullPath} clipPath="url(#pm25ForecastClip)" fill="none"
-                stroke="#4fa0db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+              <path
+                d={fullPath}
+                clipPath="url(#pm25ForecastClip)"
+                fill="none"
+                stroke="#4fa0db"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray="4 3"
+                vectorEffect="non-scaling-stroke"
+              />
             ) : null}
 
             {clickablePoints.map((point) => {

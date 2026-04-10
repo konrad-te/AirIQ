@@ -86,6 +86,14 @@
 .pm25-chart-meta {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pm25-chart-meta-copy {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -110,6 +118,39 @@
   color: #94A3B8;
   cursor: help;
   flex-shrink: 0;
+}
+
+.pm25-chart-metric-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+  background: #F8FAFC;
+}
+
+.pm25-chart-metric-button {
+  border: none;
+  background: transparent;
+  color: #64748B;
+  padding: 0.38rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pm25-chart-metric-button:hover {
+  color: #0F172A;
+}
+
+.pm25-chart-metric-button--active {
+  background: #FFFFFF;
+  color: #0F172A;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
 /* Inspector panel — matches indoor/sleep tooltip style */
@@ -268,6 +309,16 @@
 
   .pm25-chart-svg {
     height: 220px;
+  }
+
+  .pm25-chart-meta {
+    align-items: flex-start;
+  }
+
+  .pm25-chart-metric-switch {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
   }
 
   .pm25-chart-inspector-top {

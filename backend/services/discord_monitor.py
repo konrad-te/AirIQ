@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 from datetime import UTC, datetime, timedelta
 
 import requests
@@ -30,6 +31,34 @@ WEBHOOK_URL = os.getenv(
 
 def _status_color(ok: bool) -> int:
     return 0x2ECC71 if ok else 0xE74C3C  # green / red
+
+
+def _format_bytes(value: int) -> str:
+    units = ["B", "KB", "MB", "GB", "TB"]
+    size = float(value)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+
+
+def _get_disk_usage_snapshot(path: str = "/") -> dict[str, int]:
+    total, used, free = shutil.disk_usage(path)
+    return {
+        "total": total,
+        "used": used,
+        "free": free,
+    }
+
+
+def _get_database_size_bytes(db: Session) -> int | None:
+    try:
+        return db.execute(select(func.pg_database_size(func.current_database()))).scalar_one()
+    except Exception:
+        logger.exception("Failed to read Postgres database size for Discord monitor")
+        return None
 
 
 def build_status_embed(db: Session) -> dict:
@@ -102,6 +131,8 @@ def build_status_embed(db: Session) -> dict:
             f"({age_min}m ago)"
         )
 
+    disk_usage = _get_disk_usage_snapshot("/")
+    database_size_bytes = _get_database_size_bytes(db)
     overall_ok = globe_stale == 0 or coverage_pct >= 80
 
     return {
@@ -133,6 +164,21 @@ def build_status_embed(db: Session) -> dict:
             {
                 "name": "Latest Ingest",
                 "value": ingest_status,
+                "inline": False,
+            },
+            {
+                "name": "Storage",
+                "value": (
+                    f"EC2 disk free: **{_format_bytes(disk_usage['free'])}** / "
+                    f"{_format_bytes(disk_usage['total'])}\n"
+                    f"DB size: **{_format_bytes(database_size_bytes)}**"
+                    if database_size_bytes is not None
+                    else (
+                        f"EC2 disk free: **{_format_bytes(disk_usage['free'])}** / "
+                        f"{_format_bytes(disk_usage['total'])}\n"
+                        "DB size: unavailable"
+                    )
+                ),
                 "inline": False,
             },
         ],

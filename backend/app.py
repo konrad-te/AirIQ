@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,11 +15,11 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.database import SessionLocal, get_db
+from backend.database import SessionLocal, engine, get_db
 from backend.init_db import init_db
 from backend.main import (
     geocode_address_nominatim,
@@ -108,6 +109,7 @@ from backend.routers.integrations import (
 
 limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
+scheduler_lock_connection = None
 
 app = FastAPI(title="AirIQ API")
 app.state.limiter = limiter
@@ -449,6 +451,40 @@ def _bootstrap_globe_data() -> None:
         db.close()
 
 
+def _try_acquire_scheduler_lock() -> bool:
+    global scheduler_lock_connection
+    if scheduler_lock_connection is not None:
+        return True
+
+    try:
+        connection = engine.connect()
+        acquired = bool(
+            connection.execute(text("SELECT pg_try_advisory_lock(684211337251)")).scalar()
+        )
+        if not acquired:
+            connection.close()
+            return False
+        scheduler_lock_connection = connection
+        return True
+    except Exception:
+        logger.exception("Failed to acquire scheduler advisory lock")
+        return False
+
+
+def _release_scheduler_lock() -> None:
+    global scheduler_lock_connection
+    if scheduler_lock_connection is None:
+        return
+
+    try:
+        scheduler_lock_connection.execute(text("SELECT pg_advisory_unlock(684211337251)"))
+    except Exception:
+        logger.exception("Failed to release scheduler advisory lock")
+    finally:
+        scheduler_lock_connection.close()
+        scheduler_lock_connection = None
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
@@ -462,7 +498,7 @@ def on_startup() -> None:
 
     _bootstrap_globe_data()
 
-    if not scheduler.running:
+    if not scheduler.running and _try_acquire_scheduler_lock():
         scheduler.add_job(
             _run_scheduled_ingest,
             trigger=IntervalTrigger(hours=1),
@@ -489,8 +525,12 @@ def on_startup() -> None:
         )
         scheduler.add_job(
             _run_discord_status,
-            trigger=IntervalTrigger(hours=1),
-            id="discord_status_hourly",
+            trigger=CronTrigger(
+                hour="12,21",
+                minute=0,
+                timezone="Europe/Warsaw",
+            ),
+            id="discord_status_twice_daily",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -518,6 +558,7 @@ def on_startup() -> None:
 def on_shutdown() -> None:
     if scheduler.running:
         scheduler.shutdown(wait=False)
+    _release_scheduler_lock()
 
 
 @app.get("/health")

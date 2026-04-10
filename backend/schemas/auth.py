@@ -51,6 +51,7 @@ class UserPreferenceOutSchema(BaseModel):
     discord_outlook_local_hour: int = 7
     discord_outlook_local_minute: int = 0
     discord_indoor_alerts_enabled: bool = False
+    discord_indoor_include_medium_priority: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -65,6 +66,7 @@ class UserPreferenceUpdateSchema(BaseModel):
     discord_outlook_local_hour: int | None = Field(default=None, ge=0, le=23)
     discord_outlook_local_minute: int | None = Field(default=None, ge=0, le=59)
     discord_indoor_alerts_enabled: bool | None = None
+    discord_indoor_include_medium_priority: bool | None = None
 
 
 class PasswordChangeSchema(BaseModel):

@@ -385,6 +385,7 @@ export default function App() {
   const [isDashboardAdminToolsOpen, setIsDashboardAdminToolsOpen] = useState(false)
   const [outdoorRefreshCooldownUntil, setOutdoorRefreshCooldownUntil] = useState(0)
   const [indoorRefreshCooldownUntil, setIndoorRefreshCooldownUntil] = useState(0)
+  const [outdoorTrendMetric, setOutdoorTrendMetric] = useState('pm25')
   const [nowTs, setNowTs] = useState(Date.now())
   const [isRefreshingIndoor, setIsRefreshingIndoor] = useState(false)
   const [suggestionsRefreshNonce, setSuggestionsRefreshNonce] = useState(0)
@@ -1556,6 +1557,19 @@ export default function App() {
   const heroPm25 = typeof heroPm25Raw === 'number' ? Math.round(heroPm25Raw * 10) / 10 : heroPm25Raw
   const heroPm10Raw = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
   const heroPm10 = typeof heroPm10Raw === 'number' ? Math.round(heroPm10Raw * 10) / 10 : heroPm10Raw
+  const currentWindKmh = liveAirData?.current?.wind_speed_ms != null
+    ? Math.round(liveAirData.current.wind_speed_ms * 3.6 * 10) / 10
+    : null
+  const outdoorTrendMetricOptions = useMemo(() => ([
+    { key: 'pm25', label: t('metrics.pm25'), currentValue: typeof heroPm25 === 'number' ? heroPm25 : null, unit: 'ug/m3', valueDigits: 1 },
+    { key: 'pm10', label: t('metrics.pm10'), currentValue: typeof heroPm10 === 'number' ? heroPm10 : null, unit: 'ug/m3', valueDigits: 1 },
+    { key: 'temperature_c', label: t('metrics.temp'), currentValue: liveAirData?.current?.temperature_c ?? null, unit: 'C', valueDigits: 1 },
+    { key: 'humidity_pct', label: t('metrics.humidity'), currentValue: liveAirData?.current?.humidity_pct ?? null, unit: '%', valueDigits: 0 },
+    { key: 'wind_speed_ms', label: t('metrics.wind'), currentValue: currentWindKmh, unit: 'km/h', valueDigits: 0, valueTransform: (value) => typeof value === 'number' ? value * 3.6 : null },
+    { key: 'rain_mm', label: t('metrics.rain'), currentValue: liveAirData?.current?.rain_mm ?? null, unit: 'mm', valueDigits: 1 },
+    { key: 'uv_index', label: t('metrics.uvIndex'), currentValue: liveAirData?.current?.uv_index ?? null, unit: 'index', valueDigits: 1 },
+  ]), [currentWindKmh, heroPm10, heroPm25, liveAirData?.current?.humidity_pct, liveAirData?.current?.rain_mm, liveAirData?.current?.temperature_c, liveAirData?.current?.uv_index, t])
+  const selectedOutdoorTrendMetric = outdoorTrendMetricOptions.find((option) => option.key === outdoorTrendMetric) ?? outdoorTrendMetricOptions[0]
   const heroLocation = currentLocationLabel
   const shortLocation = (() => {
     if (!currentLocationLabel) return ''
@@ -1939,9 +1953,15 @@ export default function App() {
             <PM25Chart
               history={liveAirData?.history}
               forecast={liveAirData?.forecast}
-              currentValue={heroPm25}
+              currentValue={selectedOutdoorTrendMetric?.currentValue ?? null}
               currentLabel={t('now')}
-              unit={'ug/m3'}
+              unit={selectedOutdoorTrendMetric?.unit ?? 'ug/m3'}
+              metricKey={selectedOutdoorTrendMetric?.key ?? 'pm25'}
+              metricLabel={selectedOutdoorTrendMetric?.label ?? 'PM2.5'}
+              metricOptions={outdoorTrendMetricOptions}
+              onMetricChange={setOutdoorTrendMetric}
+              valueTransform={selectedOutdoorTrendMetric?.valueTransform}
+              valueDigits={selectedOutdoorTrendMetric?.valueDigits ?? 1}
               measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
               sourceProvider={sourceProvider}
               sourceMethod={sourceMethod}

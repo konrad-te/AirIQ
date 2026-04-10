@@ -101,6 +101,12 @@ class UserPreference(Base):
         server_default="false",
     )
 
+    discord_indoor_include_medium_priority: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false",
+    )
+
     discord_indoor_last_alert_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

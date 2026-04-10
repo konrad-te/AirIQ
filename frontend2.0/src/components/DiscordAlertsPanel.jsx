@@ -43,6 +43,11 @@ export default function DiscordAlertsPanel() {
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState('')
   const [removeDiscordWebhook, setRemoveDiscordWebhook] = useState(false)
   const [discordIndoorAlerts, setDiscordIndoorAlerts] = useState(false)
+  const [discordIndoorIncludeMedium, setDiscordIndoorIncludeMedium] = useState(false)
+  const webhookStatusLabel = discordWebhookConfigured ? 'Webhook connected' : 'Webhook not configured'
+  const mediumPriorityLabel = 'Also send medium-priority indoor suggestions'
+  const mediumPriorityHelp = 'Includes medium-priority indoor suggestions in the same Discord webhook, not just urgent high-priority alerts.'
+  const mediumPriorityRequiresMain = 'Enable indoor air alerts before including medium-priority suggestions.'
 
   useEffect(() => {
     let cancelled = false
@@ -62,6 +67,7 @@ export default function DiscordAlertsPanel() {
         setDiscordWebhookUrl('')
         setRemoveDiscordWebhook(false)
         setDiscordIndoorAlerts(Boolean(prefs.discord_indoor_alerts_enabled))
+        setDiscordIndoorIncludeMedium(Boolean(prefs.discord_indoor_include_medium_priority))
         const indoorOk = Boolean(
           qp?.is_connected && qp?.selected_device_id,
         )
@@ -100,6 +106,11 @@ export default function DiscordAlertsPanel() {
       setSaving(false)
       return
     }
+    if (discordIndoorIncludeMedium && !discordIndoorAlerts) {
+      setError(mediumPriorityRequiresMain)
+      setSaving(false)
+      return
+    }
     const { hour, minute } = parseTimeInput(deliveryTime)
     try {
       const payload = {
@@ -107,11 +118,17 @@ export default function DiscordAlertsPanel() {
         discord_outlook_local_hour: hour,
         discord_outlook_local_minute: minute,
         discord_indoor_alerts_enabled: hasIndoorSensor ? discordIndoorAlerts : false,
+        discord_indoor_include_medium_priority: (
+          hasIndoorSensor
+          && discordIndoorAlerts
+          && discordIndoorIncludeMedium
+        ),
       }
       if (removeDiscordWebhook) {
         payload.discord_outlook_webhook_url = null
         payload.discord_morning_outlook_enabled = false
         payload.discord_indoor_alerts_enabled = false
+        payload.discord_indoor_include_medium_priority = false
       } else if (discordWebhookUrl.trim()) {
         payload.discord_outlook_webhook_url = discordWebhookUrl.trim()
       }
@@ -122,6 +139,7 @@ export default function DiscordAlertsPanel() {
       )
       setDiscordWebhookConfigured(Boolean(updated.discord_outlook_webhook_configured))
       setDiscordIndoorAlerts(Boolean(updated.discord_indoor_alerts_enabled))
+      setDiscordIndoorIncludeMedium(Boolean(updated.discord_indoor_include_medium_priority))
       setDiscordWebhookUrl('')
       setRemoveDiscordWebhook(false)
       setSuccess(true)
@@ -138,17 +156,20 @@ export default function DiscordAlertsPanel() {
 
   return (
     <div className="discord-alerts-panel settings-section">
-      <h2 className="settings-section-title">{t('settings.notificationCenter')}</h2>
-      <p className="settings-section-desc">{t('settings.notificationCenterDesc')}</p>
-
-      <div className="settings-notification-actions">
-        <button
-          type="button"
-          className="btn btn-ghost settings-notification-help-btn"
-          onClick={() => setIsDiscordHelpOpen(true)}
-        >
-          {t('settings.discordSetupInstructions')}
-        </button>
+      <div className="settings-notification-header">
+        <div className="settings-notification-header__copy">
+          <h2 className="settings-section-title">{t('settings.notificationCenter')}</h2>
+          <p className="settings-section-desc">{t('settings.notificationCenterDesc')}</p>
+        </div>
+        <div className="settings-notification-actions">
+          <button
+            type="button"
+            className="btn btn-ghost settings-notification-help-btn"
+            onClick={() => setIsDiscordHelpOpen(true)}
+          >
+            {t('settings.discordSetupInstructions')}
+          </button>
+        </div>
       </div>
 
       <DiscordSetupModal
@@ -156,107 +177,150 @@ export default function DiscordAlertsPanel() {
         onClose={() => setIsDiscordHelpOpen(false)}
       />
 
-      <form className="settings-form" onSubmit={handleSave}>
-        <div className="settings-field">
-          <label className="settings-label settings-label--checkbox">
-            <input
-              type="checkbox"
-              checked={discordMorningOutlook}
-              onChange={(e) => {
-                setDiscordMorningOutlook(e.target.checked)
-                setError('')
-                setSuccess(false)
-              }}
-              disabled={saving}
-            />
-            <span>{t('settings.discordMorningOutlookLabel')}</span>
-          </label>
-          <p className="settings-field-hint">{t('settings.notificationCenterMorningHelp')}</p>
+      <form className="settings-form settings-form--discord" onSubmit={handleSave}>
+        <div className="settings-notification-shell">
+          <div className="settings-notification-grid">
+            <div className="settings-field settings-field--panel">
+              <label className="settings-label settings-label--checkbox">
+                <input
+                  type="checkbox"
+                  checked={discordMorningOutlook}
+                  onChange={(e) => {
+                    setDiscordMorningOutlook(e.target.checked)
+                    setError('')
+                    setSuccess(false)
+                  }}
+                  disabled={saving}
+                />
+                <span>{t('settings.discordMorningOutlookLabel')}</span>
+              </label>
+              <p className="settings-field-hint settings-field-hint--spacious">
+                Sends a Discord message at the selected time with that day&apos;s weather and air quality outlook. Uses the timezone set in Preferences.
+              </p>
+              <div className="settings-inline-time-card">
+                <div className="settings-inline-time-card__copy">
+                  <span className="settings-inline-time-card__label">{t('settings.discordDeliveryTime')}</span>
+                  <span className="settings-inline-time-card__hint">Applies to the morning outdoor outlook only.</span>
+                </div>
+                <input
+                  id={deliveryTimeId}
+                  type="time"
+                  className="settings-input settings-input--time settings-input--discord-time"
+                  value={deliveryTime}
+                  onChange={(e) => {
+                    setDeliveryTime(e.target.value)
+                    setError('')
+                    setSuccess(false)
+                  }}
+                  disabled={saving}
+                  step={60}
+                />
+              </div>
+            </div>
+
+            <div className={`settings-field settings-field--panel ${!hasIndoorSensor ? 'settings-field--muted' : ''}`}>
+              <label className="settings-label settings-label--checkbox">
+                <input
+                  type="checkbox"
+                  checked={discordIndoorAlerts}
+                  onChange={(e) => {
+                    setDiscordIndoorAlerts(e.target.checked)
+                    if (!e.target.checked) {
+                      setDiscordIndoorIncludeMedium(false)
+                    }
+                    setError('')
+                    setSuccess(false)
+                  }}
+                  disabled={saving || !hasIndoorSensor}
+                />
+                <span>{t('settings.discordIndoorAlertsLabel')}</span>
+              </label>
+              <p className="settings-field-hint">
+                {hasIndoorSensor
+                  ? t('settings.discordIndoorAlertsHelp')
+                  : t('settings.discordIndoorAlertsDisabled')}
+              </p>
+              <label className="settings-label settings-label--checkbox settings-label--subtle settings-label--nested">
+                <input
+                  type="checkbox"
+                  checked={discordIndoorIncludeMedium}
+                  onChange={(e) => {
+                    setDiscordIndoorIncludeMedium(e.target.checked)
+                    setError('')
+                    setSuccess(false)
+                  }}
+                  disabled={saving || !hasIndoorSensor || !discordIndoorAlerts}
+                />
+                <span>{mediumPriorityLabel}</span>
+              </label>
+              <p className="settings-field-hint settings-field-hint--nested">
+                {mediumPriorityHelp}
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-notification-config-grid settings-notification-config-grid--single">
+            <section className="settings-notification-config-card">
+              <div className="settings-notification-config-card__head">
+                <div className="settings-notification-config-card__topline">
+                  <label htmlFor={webhookId} className="settings-label">{t('settings.discordWebhookUrl')}</label>
+                  <span className={`settings-notification-chip ${discordWebhookConfigured ? 'settings-notification-chip--active' : ''}`}>{webhookStatusLabel}</span>
+                </div>
+                <p className="settings-notification-config-card__copy">
+                  Connect one Discord incoming webhook and AirIQ will use it for both the morning outlook and optional indoor alerts.
+                </p>
+              </div>
+              <div className="settings-notification-config-card__control">
+                <input
+                  id={webhookId}
+                  type="url"
+                  autoComplete="off"
+                  className="settings-input"
+                  value={discordWebhookUrl}
+                  placeholder={
+                    discordWebhookConfigured
+                      ? t('settings.discordWebhookPlaceholderSaved')
+                      : t('settings.discordWebhookPlaceholder')
+                  }
+                  onChange={(e) => {
+                    setDiscordWebhookUrl(e.target.value)
+                    setError('')
+                    setSuccess(false)
+                  }}
+                  disabled={saving}
+                />
+              </div>
+              {discordWebhookConfigured ? (
+                <div className="settings-notification-note">
+                  <label className="settings-label settings-label--checkbox settings-label--subtle">
+                    <input
+                      type="checkbox"
+                      checked={removeDiscordWebhook}
+                      onChange={(e) => {
+                        setRemoveDiscordWebhook(e.target.checked)
+                        setError('')
+                        setSuccess(false)
+                      }}
+                      disabled={saving}
+                    />
+                    <span>{t('settings.discordWebhookRemove')}</span>
+                  </label>
+                </div>
+              ) : null}
+            </section>
+          </div>
         </div>
 
-        <div className="settings-field">
-          <label htmlFor={deliveryTimeId} className="settings-label">{t('settings.discordDeliveryTime')}</label>
-          <input
-            id={deliveryTimeId}
-            type="time"
-            className="settings-input settings-input--time"
-            value={deliveryTime}
-            onChange={(e) => {
-              setDeliveryTime(e.target.value)
-              setError('')
-              setSuccess(false)
-            }}
-            disabled={saving}
-            step={60}
-          />
-          <p className="settings-field-hint">{t('settings.discordDeliveryTimeHint')}</p>
+        <div className="settings-notification-footer">
+          <div className="settings-notification-feedback">
+            {error && <p className="settings-error" role="alert">{error}</p>}
+            {success && <p className="settings-success" role="status">{t('settings.notificationCenterSaved')}</p>}
+          </div>
+
+          <button type="submit" className="btn btn-primary settings-save-btn" disabled={saving}>
+            {saving ? t('common.saving') : t('settings.saveNotificationCenter')}
+          </button>
         </div>
-
-        <div className="settings-field">
-          <label htmlFor={webhookId} className="settings-label">{t('settings.discordWebhookUrl')}</label>
-          <input
-            id={webhookId}
-            type="url"
-            autoComplete="off"
-            className="settings-input"
-            value={discordWebhookUrl}
-            placeholder={
-              discordWebhookConfigured
-                ? t('settings.discordWebhookPlaceholderSaved')
-                : t('settings.discordWebhookPlaceholder')
-            }
-            onChange={(e) => {
-              setDiscordWebhookUrl(e.target.value)
-              setError('')
-              setSuccess(false)
-            }}
-            disabled={saving}
-          />
-          {discordWebhookConfigured ? (
-            <label className="settings-label settings-label--checkbox">
-              <input
-                type="checkbox"
-                checked={removeDiscordWebhook}
-                onChange={(e) => {
-                  setRemoveDiscordWebhook(e.target.checked)
-                  setError('')
-                  setSuccess(false)
-                }}
-                disabled={saving}
-              />
-              <span>{t('settings.discordWebhookRemove')}</span>
-            </label>
-          ) : null}
-        </div>
-
-        <div className={`settings-field ${!hasIndoorSensor ? 'settings-field--muted' : ''}`}>
-          <label className="settings-label settings-label--checkbox">
-            <input
-              type="checkbox"
-              checked={discordIndoorAlerts}
-              onChange={(e) => {
-                setDiscordIndoorAlerts(e.target.checked)
-                setError('')
-                setSuccess(false)
-              }}
-              disabled={saving || !hasIndoorSensor}
-            />
-            <span>{t('settings.discordIndoorAlertsLabel')}</span>
-          </label>
-          <p className="settings-field-hint">
-            {hasIndoorSensor
-              ? t('settings.discordIndoorAlertsHelp')
-              : t('settings.discordIndoorAlertsDisabled')}
-          </p>
-        </div>
-
-        <p className="settings-field-hint settings-timezone-note">{t('settings.notificationCenterTimezoneNote')}</p>
-
-        {error && <p className="settings-error" role="alert">{error}</p>}
-        {success && <p className="settings-success" role="status">{t('settings.notificationCenterSaved')}</p>}
-        <button type="submit" className="btn btn-primary settings-save-btn" disabled={saving}>
-          {saving ? t('common.saving') : t('settings.saveNotificationCenter')}
-        </button>
       </form>
     </div>
   )
