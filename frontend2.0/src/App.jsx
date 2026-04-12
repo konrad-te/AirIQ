@@ -1433,8 +1433,32 @@ export default function App() {
         : t('suggestions.total', { count: shown })
     return { suggestionsBannerCount: shown, suggestionsBannerCountLabel: label }
   }, [dashboardSuggestions, t])
+  const heroPm25Raw = dashboardAdminOverride?.outdoor_pm25 ?? liveAirData?.current?.pm25 ?? '--'
+  const heroPm25 = typeof heroPm25Raw === 'number' ? Math.round(heroPm25Raw * 10) / 10 : heroPm25Raw
+  const heroPm10Raw = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
+  const heroPm10 = typeof heroPm10Raw === 'number' ? Math.round(heroPm10Raw * 10) / 10 : heroPm10Raw
+  const currentWindKmh = liveAirData?.current?.wind_speed_ms != null
+    ? Math.round(liveAirData.current.wind_speed_ms * 3.6 * 10) / 10
+    : null
+  const outdoorTrendMetricOptions = useMemo(() => ([
+    { key: 'pm25', label: t('metrics.pm25'), currentValue: typeof heroPm25 === 'number' ? heroPm25 : null, unit: 'ug/m3', valueDigits: 1 },
+    { key: 'pm10', label: t('metrics.pm10'), currentValue: typeof heroPm10 === 'number' ? heroPm10 : null, unit: 'ug/m3', valueDigits: 1 },
+    { key: 'temperature_c', label: t('metrics.temp'), currentValue: liveAirData?.current?.temperature_c ?? null, unit: 'C', valueDigits: 1 },
+    { key: 'humidity_pct', label: t('metrics.humidity'), currentValue: liveAirData?.current?.humidity_pct ?? null, unit: '%', valueDigits: 0 },
+    { key: 'wind_speed_ms', label: t('metrics.wind'), currentValue: currentWindKmh, unit: 'km/h', valueDigits: 0, valueTransform: (value) => typeof value === 'number' ? value * 3.6 : null },
+    { key: 'rain_mm', label: t('metrics.rain'), currentValue: liveAirData?.current?.rain_mm ?? null, unit: 'mm', valueDigits: 1 },
+    { key: 'uv_index', label: t('metrics.uvIndex'), currentValue: liveAirData?.current?.uv_index ?? null, unit: 'index', valueDigits: 1 },
+  ]), [currentWindKmh, heroPm10, heroPm25, liveAirData?.current?.humidity_pct, liveAirData?.current?.rain_mm, liveAirData?.current?.temperature_c, liveAirData?.current?.uv_index, t])
+  const selectedOutdoorTrendMetric = outdoorTrendMetricOptions.find((option) => option.key === outdoorTrendMetric) ?? outdoorTrendMetricOptions[0]
   if (isLoadingAuth) {
-    return null
+    return (
+      <div className="app-root app-auth-loading" role="status" aria-live="polite" aria-busy="true">
+        <div className="app-auth-loading__inner">
+          <div className="app-auth-loading__spinner" aria-hidden />
+          <p className="app-auth-loading__text">{t('common.loading')}</p>
+        </div>
+      </div>
+    )
   }
   if (route === '/farewell') {
     return <FarewellPage onClose={handleBackToLanding} />
@@ -1553,23 +1577,6 @@ export default function App() {
     token &&
     !(user?.role === 'admin' && dashboardAdminOverride),
   )
-  const heroPm25Raw = dashboardAdminOverride?.outdoor_pm25 ?? liveAirData?.current?.pm25 ?? '--'
-  const heroPm25 = typeof heroPm25Raw === 'number' ? Math.round(heroPm25Raw * 10) / 10 : heroPm25Raw
-  const heroPm10Raw = dashboardAdminOverride?.outdoor_pm10 ?? liveAirData?.current?.pm10 ?? '--'
-  const heroPm10 = typeof heroPm10Raw === 'number' ? Math.round(heroPm10Raw * 10) / 10 : heroPm10Raw
-  const currentWindKmh = liveAirData?.current?.wind_speed_ms != null
-    ? Math.round(liveAirData.current.wind_speed_ms * 3.6 * 10) / 10
-    : null
-  const outdoorTrendMetricOptions = useMemo(() => ([
-    { key: 'pm25', label: t('metrics.pm25'), currentValue: typeof heroPm25 === 'number' ? heroPm25 : null, unit: 'ug/m3', valueDigits: 1 },
-    { key: 'pm10', label: t('metrics.pm10'), currentValue: typeof heroPm10 === 'number' ? heroPm10 : null, unit: 'ug/m3', valueDigits: 1 },
-    { key: 'temperature_c', label: t('metrics.temp'), currentValue: liveAirData?.current?.temperature_c ?? null, unit: 'C', valueDigits: 1 },
-    { key: 'humidity_pct', label: t('metrics.humidity'), currentValue: liveAirData?.current?.humidity_pct ?? null, unit: '%', valueDigits: 0 },
-    { key: 'wind_speed_ms', label: t('metrics.wind'), currentValue: currentWindKmh, unit: 'km/h', valueDigits: 0, valueTransform: (value) => typeof value === 'number' ? value * 3.6 : null },
-    { key: 'rain_mm', label: t('metrics.rain'), currentValue: liveAirData?.current?.rain_mm ?? null, unit: 'mm', valueDigits: 1 },
-    { key: 'uv_index', label: t('metrics.uvIndex'), currentValue: liveAirData?.current?.uv_index ?? null, unit: 'index', valueDigits: 1 },
-  ]), [currentWindKmh, heroPm10, heroPm25, liveAirData?.current?.humidity_pct, liveAirData?.current?.rain_mm, liveAirData?.current?.temperature_c, liveAirData?.current?.uv_index, t])
-  const selectedOutdoorTrendMetric = outdoorTrendMetricOptions.find((option) => option.key === outdoorTrendMetric) ?? outdoorTrendMetricOptions[0]
   const heroLocation = currentLocationLabel
   const shortLocation = (() => {
     if (!currentLocationLabel) return ''
@@ -2076,74 +2083,30 @@ export default function App() {
             </div>
           )}
 
-          <div className="app-dash-card app-dash-card--air">
-            <div className="app-dash-card-head">
-              <div className="app-dash-card-title-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 18H7a4 4 0 11.6-7.96A5.5 5.5 0 0118 11.5h1a3.5 3.5 0 110 7z" /></svg>
-                <h3>Outdoor Air Quality</h3>
-              </div>
-              <div className="app-dash-card-head-right">
-                <button type="button" className="app-dash-loc-inline" onClick={openLocationModal}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                  <span>{shortLocation || t('dashboard.locations')}</span>
-                  <svg className="app-dash-loc-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
-                </button>
-                <div className="app-dash-source-wrap" tabIndex={0}>
-                <span className="app-dash-source">Sources</span>
-                <div className="app-dash-source-tip" role="tooltip">
-                  <div className="app-dash-source-tip-section">
-                    <strong>Air quality</strong>
-                    <span className="app-dash-source-tip-label">{airSourceSummary}</span>
-                    <p>{airSourceDetail}</p>
-                  </div>
-                  <div className="app-dash-source-tip-section">
-                    <strong>Weather</strong>
-                    <span className="app-dash-source-tip-label">{weatherSourceLabel}</span>
-                    <p>{weatherSourceDetail}</p>
-                  </div>
-                </div>
-              </div>
-              </div>
-            </div>
-
-            <div className="app-air-grid app-air-grid--outdoor">
-              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
-                <span>{t('metrics.temp')}</span><strong>{weatherTemperature}</strong>
-                <div className="app-air-tip" role="tooltip"><strong>Temperature</strong><p>Current outdoor temperature.</p><p className="app-air-tip-range">Comfortable: 18–24 °C</p></div>
-              </div>
-              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
-                <span>{t('metrics.wind')}</span><strong>{weatherWind}</strong>
-                <div className="app-air-tip" role="tooltip"><strong>Wind Speed</strong><p>Higher wind helps disperse pollutants but may carry dust.</p><p className="app-air-tip-range">Light: &lt;20 km/h · Strong: &gt;50 km/h</p></div>
-              </div>
-              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
-                <span>{t('metrics.pm25')}</span><strong>{heroPm25} <small>µg/m³</small></strong>
-                <div className="app-air-tip" role="tooltip"><strong>PM2.5</strong><p>Fine particles that penetrate deep into the lungs. Main health concern in air pollution.</p><p className="app-air-tip-range">Good: &lt;10 · Moderate: 10–25 · Poor: &gt;25</p></div>
-              </div>
-              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
-                <span>{t('metrics.pm10')}</span><strong>{heroPm10} <small>µg/m³</small></strong>
-                <div className="app-air-tip" role="tooltip"><strong>PM10</strong><p>Coarser particles including dust and pollen. Less harmful than PM2.5 but still irritating.</p><p className="app-air-tip-range">Good: &lt;20 · Moderate: 20–50 · Poor: &gt;50</p></div>
-              </div>
-              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
-                <span>{t('metrics.rain')}</span><strong>{weatherRain}</strong>
-                <div className="app-air-tip" role="tooltip"><strong>Rainfall</strong><p>Rain washes pollutants from the air, improving air quality temporarily.</p><p className="app-air-tip-range">0 mm: Dry · &gt;2 mm: Light rain</p></div>
-              </div>
-              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
-                <span>{t('metrics.uvIndex')}</span><strong>{weatherUv}</strong>
-                <div className="app-air-tip" role="tooltip"><strong>UV Index</strong><p>Strength of ultraviolet radiation. Higher values mean more sun protection needed.</p><p className="app-air-tip-range">Low: 0–2 · Moderate: 3–5 · High: 6–7 · Very high: 8+</p></div>
-              </div>
-              <div className="app-air-metric app-air-metric--tip" tabIndex={0}>
-                <span>{t('metrics.humidity')}</span><strong>{weatherHumidity}</strong>
-                <div className="app-air-tip" role="tooltip"><strong>Humidity</strong><p>Relative humidity affects comfort and how pollutants behave in the air.</p><p className="app-air-tip-range">Comfortable: 30–60%</p></div>
-              </div>
-            </div>
-
-            <div className="app-dash-card-foot">
-              <span>{t('dashboard.updated', { time: outdoorUpdatedLabel })}</span>
-              <button type="button" className="app-dash-refresh" onClick={handleRefreshOutdoor} disabled={!outdoorCanRefresh}>
-                {isLoadingAirData ? t('dashboard.refreshing') : t('dashboard.refresh')}
-              </button>
-            </div>
-          </div>
+          <OutdoorDayAdvicePanel
+            airData={liveAirData}
+            locale={intlLocale}
+            timeZone={intlTimezone}
+            locationLabel={shortLocation || t('dashboard.locations')}
+            onLocationClick={openLocationModal}
+            currentReadings={{
+              temperature: weatherTemperature,
+              wind: weatherWind,
+              pm25: heroPm25,
+              pm10: heroPm10,
+              rain: weatherRain,
+              uv: weatherUv,
+              humidity: weatherHumidity,
+            }}
+            updatedLabel={outdoorUpdatedLabel}
+            onRefresh={handleRefreshOutdoor}
+            canRefresh={outdoorCanRefresh}
+            isRefreshing={isLoadingAirData}
+            airSourceLabel={airSourceSummary}
+            airSourceDetail={airSourceDetail}
+            weatherSourceLabel={weatherSourceLabel}
+            weatherSourceDetail={weatherSourceDetail}
+          />
 
           {!hasConnectedIndoorSensor && (
             <button type="button" className="app-dash-sensor-prompt" onClick={() => setIsDeviceSetupOpen(true)}>
@@ -2198,8 +2161,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="app-dash-split">
-            <div className="app-dash-card">
+          <div className="app-dash-card">
               <div className="app-dash-card-head">
                 <h3>{t('dashboard.suggestions')}</h3>
                 <button type="button" className="app-dash-head-action" onClick={handleRefreshSuggestions} disabled={isRefreshingSuggestions}>
@@ -2216,14 +2178,6 @@ export default function App() {
                 feedbackBusy={dashboardSuggestionFeedbackBusy}
                 feedbackErrors={dashboardSuggestionFeedbackErrors}
               />
-            </div>
-            <div className="app-dash-card">
-              <OutdoorDayAdvicePanel
-                airData={liveAirData}
-                locale={intlLocale}
-                timeZone={intlTimezone}
-              />
-            </div>
           </div>
         </div>
       </>)}

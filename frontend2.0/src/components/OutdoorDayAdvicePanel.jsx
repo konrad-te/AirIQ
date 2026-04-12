@@ -1,8 +1,8 @@
+import banner2 from '../assets/banner2.png'
 import './OutdoorDayAdvicePanel.css'
 
 const DEFAULT_LOCALE = 'pl-PL'
 const DEFAULT_TIMEZONE = 'Europe/Warsaw'
-/** From this local hour onward, the panel shows the next calendar day’s outlook (if forecast exists). */
 const NEXT_DAY_PLAN_START_HOUR = 18
 
 function isFiniteNumber(value) {
@@ -11,7 +11,6 @@ function isFiniteNumber(value) {
 
 function toDate(value) {
   if (!value) return null
-
   const date = value instanceof Date ? value : new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
 }
@@ -69,10 +68,6 @@ function formatTimeLabel(date, locale, timeZone) {
   }).format(date)
 }
 
-function formatTemperature(value) {
-  return isFiniteNumber(value) ? `${Math.round(value)}\u00B0C` : '--'
-}
-
 function formatTemperatureRange(range) {
   if (!range) return '--'
   return `${Math.round(range.min)}\u00B0 / ${Math.round(range.max)}\u00B0`
@@ -107,7 +102,7 @@ function formatWindKmh(speedMs) {
 }
 
 function formatPm(value) {
-  return isFiniteNumber(value) ? `${Math.round(value)} ug/m3` : '--'
+  return isFiniteNumber(value) ? `${Math.round(value)} µg/m³` : '--'
 }
 
 function formatUv(value) {
@@ -278,10 +273,6 @@ function getAirQualityBand(pm25, pm10) {
   return { label: 'Very polluted', tone: 'danger' }
 }
 
-/**
- * Rows that represent typical outdoor / cycling hours: daylight (when marked) and ~6:00–21:00 local,
- * so late-evening pollution spikes do not define the whole-day plan headline.
- */
 function getPlanDaytimeOutdoorRows(rows, timeZone) {
   if (!Array.isArray(rows) || rows.length === 0) return rows
   let work = rows.filter((row) => row?.is_day !== 0)
@@ -316,6 +307,7 @@ function getCloudSentence(cloudCoverRange, representativeSkyRow) {
     return 'Expect a mix of sun and cloud.'
   }
   if (sky.label === 'Sunny' || sky.label === 'Mostly sunny') return 'Plenty of sunshine is expected.'
+  if (sky.label === 'Partly cloudy') return 'Partly cloudy spells are likely.'
   if (sky.label === 'Very cloudy' || sky.label === 'Foggy') return 'Skies stay mostly grey or overcast.'
   if (sky.label === 'Rainy' || sky.label === 'Storm risk' || sky.label === 'Snowy') {
     return 'Clouds hang around with unsettled-looking skies.'
@@ -500,6 +492,17 @@ export default function OutdoorDayAdvicePanel({
   airData,
   locale = DEFAULT_LOCALE,
   timeZone = DEFAULT_TIMEZONE,
+  locationLabel = '',
+  onLocationClick,
+  currentReadings,
+  updatedLabel = '',
+  onRefresh,
+  canRefresh = false,
+  isRefreshing = false,
+  airSourceLabel = '',
+  airSourceDetail = '',
+  weatherSourceLabel = '',
+  weatherSourceDetail = '',
 }) {
   const now = new Date()
   const nowParts = getDateParts(now, timeZone)
@@ -510,11 +513,12 @@ export default function OutdoorDayAdvicePanel({
 
   if (todayRows.length === 0 && !currentRow) {
     return (
-      <section className="outdoor-day-advice outdoor-day-advice--empty" aria-label="Daily outdoor advice">
-        <div className="outdoor-day-advice__empty-icon" aria-hidden>
-          <span />
-        </div>
-        <div>
+      <section
+        className="outdoor-day-advice outdoor-day-advice--empty"
+        aria-label="Daily outdoor advice"
+        style={{ backgroundImage: `url(${banner2})` }}
+      >
+        <div className="outdoor-day-advice__empty-body">
           <h3>Your plan for the day is not ready yet.</h3>
           <p>We need forecast data for this location before we can build a day summary.</p>
         </div>
@@ -580,103 +584,137 @@ export default function OutdoorDayAdvicePanel({
   })
   const summaryParagraph = `${activitySummary} ${buildBikeRideClosingLine(airBandPlan, totalRain, windKmhForClose, tempRange?.max)}`
 
-  const coldNotifChips = []
-  if (summaryTone === 'cold') {
-    if (isFiniteNumber(tempRange?.max)) {
-      coldNotifChips.push({ variant: 'filled', text: `Max ${Math.round(tempRange.max)}°C`, key: 't' })
+  const dateLabel = formatDayLabel(selectedDate, locale, timeZone)
+
+  const liveSky = getSkyCondition(baselineCurrentRow || {})
+  const liveCloudPct = isFiniteNumber(baselineCurrentRow?.cloud_cover_pct)
+    ? `${Math.round(baselineCurrentRow.cloud_cover_pct)}%`
+    : '--'
+
+  const forecastMetrics = [
+    { key: 'temp', label: 'Temperature', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Day range: min / max across the forecast.' },
+    { key: 'sky', label: 'Sky', value: skyCondition.label, detail: 'General outlook', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Typical sky for the day from the hourly model.' },
+    { key: 'cloud', label: 'Cloud cover', value: formatCloudCoverRange(cloudCoverRange), detail: 'Typical range', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'How cloudiness varies through the day.' },
+    { key: 'rain', label: 'Rain', value: formatRainTotal(totalRain), detail: 'Expected total', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Sum of hourly rain for the day.' },
+    { key: 'wind', label: 'Wind', value: formatWindKmh(peakWindRow?.wind_speed_ms), detail: formatPeakDetail(peakWindRow, locale, timeZone, 'Peak speed'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Peak wind speed in the hourly forecast.' },
+    { key: 'humidity', label: 'Humidity', value: formatHumidityRange(humidityRange), detail: 'Range', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Min–max relative humidity for the day.' },
+    { key: 'pm25', label: 'PM2.5', value: formatPm(peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25), detail: formatPeakDetail(peakPm25Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Peak fine particles (daytime window when available).' },
+    { key: 'pm10', label: 'PM10', value: formatPm(peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10), detail: formatPeakDetail(peakPm10Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Peak coarse particles for the day.' },
+    { key: 'uv', label: 'UV', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Peak UV index from the hourly forecast.' },
+  ]
+
+  const cr = currentReadings || {}
+  const formatLivePm = (v) => {
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      const rounded = Math.round(v * 10) / 10
+      return `${String(rounded).replace(/\.0$/, '')} µg/m³`
     }
-    if (isFiniteNumber(windKmhForClose)) {
-      coldNotifChips.push({
-        variant: 'outline',
-        text: windKmhForClose >= 28 ? 'Breezy' : 'Mild wind',
-        key: 'w',
-      })
-    }
-    if (airBandPlan.tone === 'good' || airBandPlan.tone === 'ok') {
-      coldNotifChips.push({ variant: 'outline', text: 'Daytime air OK', key: 'a' })
-    } else if (airBandPlan.tone === 'caution') {
-      coldNotifChips.push({ variant: 'outline', text: 'Check air below', key: 'a' })
-    } else if (airBandPlan.tone === 'warning' || airBandPlan.tone === 'danger') {
-      coldNotifChips.push({ variant: 'outline', text: 'Air: use metrics', key: 'a' })
-    }
-    const uv = peakUvRow?.uv_index
-    if (isFiniteNumber(uv) && uv < 4) {
-      coldNotifChips.push({ variant: 'outline', text: 'UV low', key: 'u' })
-    }
+    if (typeof v === 'string' && v.trim() && v !== '--') return v.includes('µg') ? v : `${v} µg/m³`
+    return '--'
   }
 
-  const metricCards = [
-    { label: 'Temperature', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone) },
-    { label: 'Sky', value: skyCondition.label, detail: 'General outlook' },
-    { label: 'Cloud cover', value: formatCloudCoverRange(cloudCoverRange), detail: 'Typical range' },
-    { label: 'PM2.5', value: formatPm(peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25), detail: formatPeakDetail(peakPm25Row, locale, timeZone) },
-    { label: 'PM10', value: formatPm(peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10), detail: formatPeakDetail(peakPm10Row, locale, timeZone) },
-    { label: 'Rain', value: formatRainTotal(totalRain), detail: 'Expected total' },
-    { label: 'Wind', value: formatWindKmh(peakWindRow?.wind_speed_ms), detail: formatPeakDetail(peakWindRow, locale, timeZone, 'Peak speed') },
-    { label: 'Humidity', value: formatHumidityRange(humidityRange), detail: 'Range' },
-    { label: 'UV', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index') },
+  const LIVE_DETAIL = 'Latest snapshot'
+
+  const currentMetrics = [
+    { key: 'temp', label: 'Temperature', value: cr.temperature ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 18–24 °C' },
+    { key: 'sky', label: 'Sky', value: liveSky.label, detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Current conditions from the latest observation.' },
+    { key: 'cloud', label: 'Cloud cover', value: liveCloudPct, detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Current cloud amount at observation time.' },
+    { key: 'rain', label: 'Rain', value: cr.rain ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Rate or amount from the latest hour when available.' },
+    { key: 'wind', label: 'Wind', value: cr.wind ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Light: <20 km/h · Strong: >50 km/h' },
+    { key: 'humidity', label: 'Humidity', value: cr.humidity ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 30–60%' },
+    { key: 'pm25', label: 'PM2.5', value: formatLivePm(cr.pm25), detail: LIVE_DETAIL, source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <10 · Moderate: 10–25 · Poor: >25' },
+    { key: 'pm10', label: 'PM10', value: formatLivePm(cr.pm10), detail: LIVE_DETAIL, source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <20 · Moderate: 20–50 · Poor: >50' },
+    { key: 'uv', label: 'UV', value: cr.uv ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Low: 0–2 · Moderate: 3–5 · High: 6+' },
   ]
 
   return (
     <section
-      className="outdoor-day-advice"
+      className={`outdoor-panel outdoor-panel--${summaryTone}`}
       aria-label={useNextDayPlan ? 'Outdoor outlook for tomorrow' : 'Outdoor outlook for today'}
     >
-      <div className="outdoor-day-advice__header">
-        <div>
-          {useNextDayPlan ? (
-            <p className="outdoor-day-advice__plan-shift">Plan for next day</p>
-          ) : null}
-          <h3 className="outdoor-day-advice__title">{formatDayLabel(selectedDate, locale, timeZone)}</h3>
+      {/* ── Top bar: location + date + badge ── */}
+      <div className="outdoor-panel__topbar">
+        <div className="outdoor-panel__topbar-left">
+          {onLocationClick ? (
+            <button type="button" className="outdoor-panel__location" onClick={onLocationClick}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+              <span>{locationLabel || 'Set location'}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+          ) : (
+            <span className="outdoor-panel__location outdoor-panel__location--static">{locationLabel}</span>
+          )}
+          <span className="outdoor-panel__date">{dateLabel}</span>
+        </div>
+        <span className={`outdoor-panel__badge outdoor-panel__badge--${summaryTone}`}>
+          <span className="outdoor-panel__badge-dot" aria-hidden />
+          {overallDay.label}
+        </span>
+      </div>
+
+      {/* ── Summary hero with banner ── */}
+      <div className="outdoor-panel__hero" style={{ backgroundImage: `url(${banner2})` }}>
+        <p className="outdoor-panel__summary">{summaryParagraph}</p>
+      </div>
+
+      <div className="outdoor-panel__metrics">
+        {/* ── Forecast row ── */}
+        <div className="outdoor-panel__section outdoor-panel__section--metrics">
+          <div className="outdoor-panel__section-head">
+            <h4 className="outdoor-panel__section-title">{selectedLabel}&apos;s forecast</h4>
+            <span className="outdoor-panel__section-hint">Day range · peaks</span>
+          </div>
+          <div className="outdoor-panel__grid">
+            {forecastMetrics.map((m) => (
+              <div key={m.key} className="outdoor-panel__tile outdoor-panel__tile--forecast" tabIndex={0}>
+                <span className="outdoor-panel__tile-label">{m.label}</span>
+                <strong className="outdoor-panel__tile-value">{m.value}</strong>
+                <span className="outdoor-panel__tile-detail">{m.detail}</span>
+                <div className="outdoor-panel__tooltip" role="tooltip">
+                  <strong>{m.label}</strong>
+                  <p className="outdoor-panel__tooltip-lead">{m.detail}</p>
+                  {m.range ? <p className="outdoor-panel__tooltip-range">{m.range}</p> : null}
+                  {m.source ? <p className="outdoor-panel__tooltip-source">Source: {m.source}</p> : null}
+                  {m.sourceDetail ? <p className="outdoor-panel__tooltip-detail">{m.sourceDetail}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Live row (same columns as forecast) ── */}
+        <div className="outdoor-panel__section outdoor-panel__section--metrics outdoor-panel__section--live">
+          <div className="outdoor-panel__section-head">
+            <h4 className="outdoor-panel__section-title">Right now</h4>
+            <span className="outdoor-panel__section-hint">Live readings</span>
+          </div>
+          <div className="outdoor-panel__grid">
+            {currentMetrics.map((m) => (
+              <div key={m.key} className="outdoor-panel__tile outdoor-panel__tile--live" tabIndex={0}>
+                <span className="outdoor-panel__tile-label">{m.label}</span>
+                <strong className="outdoor-panel__tile-value">{m.value}</strong>
+                <span className="outdoor-panel__tile-detail">{m.detail}</span>
+                <div className="outdoor-panel__tooltip" role="tooltip">
+                  <strong>{m.label}</strong>
+                  <p className="outdoor-panel__tooltip-lead">{m.detail}</p>
+                  {m.range ? <p className="outdoor-panel__tooltip-range">{m.range}</p> : null}
+                  {m.source ? <p className="outdoor-panel__tooltip-source">Source: {m.source}</p> : null}
+                  {m.sourceDetail ? <p className="outdoor-panel__tooltip-detail">{m.sourceDetail}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {summaryTone === 'cold' ? (
-        <div className="outdoor-day-advice__summary outdoor-day-advice__summary--cold outdoor-day-advice__summary--notif">
-          <div className="outdoor-day-advice__notif">
-            <div className="outdoor-day-advice__notif-header">
-              <span className="outdoor-day-advice__notif-priority">
-                <span className="outdoor-day-advice__notif-priority-dot" aria-hidden />
-                {overallDay.label}
-              </span>
-              <span className="outdoor-day-advice__notif-category">Outdoor activity</span>
-            </div>
-            {coldNotifChips.length > 0 ? (
-              <div className="outdoor-day-advice__notif-chips">
-                {coldNotifChips.map((chip) => (
-                  <span
-                    key={chip.key}
-                    className={`outdoor-day-advice__notif-chip outdoor-day-advice__notif-chip--${chip.variant}`}
-                  >
-                    {chip.text}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            <p className="outdoor-day-advice__notif-section-label">Summary</p>
-            <p className="outdoor-day-advice__notif-body">{summaryParagraph}</p>
-          </div>
-        </div>
-      ) : (
-        <div className={`outdoor-day-advice__summary outdoor-day-advice__summary--${summaryTone}`}>
-          <div className="outdoor-day-advice__summary-inner">
-            <div className="outdoor-day-advice__summary-head">
-              <p className="outdoor-day-advice__summary-kicker">Outdoor outlook</p>
-              <span className="outdoor-day-advice__summary-badge">{overallDay.label}</span>
-            </div>
-            <p className="outdoor-day-advice__summary-text">{summaryParagraph}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="outdoor-day-advice__metrics">
-        {metricCards.map((metric) => (
-          <article key={metric.label} className="outdoor-day-advice__metric">
-            <span>{metric.label}</span>
-            <strong>{metric.value}</strong>
-            <small>{metric.detail}</small>
-          </article>
-        ))}
+      {/* ── Footer ── */}
+      <div className="outdoor-panel__footer">
+        <span className="outdoor-panel__updated">{updatedLabel ? `Updated: ${updatedLabel}` : ''}</span>
+        {onRefresh && (
+          <button type="button" className="outdoor-panel__refresh" onClick={onRefresh} disabled={!canRefresh}>
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+        )}
       </div>
     </section>
   )

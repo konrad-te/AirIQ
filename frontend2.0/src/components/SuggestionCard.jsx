@@ -97,16 +97,18 @@ export default function SuggestionCard({
             ))}
           </div>
         )}
-        <div className="suggestion-card__section">
-          <span className="suggestion-card__section-label">{t('suggestion.recommendation')}</span>
-          <p className="suggestion-card__section-copy">{recommendationText}</p>
-        </div>
-        {impactText && (
-          <div className="suggestion-card__section suggestion-card__section--impact">
-            <span className="suggestion-card__section-label">{t('suggestion.whyItMatters')}</span>
-            <p className="suggestion-card__section-copy">{impactText}</p>
+        <div className={`suggestion-card__columns${impactText ? '' : ' suggestion-card__columns--single'}`}>
+          <div className="suggestion-card__section">
+            <span className="suggestion-card__section-label">{t('suggestion.recommendation')}</span>
+            <p className="suggestion-card__section-copy">{recommendationText}</p>
           </div>
-        )}
+          {impactText && (
+            <div className="suggestion-card__section suggestion-card__section--impact">
+              <span className="suggestion-card__section-label">{t('suggestion.whyItMatters')}</span>
+              <p className="suggestion-card__section-copy">{impactText}</p>
+            </div>
+          )}
+        </div>
 
         {feedbackEnabled && (
           <div className="suggestion-card__feedback">
