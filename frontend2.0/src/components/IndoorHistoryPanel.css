@@ -897,3 +897,35 @@
     border-radius: 20px;
   }
 }
+
+/* Trends page: same shell as outdoor PM25 chart card */
+.indoor-history-panel--trends__kicker {
+  margin: 0 0 0.15rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.indoor-history-panel--trends__state {
+  border-radius: 12px;
+}
+
+.indoor-history-panel__chart-card--trends-embed {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+.indoor-history-panel--trends__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.indoor-history-panel--trends__footer-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}

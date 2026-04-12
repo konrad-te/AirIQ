@@ -141,6 +141,8 @@
   "dashboard.connectSensorPrompt": "Koble til en sensor for å begynne å se romdata.",
   "dashboard.locations": "Steder",
   "dashboard.airQualityTrends": "Luftkvalitetstrender",
+  "dashboard.trendsIndoorEmptyTitle": "Innendørstrender krever en sensor",
+  "dashboard.trendsIndoorEmptyDesc": "Koble til innendørssensoren din slik at AirIQ kan vise lagrede målinger her ved siden av utendørstrender.",
   "dashboard.noData": "Ingen data",
   "dashboard.good": "Bra",
   "dashboard.setupNeeded": "Oppsett kreves",

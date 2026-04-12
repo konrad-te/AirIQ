@@ -172,6 +172,8 @@
   "dashboard.connectSensorPrompt": "Connect a sensor to start seeing room data.",
   "dashboard.locations": "Locations",
   "dashboard.airQualityTrends": "Air Quality Trends",
+  "dashboard.trendsIndoorEmptyTitle": "Indoor trends need a sensor",
+  "dashboard.trendsIndoorEmptyDesc": "Connect your indoor sensor so AirIQ can chart stored readings here next to outdoor trends.",
   "dashboard.noData": "No data",
   "dashboard.good": "Good",
   "dashboard.setupNeeded": "Setup needed",

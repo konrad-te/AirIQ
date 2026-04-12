@@ -1,4 +1,4 @@
-/* Unified outdoor panel — typography + symmetric metric grids */
+/* Unified outdoor panel — 4×2 metric grids, frosted glass tiles */
 
 .outdoor-panel {
   --outdoor-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
@@ -7,7 +7,6 @@
   --outdoor-muted: #86868b;
   --outdoor-faint: #aeaeb2;
   --outdoor-blue: #007aff;
-  --outdoor-tile-h: 5.25rem;
   font-family: var(--outdoor-font);
   background: rgba(255, 255, 255, 0.78);
   backdrop-filter: saturate(180%) blur(24px);
@@ -171,112 +170,116 @@
   letter-spacing: -0.015em;
 }
 
-/* ── Metric block (both rows) ── */
+/* ── Metric sections ── */
 .outdoor-panel__metrics {
+  position: relative;
   padding: 0.35rem 0 0;
 }
 
 .outdoor-panel__section--metrics {
+  position: relative;
   padding: 0.65rem 1.25rem 0.5rem;
 }
 
 .outdoor-panel__section--live {
-  padding-top: 0.15rem;
+  padding-top: 0.25rem;
   padding-bottom: 0.35rem;
 }
 
 .outdoor-panel__section-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.6rem;
   margin-bottom: 0.55rem;
-  padding-bottom: 0.45rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .outdoor-panel__section-title {
   margin: 0;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--outdoor-muted);
 }
 
-.outdoor-panel__section-hint {
+.outdoor-panel__live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 100px;
+  background: rgba(52, 199, 89, 0.12);
   font-size: 0.6875rem;
-  font-weight: 500;
-  color: var(--outdoor-faint);
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  color: #34c759;
 }
 
-/* 9 equal columns — forecast and live rows align vertically */
+.outdoor-panel__live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34c759;
+  flex-shrink: 0;
+}
+
+/* 4-column grid */
 .outdoor-panel__grid {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
 }
 
+/* ── Tiles — frosted glass ── */
 .outdoor-panel__tile {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  align-items: stretch;
-  min-height: var(--outdoor-tile-h);
-  padding: 0.55rem 0.45rem 0.5rem;
+  gap: 0.15rem;
+  min-height: 4.75rem;
+  padding: 0.6rem 0.7rem 0.55rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.95) inset,
-    0 1px 2px rgba(0, 0, 0, 0.03);
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.03),
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.03);
   cursor: help;
-  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
-}
-
-.outdoor-panel__tile--forecast {
-  background: rgba(0, 122, 255, 0.045);
-  border-color: rgba(0, 122, 255, 0.1);
-}
-
-.outdoor-panel__tile--live {
-  background: rgba(0, 0, 0, 0.028);
-  border-color: rgba(0, 0, 0, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.22s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
 .outdoor-panel__tile:hover,
 .outdoor-panel__tile:focus-within {
   transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.68);
+  border-color: rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.98) inset,
-    0 4px 14px rgba(0, 0, 0, 0.07);
-  border-color: rgba(0, 122, 255, 0.22);
-  background: rgba(255, 255, 255, 0.82);
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 2px 6px rgba(0, 0, 0, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.06);
   z-index: 2;
 }
 
 .outdoor-panel__tile-label {
-  font-size: 0.5625rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--outdoor-faint);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--outdoor-muted);
   line-height: 1.2;
-  margin-bottom: 0.2rem;
 }
 
 .outdoor-panel__tile-value {
   flex: 1;
   display: flex;
   align-items: center;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--outdoor-ink);
-  letter-spacing: -0.02em;
-  line-height: 1.25;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
   word-break: break-word;
   hyphens: auto;
 }
@@ -284,13 +287,12 @@
 .outdoor-panel__tile-detail {
   font-size: 0.625rem;
   font-weight: 500;
-  color: var(--outdoor-muted);
+  color: var(--outdoor-faint);
   line-height: 1.25;
   margin-top: auto;
-  padding-top: 0.15rem;
 }
 
-/* Tooltips — above tile */
+/* ── Tooltips — above tile ── */
 .outdoor-panel__tooltip {
   display: none;
   position: absolute;
@@ -300,12 +302,12 @@
   transform: translateX(-50%);
   width: min(260px, 70vw);
   padding: 0.7rem 0.85rem;
-  background: rgba(29, 29, 31, 0.92);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(29, 29, 31, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
   pointer-events: none;
 }
 
@@ -316,7 +318,7 @@
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: rgba(29, 29, 31, 0.92);
+  border-top-color: rgba(29, 29, 31, 0.88);
 }
 
 .outdoor-panel__tile:hover .outdoor-panel__tooltip,
@@ -362,7 +364,7 @@
   color: rgba(255, 255, 255, 0.48) !important;
 }
 
-/* Footer */
+/* ── Footer ── */
 .outdoor-panel__footer {
   display: flex;
   align-items: center;
@@ -404,7 +406,7 @@
   background: none;
 }
 
-/* Empty state */
+/* ── Empty state ── */
 .outdoor-day-advice--empty {
   display: flex;
   flex-direction: column;
@@ -460,17 +462,7 @@
   line-height: 1.5;
 }
 
-/* Responsive — keep both grids identical */
-@media (max-width: 1100px) {
-  .outdoor-panel__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .outdoor-panel__tile {
-    min-height: 4.85rem;
-  }
-}
-
+/* ── Responsive ── */
 @media (max-width: 768px) {
   .outdoor-panel__topbar {
     flex-direction: column;
@@ -500,10 +492,6 @@
   }
 
   .outdoor-panel__tile {
-    min-height: 4.5rem;
-  }
-
-  .outdoor-panel__tile-value {
-    font-size: 0.75rem;
+    min-height: 4.25rem;
   }
 }

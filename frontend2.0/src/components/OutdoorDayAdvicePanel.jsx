@@ -591,16 +591,17 @@ export default function OutdoorDayAdvicePanel({
     ? `${Math.round(baselineCurrentRow.cloud_cover_pct)}%`
     : '--'
 
+  const forecastCloudLabel = `${skyCondition.label}, ${formatCloudCoverRange(cloudCoverRange)}`
+
   const forecastMetrics = [
-    { key: 'temp', label: 'Temperature', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Day range: min / max across the forecast.' },
-    { key: 'sky', label: 'Sky', value: skyCondition.label, detail: 'General outlook', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Typical sky for the day from the hourly model.' },
-    { key: 'cloud', label: 'Cloud cover', value: formatCloudCoverRange(cloudCoverRange), detail: 'Typical range', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'How cloudiness varies through the day.' },
+    { key: 'temp', label: 'Temp', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Day range: min / max across the forecast.' },
     { key: 'rain', label: 'Rain', value: formatRainTotal(totalRain), detail: 'Expected total', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Sum of hourly rain for the day.' },
     { key: 'wind', label: 'Wind', value: formatWindKmh(peakWindRow?.wind_speed_ms), detail: formatPeakDetail(peakWindRow, locale, timeZone, 'Peak speed'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Peak wind speed in the hourly forecast.' },
     { key: 'humidity', label: 'Humidity', value: formatHumidityRange(humidityRange), detail: 'Range', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Min–max relative humidity for the day.' },
     { key: 'pm25', label: 'PM2.5', value: formatPm(peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25), detail: formatPeakDetail(peakPm25Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Peak fine particles (daytime window when available).' },
     { key: 'pm10', label: 'PM10', value: formatPm(peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10), detail: formatPeakDetail(peakPm10Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Peak coarse particles for the day.' },
-    { key: 'uv', label: 'UV', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Peak UV index from the hourly forecast.' },
+    { key: 'uv', label: 'UV Index', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Peak UV index from the hourly forecast.' },
+    { key: 'cloud', label: 'Cloud', value: forecastCloudLabel, detail: 'Typical range', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Sky condition and how cloudiness varies through the day.' },
   ]
 
   const cr = currentReadings || {}
@@ -613,18 +614,19 @@ export default function OutdoorDayAdvicePanel({
     return '--'
   }
 
-  const LIVE_DETAIL = 'Latest snapshot'
+  const liveCloudMerged = liveSky.label !== 'Mixed sky'
+    ? `${liveSky.label}, ${liveCloudPct}`
+    : liveCloudPct
 
   const currentMetrics = [
-    { key: 'temp', label: 'Temperature', value: cr.temperature ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 18–24 °C' },
-    { key: 'sky', label: 'Sky', value: liveSky.label, detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Current conditions from the latest observation.' },
-    { key: 'cloud', label: 'Cloud cover', value: liveCloudPct, detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Current cloud amount at observation time.' },
-    { key: 'rain', label: 'Rain', value: cr.rain ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Rate or amount from the latest hour when available.' },
-    { key: 'wind', label: 'Wind', value: cr.wind ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Light: <20 km/h · Strong: >50 km/h' },
-    { key: 'humidity', label: 'Humidity', value: cr.humidity ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 30–60%' },
-    { key: 'pm25', label: 'PM2.5', value: formatLivePm(cr.pm25), detail: LIVE_DETAIL, source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <10 · Moderate: 10–25 · Poor: >25' },
-    { key: 'pm10', label: 'PM10', value: formatLivePm(cr.pm10), detail: LIVE_DETAIL, source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <20 · Moderate: 20–50 · Poor: >50' },
-    { key: 'uv', label: 'UV', value: cr.uv ?? '--', detail: LIVE_DETAIL, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Low: 0–2 · Moderate: 3–5 · High: 6+' },
+    { key: 'temp', label: 'Temp', value: cr.temperature ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 18–24 °C' },
+    { key: 'wind', label: 'Wind', value: cr.wind ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Light: <20 km/h · Strong: >50 km/h' },
+    { key: 'humidity', label: 'Humidity', value: cr.humidity ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 30–60%' },
+    { key: 'cloud', label: 'Cloud', value: liveCloudMerged, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Current cloud amount at observation time.' },
+    { key: 'pm25', label: 'PM2.5', value: formatLivePm(cr.pm25), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <10 · Moderate: 10–25 · Poor: >25' },
+    { key: 'pm10', label: 'PM10', value: formatLivePm(cr.pm10), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <20 · Moderate: 20–50 · Poor: >50' },
+    { key: 'uv', label: 'UV', value: cr.uv ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Low: 0–2 · Moderate: 3–5 · High: 6+' },
+    { key: 'rain', label: 'Rain', value: cr.rain ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Rate or amount from the latest hour when available.' },
   ]
 
   return (
@@ -658,21 +660,17 @@ export default function OutdoorDayAdvicePanel({
       </div>
 
       <div className="outdoor-panel__metrics">
-        {/* ── Forecast row ── */}
+        {/* ── Forecast ── */}
         <div className="outdoor-panel__section outdoor-panel__section--metrics">
-          <div className="outdoor-panel__section-head">
-            <h4 className="outdoor-panel__section-title">{selectedLabel}&apos;s forecast</h4>
-            <span className="outdoor-panel__section-hint">Day range · peaks</span>
-          </div>
+          <h4 className="outdoor-panel__section-title">{selectedLabel.toUpperCase()}&apos;S FORECAST</h4>
           <div className="outdoor-panel__grid">
             {forecastMetrics.map((m) => (
-              <div key={m.key} className="outdoor-panel__tile outdoor-panel__tile--forecast" tabIndex={0}>
+              <div key={m.key} className="outdoor-panel__tile" tabIndex={0}>
                 <span className="outdoor-panel__tile-label">{m.label}</span>
                 <strong className="outdoor-panel__tile-value">{m.value}</strong>
                 <span className="outdoor-panel__tile-detail">{m.detail}</span>
                 <div className="outdoor-panel__tooltip" role="tooltip">
                   <strong>{m.label}</strong>
-                  <p className="outdoor-panel__tooltip-lead">{m.detail}</p>
                   {m.range ? <p className="outdoor-panel__tooltip-range">{m.range}</p> : null}
                   {m.source ? <p className="outdoor-panel__tooltip-source">Source: {m.source}</p> : null}
                   {m.sourceDetail ? <p className="outdoor-panel__tooltip-detail">{m.sourceDetail}</p> : null}
@@ -682,21 +680,19 @@ export default function OutdoorDayAdvicePanel({
           </div>
         </div>
 
-        {/* ── Live row (same columns as forecast) ── */}
+        {/* ── Right now ── */}
         <div className="outdoor-panel__section outdoor-panel__section--metrics outdoor-panel__section--live">
           <div className="outdoor-panel__section-head">
-            <h4 className="outdoor-panel__section-title">Right now</h4>
-            <span className="outdoor-panel__section-hint">Live readings</span>
+            <h4 className="outdoor-panel__section-title">RIGHT NOW</h4>
+            <span className="outdoor-panel__live-badge"><span className="outdoor-panel__live-dot" />Live</span>
           </div>
           <div className="outdoor-panel__grid">
             {currentMetrics.map((m) => (
-              <div key={m.key} className="outdoor-panel__tile outdoor-panel__tile--live" tabIndex={0}>
+              <div key={m.key} className="outdoor-panel__tile" tabIndex={0}>
                 <span className="outdoor-panel__tile-label">{m.label}</span>
                 <strong className="outdoor-panel__tile-value">{m.value}</strong>
-                <span className="outdoor-panel__tile-detail">{m.detail}</span>
                 <div className="outdoor-panel__tooltip" role="tooltip">
                   <strong>{m.label}</strong>
-                  <p className="outdoor-panel__tooltip-lead">{m.detail}</p>
                   {m.range ? <p className="outdoor-panel__tooltip-range">{m.range}</p> : null}
                   {m.source ? <p className="outdoor-panel__tooltip-source">Source: {m.source}</p> : null}
                   {m.sourceDetail ? <p className="outdoor-panel__tooltip-detail">{m.sourceDetail}</p> : null}

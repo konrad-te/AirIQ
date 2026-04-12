@@ -275,6 +275,8 @@
 .sleep-history-panel__selected-day {
   display: grid;
   gap: 0.46rem;
+  align-content: start;
+  align-self: start;
   padding: 0.56rem 0.62rem 0.6rem;
   border-radius: 24px;
   background:
@@ -558,17 +560,17 @@
 .sleep-history-panel__selected-day-stats {
   display: grid;
   grid-template-columns: 1fr;
+  grid-auto-rows: max-content;
   gap: 0.32rem;
 }
 
 .sleep-history-panel__selected-stat {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
-  min-height: 0;
-  padding: 0.45rem 0.65rem;
+  min-height: 2.7rem;
+  padding: 0.52rem 0.68rem;
   border-radius: var(--app-radius-sm, 10px);
   border: 1px solid var(--app-border, #e2e8f0);
   background: var(--app-white, #fff);
@@ -582,10 +584,7 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
   line-height: 1.2;
-  min-width: 0;
-  max-width: 58%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: max-content;
   white-space: nowrap;
 }
 
@@ -596,7 +595,6 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   line-height: 1.2;
-  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -688,32 +686,6 @@
   padding-bottom: 1.15rem;
 }
 
-.sleep-history-panel__insight-info {
-  padding-top: 0.85rem;
-  padding-bottom: 0.2rem;
-  border-bottom: 1px solid var(--app-border, #e2e8f0);
-}
-
-.sleep-history-panel__insight-info__title {
-  margin: 0 0 0.5rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--app-text, #0f172a);
-  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
-}
-
-.sleep-history-panel__insight-info__p {
-  margin: 0 0 0.5rem;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  color: var(--app-body, #475569);
-  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
-}
-
-.sleep-history-panel__insight-info__p:last-child {
-  margin-bottom: 0;
-}
-
 .sleep-history-panel__insight-head,
 .sleep-history-panel__insight-summary,
 .sleep-history-panel__insight-head-meta {
@@ -756,6 +728,84 @@
 .sleep-history-panel__insight-card h5,
 .sleep-history-panel__insight-note strong {
   color: var(--app-text, #0f172a);
+}
+
+.sleep-history-panel__insight-source-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  margin-bottom: 0.2rem;
+}
+
+.sleep-history-panel__insight-privacy {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sleep-history-panel__insight-privacy-trigger {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #5d7ca0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: help;
+}
+
+.sleep-history-panel__insight-privacy-trigger:hover,
+.sleep-history-panel__insight-privacy-trigger:focus-visible {
+  color: var(--app-primary, #1a6bf0);
+  outline: none;
+}
+
+.sleep-history-panel__insight-privacy-tooltip {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  left: 0;
+  z-index: 20;
+  width: min(28rem, calc(100vw - 3rem));
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(201, 220, 241, 0.96);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 48px rgba(20, 48, 78, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.sleep-history-panel__insight-privacy:hover .sleep-history-panel__insight-privacy-tooltip,
+.sleep-history-panel__insight-privacy:focus-within .sleep-history-panel__insight-privacy-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.sleep-history-panel__insight-privacy-title,
+.sleep-history-panel__insight-privacy-body {
+  margin: 0;
+}
+
+.sleep-history-panel__insight-privacy-title {
+  color: var(--app-text, #0f172a);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+}
+
+.sleep-history-panel__insight-privacy-body {
+  color: var(--app-body, #475569);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.sleep-history-panel__insight-privacy-body + .sleep-history-panel__insight-privacy-body {
+  margin-top: 0.45rem;
 }
 
 .sleep-history-panel__insight-head-meta {

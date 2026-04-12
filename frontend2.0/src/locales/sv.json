@@ -141,6 +141,8 @@
   "dashboard.connectSensorPrompt": "Anslut en sensor för att börja se rumsdata.",
   "dashboard.locations": "Platser",
   "dashboard.airQualityTrends": "Luftkvalitetstrender",
+  "dashboard.trendsIndoorEmptyTitle": "Inomhustrender kräver en sensor",
+  "dashboard.trendsIndoorEmptyDesc": "Anslut din inomhussensor så att AirIQ kan visa sparade mätningar här bredvid utomhustrenderna.",
   "dashboard.noData": "Ingen data",
   "dashboard.good": "Bra",
   "dashboard.setupNeeded": "Konfiguration krävs",

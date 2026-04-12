@@ -141,6 +141,8 @@
   "dashboard.connectSensorPrompt": "Verbinde einen Sensor, um Raumdaten zu sehen.",
   "dashboard.locations": "Standorte",
   "dashboard.airQualityTrends": "Luftqualitätstrends",
+  "dashboard.trendsIndoorEmptyTitle": "Innenraumtrends brauchen einen Sensor",
+  "dashboard.trendsIndoorEmptyDesc": "Verbinde deinen Innenraumsensor, damit AirIQ gespeicherte Messwerte hier neben Außentrends anzeigen kann.",
   "dashboard.noData": "Keine Daten",
   "dashboard.good": "Gut",
   "dashboard.setupNeeded": "Einrichtung erforderlich",

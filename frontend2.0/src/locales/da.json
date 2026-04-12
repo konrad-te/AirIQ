@@ -141,6 +141,8 @@
   "dashboard.connectSensorPrompt": "Tilslut en sensor for at begynde at se rumdata.",
   "dashboard.locations": "Lokationer",
   "dashboard.airQualityTrends": "Luftkvalitetstendenser",
+  "dashboard.trendsIndoorEmptyTitle": "Indendørstendenser kræver en sensor",
+  "dashboard.trendsIndoorEmptyDesc": "Tilslut din indendørssensor, så AirIQ kan vise gemte målinger her ved siden af udendørstendenser.",
   "dashboard.noData": "Ingen data",
   "dashboard.good": "God",
   "dashboard.setupNeeded": "Opsætning påkrævet",

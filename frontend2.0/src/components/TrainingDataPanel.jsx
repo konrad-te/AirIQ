@@ -10,6 +10,10 @@ const PLOT_W = 742
 const PLOT_H = 200
 const MAX_VISIBLE_ACTIVITIES = 18
 const RANGE_OPTIONS = ['30d', '90d', '180d', 'all']
+const TRAINING_SOURCES = [
+  { key: 'garmin', label: 'Garmin import', detail: 'Upload Garmin export files' },
+  { key: 'strava', label: 'Strava', detail: 'Coming soon' },
+]
 const METRICS = [
   { key: 'activity_count_value', label: 'Activities', shortLabel: 'Activities', unit: 'count' },
   { key: 'training_time_hours', label: 'Training time', shortLabel: 'Time', unit: 'hours' },
@@ -238,10 +242,12 @@ export default function TrainingDataPanel({
   canGenerateInsight = false,
   onGenerateInsight = null,
   onOpenSubscription = null,
+  allowGeminiHealthInsights = false,
   locale = 'en-GB',
   timeZone = 'Europe/Warsaw',
 }) {
   const { t } = useTranslation()
+  const [selectedSource, setSelectedSource] = useState('garmin')
   const [selectedFiles, setSelectedFiles] = useState([])
   const [selectedMetric, setSelectedMetric] = useState('training_time_hours')
   const [activityPage, setActivityPage] = useState(0)
@@ -288,6 +294,17 @@ export default function TrainingDataPanel({
     { key: 'recovery', label: 'Recovery', value: insightData.recovery?.sleep_label || '--' },
     { key: 'today', label: 'Today', value: insightData.recovery?.recommendation_title || '--' },
   ], [insightData])
+  const geminiNotice = typeof insightData?.gemini_explanation_note === 'string' && insightData.gemini_explanation_note.trim()
+    ? {
+        title: t('insight.geminiUnavailableTitle'),
+        body: insightData.gemini_explanation_note,
+      }
+    : (!allowGeminiHealthInsights && canGenerateInsight && insightData
+        ? {
+            title: 'AI wording is off',
+            body: 'This insight is using the standard explanation because AI health insights are off in Settings > Preferences. Turn on Google Gemini there, save preferences, then regenerate this insight.',
+          }
+        : null)
   const selectedInsightHeading = useMemo(() => {
     if (insightData?.day?.start_date && insightData?.day?.end_date) {
       return formatInsightDateRange(insightData.day.start_date, insightData.day.end_date, locale, timeZone)
@@ -309,6 +326,13 @@ export default function TrainingDataPanel({
   useEffect(() => {
     setActivityPage(0)
   }, [selectedRange, activities.length])
+
+  useEffect(() => {
+    setSelectedFiles([])
+    setIsHelpOpen(false)
+    setIsImportModalOpen(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [selectedSource])
 
   const handleImportClick = async () => {
     if (!selectedFiles.length || typeof onImport !== 'function') return
@@ -350,6 +374,23 @@ export default function TrainingDataPanel({
     }
     onSelectInsightDate(nearest.point.calendar_date)
   }
+  const renderSourcePicker = () => (
+    <div className="training-data-panel__source-picker" role="tablist" aria-label="Training data source">
+      {TRAINING_SOURCES.map((source) => (
+        <button
+          key={source.key}
+          type="button"
+          role="tab"
+          aria-selected={selectedSource === source.key}
+          className={`training-data-panel__source-option${selectedSource === source.key ? ' training-data-panel__source-option--active' : ''}`}
+          onClick={() => setSelectedSource(source.key)}
+        >
+          <span className="training-data-panel__source-option-label">{source.label}</span>
+          <span className={`training-data-panel__source-option-detail${source.key === 'strava' ? ' training-data-panel__source-option-detail--soon' : ''}`}>{source.detail}</span>
+        </button>
+      ))}
+    </div>
+  )
   const renderImportSection = ({ showTitle = true } = {}) => (
     <div className="training-data-panel__import">
       <div className="training-data-panel__import-head">
@@ -408,10 +449,30 @@ export default function TrainingDataPanel({
   ) : null
   const helpModal = helpModalContent && typeof document !== 'undefined' ? createPortal(helpModalContent, document.body) : null
 
+  if (selectedSource === 'strava') {
+    return (
+      <section className="indoor-history-panel sleep-history-panel training-data-panel" aria-label="Training data overview">
+        <div className="indoor-history-panel__top">
+          <div className="indoor-history-panel__brand">
+            <h2 className="indoor-history-panel__page-title">Training data history</h2>
+          </div>
+        </div>
+        {renderSourcePicker()}
+        <div className="training-data-panel__coming-soon">
+          <p className="training-data-panel__coming-soon-eyebrow">Strava</p>
+          <h3>Coming soon</h3>
+          <p>Strava import and account connection are not available in AirIQ yet. Garmin import is still the working option today.</p>
+          <p>When this lands, the plan is to support direct Strava sync instead of sending you through a broken setup flow.</p>
+        </div>
+      </section>
+    )
+  }
+
   if (isLoading) {
     return (
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
+          {renderSourcePicker()}
           <div className="indoor-history-panel__state indoor-history-panel__state--loading"><div className="indoor-history-panel__spinner" aria-hidden /><div><h4>Loading training history...</h4><p>Pulling imported Garmin sessions from your timeline.</p></div></div>
         </section>
         {helpModal}
@@ -423,6 +484,7 @@ export default function TrainingDataPanel({
     return (
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
+          {renderSourcePicker()}
           {renderImportSection()}
           <div className="indoor-history-panel__state indoor-history-panel__state--error"><h4>Could not load training history</h4><p>{error}</p></div>
         </section>
@@ -435,6 +497,7 @@ export default function TrainingDataPanel({
     return (
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
+          {renderSourcePicker()}
           {renderImportSection()}
           <div className="indoor-history-panel__state indoor-history-panel__state--empty">
             <h4>No imported training data yet</h4>
@@ -458,6 +521,7 @@ export default function TrainingDataPanel({
           </button>
         </div>
       </div>
+      {renderSourcePicker()}
 
       <div className="sleep-history-panel__night-dashboard training-data-panel__dashboard">
         <section className="sleep-history-panel__selected-day">
@@ -541,13 +605,6 @@ export default function TrainingDataPanel({
                 {insightData && canGenerateForSelection ? <button type="button" className="sleep-history-panel__insight-action-btn" onClick={onGenerateInsight} disabled={insightLoading}>{insightLoading ? 'Generating...' : 'Regenerate insight'}</button> : null}
               </div>
             </div>
-            <div className="sleep-history-panel__insight-info" role="region" aria-label={t('insight.aiPrivacyTitle')}>
-              <p className="sleep-history-panel__insight-info__title">{t('insight.aiPrivacyTitle')}</p>
-              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP1')}</p>
-              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP2')}</p>
-              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP3')}</p>
-              <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP4')}</p>
-            </div>
             {!canGenerateInsight ? (
               <div className="sleep-history-panel__insight-state">
                 <div>
@@ -585,16 +642,34 @@ export default function TrainingDataPanel({
                   ))}
                 </div>
 
-                {typeof insightData.gemini_explanation_note === 'string' && insightData.gemini_explanation_note.trim() !== '' ? (
+                {geminiNotice ? (
                   <div className="sleep-history-panel__insight-gemini-note" role="status">
-                    <p className="sleep-history-panel__insight-gemini-note__title">{t('insight.geminiUnavailableTitle')}</p>
-                    <p className="sleep-history-panel__insight-gemini-note__body">{insightData.gemini_explanation_note}</p>
+                    <p className="sleep-history-panel__insight-gemini-note__title">{geminiNotice.title}</p>
+                    <p className="sleep-history-panel__insight-gemini-note__body">{geminiNotice.body}</p>
                   </div>
                 ) : null}
 
                 <div className="sleep-history-panel__insight-summary">
                   <div className="sleep-history-panel__insight-summary-copy">
-                    <span className="sleep-history-panel__insight-source">{insightData.explanation?.source === 'gemini' ? 'Gemini explanation' : 'Rule-based explanation'}</span>
+                    <div className="sleep-history-panel__insight-source-row">
+                      <span className="sleep-history-panel__insight-source">{insightData.explanation?.source === 'gemini' ? 'Gemini explanation' : 'Rule-based explanation'}</span>
+                      <div className="sleep-history-panel__insight-privacy">
+                        <button
+                          type="button"
+                          className="sleep-history-panel__insight-privacy-trigger"
+                          aria-label={t('insight.aiPrivacyTitle')}
+                        >
+                          About data
+                        </button>
+                        <div className="sleep-history-panel__insight-privacy-tooltip" role="note">
+                          <p className="sleep-history-panel__insight-privacy-title">{t('insight.aiPrivacyTitle')}</p>
+                          <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP1')}</p>
+                          <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP2')}</p>
+                          <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP3')}</p>
+                          <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP4')}</p>
+                        </div>
+                      </div>
+                    </div>
                     <h4>{insightData.explanation?.headline || 'Training insight'}</h4>
                     <p>{insightData.explanation?.summary}</p>
                   </div>

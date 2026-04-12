@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clearMockIndoorReadings, seedMockIndoorReadings } from '../services/airDataService'
 import './IndoorHistoryPanel.css'
+import './PM25Chart.css'
 
 const CHART_WIDTH = 820
 const CHART_HEIGHT = 260
@@ -151,6 +152,14 @@ function formatRangeLabel(value, locale, timeZone, rangeKey) {
     month: 'short',
     timeZone,
   }).format(date)
+}
+
+function formatBucketWindowLabel(isoTime, durationMs, locale, timeZone) {
+  const start = toDate(isoTime)
+  if (!start) return '—'
+  const end = new Date(start.getTime() + (durationMs > 0 ? durationMs : 15 * 60 * 1000))
+  const opts = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone }
+  return `${new Intl.DateTimeFormat(locale, opts).format(start)} – ${new Intl.DateTimeFormat(locale, opts).format(end)}`
 }
 
 function isValidBucket(point, metricKey) {
@@ -346,8 +355,11 @@ export default function IndoorHistoryPanel({
   canManageMockData = false,
   locale = 'en-GB',
   timeZone = 'Europe/Warsaw',
+  layoutMode = 'full',
+  initialMetric,
 }) {
-  const [selectedMetric, setSelectedMetric] = useState('co2_ppm')
+  const isTrends = layoutMode === 'trends'
+  const [selectedMetric, setSelectedMetric] = useState(() => initialMetric ?? 'co2_ppm')
   const [metricMenuOpen, setMetricMenuOpen] = useState(false)
   const [hover, setHover] = useState(null)
   const [isMockModalOpen, setIsMockModalOpen] = useState(false)
@@ -371,6 +383,24 @@ export default function IndoorHistoryPanel({
 
   const summary = useMemo(() => buildMetricSummary(points, metric.key), [points, metric.key])
   const geometry = useMemo(() => buildChartGeometry(points, metric.key), [points, metric.key])
+
+  useEffect(() => {
+    if (isTrends && initialMetric) setSelectedMetric(initialMetric)
+  }, [isTrends, initialMetric])
+
+  const bucketDurationMs = useMemo(() => {
+    if (points.length < 2) return 15 * 60 * 1000
+    const t0 = toDate(points[0].time)?.getTime()
+    const t1 = toDate(points[1].time)?.getTime()
+    if (t0 == null || t1 == null) return 15 * 60 * 1000
+    const d = Math.abs(t1 - t0)
+    return d > 0 ? d : 15 * 60 * 1000
+  }, [points])
+
+  const latestValidPoint = useMemo(
+    () => [...points].reverse().find((p) => isValidBucket(p, metric.key)) ?? null,
+    [points, metric.key],
+  )
 
   const missingBuckets = points.filter((point) => point.sample_count === 0).length
 
@@ -443,6 +473,7 @@ export default function IndoorHistoryPanel({
       y: nearest.y,
       label: `${formatMetricValue(nearest.value, metric.unit)}`,
       time: timeStr || '—',
+      timeIso: nearest.time,
     })
   }
 
@@ -511,6 +542,295 @@ export default function IndoorHistoryPanel({
       {mockError ? <p className="indoor-history-panel__mock-error">{mockError}</p> : null}
     </div>
   )
+
+  const renderMainChartCard = (embedTrends) => (
+    <div
+      className={`indoor-history-panel__chart-card${
+        embedTrends ? ' indoor-history-panel__chart-card--trends-embed' : ''
+      }`}
+    >
+      <div className="indoor-history-panel__chart-shell">
+        <div className="indoor-history-panel__chart-layout">
+          <div className="indoor-history-panel__y-axis-ticks" aria-hidden>
+            {geometry.gridValues.map((gridValue, index) => (
+              <span key={`y-${index}`} className="indoor-history-panel__y-axis-tick">
+                {formatNumber(gridValue.value, metric.unit === 'ppm' || metric.unit === 'aqi' ? 0 : 1)}
+              </span>
+            ))}
+          </div>
+
+          <div className="indoor-history-panel__chart-plot-wrap">
+            <svg
+              ref={chartSvgRef}
+              className="indoor-history-panel__chart"
+              viewBox={`0 0 ${PLOT_W} ${PLOT_H}`}
+              preserveAspectRatio="none"
+              aria-label={`${metric.label} history chart`}
+              onMouseMove={(e) => handleChartPointer(e.clientX, chartSvgRef.current)}
+              onMouseLeave={() => setHover(null)}
+              onTouchMove={(e) => {
+                if (e.touches[0]) handleChartPointer(e.touches[0].clientX, chartSvgRef.current)
+              }}
+              onTouchEnd={() => setHover(null)}
+            >
+              <defs>
+                <linearGradient id="indoorHistoryArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.22" />
+                  <stop offset="45%" stopColor="#bae6fd" stopOpacity="0.08" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+
+              <rect x={0} y={0} width={PLOT_W} height={PLOT_H} rx="10" className="indoor-history-panel__plot-bg" />
+
+              {geometry.axisLabels.map((axisLabel, index) => (
+                <line
+                  key={`vgrid-${index}`}
+                  x1={axisLabel.x}
+                  y1={0}
+                  x2={axisLabel.x}
+                  y2={PLOT_H}
+                  className="indoor-history-panel__grid-line indoor-history-panel__grid-line--vertical"
+                />
+              ))}
+
+              {geometry.gridValues.map((gridValue, index) => (
+                <line
+                  key={`grid-${index}`}
+                  x1={0}
+                  y1={gridValue.y}
+                  x2={PLOT_W}
+                  y2={gridValue.y}
+                  className="indoor-history-panel__grid-line"
+                />
+              ))}
+
+              {geometry.areaPathD ? <path d={geometry.areaPathD} className="indoor-history-panel__area" /> : null}
+
+              {geometry.linePathD ? (
+                <path
+                  d={geometry.linePathD}
+                  className="indoor-history-panel__line-path"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ) : null}
+
+              {hover ? (
+                <line
+                  x1={hover.x}
+                  y1={0}
+                  x2={hover.x}
+                  y2={PLOT_H}
+                  className="indoor-history-panel__hover-line"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ) : null}
+            </svg>
+
+            {hover ? (
+              <div
+                className="indoor-history-panel__tooltip"
+                style={{
+                  left: `${(hover.x / PLOT_W) * 100}%`,
+                }}
+              >
+                <div className="indoor-history-panel__tooltip-time">{hover.time}</div>
+                <div className="indoor-history-panel__tooltip-value">
+                  <span className="indoor-history-panel__tooltip-dot" />
+                  {hover.label}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="indoor-history-panel__x-axis-ticks">
+            {geometry.axisLabels.map((axisLabel, index) => (
+              <span
+                key={`label-${index}`}
+                className={`indoor-history-panel__x-axis-tick${
+                  index === 0 ? ' indoor-history-panel__x-axis-tick--start' : ''
+                }${index === geometry.axisLabels.length - 1 ? ' indoor-history-panel__x-axis-tick--end' : ''}`}
+              >
+                {formatRangeLabel(points[axisLabel.index]?.time, locale, timeZone, selectedRange)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="indoor-history-panel__legend">
+        <span className="indoor-history-panel__legend-item">
+          <span className="indoor-history-panel__legend-swatch indoor-history-panel__legend-swatch--line" />
+          {metric.label} levels
+        </span>
+        {missingBuckets > 0 ? (
+          <span className="indoor-history-panel__legend-item indoor-history-panel__legend-item--muted">
+            <span className="indoor-history-panel__legend-swatch indoor-history-panel__legend-swatch--gap" />
+            {missingBuckets} gap{missingBuckets === 1 ? '' : 's'} in range
+          </span>
+        ) : null}
+      </div>
+
+      <p className="indoor-history-panel__caption">
+        The graph shows the {metric.label === 'AQI' ? 'AQI' : metric.label.toLowerCase()}{' '}
+        {metric.unit === 'aqi' ? 'index' : 'levels'} over the selected time period.
+      </p>
+    </div>
+  )
+
+  const inspectIso = hover?.timeIso ?? latestValidPoint?.time
+  const inspectValue = hover ? hover.label : formatMetricValue(summary.latest, metric.unit)
+  const windowCopy = inspectIso ? formatBucketWindowLabel(inspectIso, bucketDurationMs, locale, timeZone) : '—'
+  const trendsMetaTitle = `${metric.historyTitle} Trend`
+
+  if (isTrends) {
+    return (
+      <>
+        <div className="pm25-chart-card indoor-history-panel--trends">
+          {historyData?.device_name ? (
+            <p className="indoor-history-panel--trends__kicker">{historyData.device_name}</p>
+          ) : null}
+
+          <div className="pm25-chart-header">
+            <div className="pm25-chart-tabs" role="group" aria-label="Time range">
+              {RANGE_OPTIONS.map((rangeKey) => (
+                <button
+                  key={rangeKey}
+                  type="button"
+                  className={`pm25-chart-tab${selectedRange === rangeKey ? ' pm25-chart-tab--active' : ''}`}
+                  onClick={() => onRangeChange(rangeKey)}
+                >
+                  {rangeKey}
+                </button>
+              ))}
+            </div>
+            <div className="pm25-chart-status">
+              <span className="pm25-chart-status-dot" />
+              <span className="pm25-chart-status-live">Live</span>
+              <span className="pm25-chart-status-separator">•</span>
+              <span className="pm25-chart-status-copy">{lastRecordedLabel}</span>
+            </div>
+          </div>
+
+          <div className="pm25-chart-meta">
+            <div className="pm25-chart-meta-copy">
+              <p className="pm25-chart-label">{trendsMetaTitle}</p>
+              <span
+                className="pm25-chart-info"
+                title={`Rolling buckets from your sensor (${RANGE_PERIOD_LABEL[selectedRange]})`}
+              >
+                i
+              </span>
+            </div>
+            <div className="pm25-chart-metric-switch" role="tablist" aria-label="Indoor trend metric">
+              {METRICS.map((metricOption) => {
+                const active = selectedMetric === metricOption.key
+                return (
+                  <button
+                    key={metricOption.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`pm25-chart-metric-button${active ? ' pm25-chart-metric-button--active' : ''}`}
+                    onClick={() => setSelectedMetric(metricOption.key)}
+                  >
+                    {metricOption.shortLabel}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="indoor-history-panel__state indoor-history-panel__state--loading indoor-history-panel--trends__state">
+              <div className="indoor-history-panel__spinner" aria-hidden />
+              <div>
+                <h4>Loading history...</h4>
+                <p>Pulling stored indoor readings from your sensor timeline.</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="indoor-history-panel__state indoor-history-panel__state--error indoor-history-panel--trends__state">
+              <h4>Could not load indoor history</h4>
+              <p>{error}</p>
+            </div>
+          ) : !geometry.hasValues ? (
+            <div className="indoor-history-panel__state indoor-history-panel--trends__state">
+              <h4>No stored readings yet</h4>
+              <p>Once the sensor syncs and readings are stored, history will appear here.</p>
+            </div>
+          ) : (
+            <>
+              <div className="pm25-chart-inspector" role="status" aria-live="polite">
+                <div className="pm25-chart-inspector-top">
+                  <span className="pm25-chart-inspector-value">{inspectValue}</span>
+                  <span className="pm25-chart-inspector-confidence pm25-chart-inspector-confidence--high">
+                    <span className="pm25-chart-inspector-confidence-dot" aria-hidden />
+                    Sensor data
+                  </span>
+                </div>
+                <div className="pm25-chart-inspector-bottom">
+                  <div className="pm25-chart-inspector-row">
+                    <span className="pm25-chart-inspector-label">Data measurement window:</span>
+                    <span className="pm25-chart-inspector-copy">{windowCopy}</span>
+                  </div>
+                  <div className="pm25-chart-inspector-row pm25-chart-inspector-row--source">
+                    <span className="pm25-chart-inspector-label">Source:</span>
+                    <span className="pm25-chart-inspector-copy pm25-chart-inspector-copy--source">
+                      {historyData?.device_name || 'Indoor sensor'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pm25-chart-wrap indoor-history-panel--trends__chart-wrap">
+                {renderMainChartCard(true)}
+              </div>
+
+              <div className="indoor-history-panel--trends__footer">
+                <p className="indoor-history-panel--trends__footer-note">
+                  Latest sensor reading: <strong>{latestTimeLabel}</strong>
+                </p>
+                {typeof onRefresh === 'function' ? (
+                  <button type="button" className="indoor-history-panel__refresh-btn" onClick={onRefresh}>
+                    Check for update
+                  </button>
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
+
+        {isMockModalOpen ? (
+          <div className="indoor-history-panel__modal-backdrop" onClick={() => setIsMockModalOpen(false)}>
+            <div
+              className="indoor-history-panel__modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="indoor-history-demo-tools-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="indoor-history-panel__modal-head">
+                <div>
+                  <p className="indoor-history-panel__modal-eyebrow">Admin Demo Tools</p>
+                  <h3 id="indoor-history-demo-tools-title">Indoor history sensor demo</h3>
+                </div>
+                <button
+                  type="button"
+                  className="indoor-history-panel__modal-close"
+                  onClick={() => setIsMockModalOpen(false)}
+                  aria-label="Close demo tools"
+                >
+                  x
+                </button>
+              </div>
+              <div className="indoor-history-panel__modal-body">{renderMockAdminPanel()}</div>
+            </div>
+          </div>
+        ) : null}
+      </>
+    )
+  }
 
   return (
     <section className="indoor-history-panel">
@@ -674,136 +994,7 @@ export default function IndoorHistoryPanel({
             </svg>
           </div>
 
-          <div className="indoor-history-panel__chart-card">
-            <div className="indoor-history-panel__chart-shell">
-              <div className="indoor-history-panel__chart-layout">
-                <div className="indoor-history-panel__y-axis-ticks" aria-hidden>
-                  {geometry.gridValues.map((gridValue, index) => (
-                    <span key={`y-${index}`} className="indoor-history-panel__y-axis-tick">
-                      {formatNumber(gridValue.value, metric.unit === 'ppm' || metric.unit === 'aqi' ? 0 : 1)}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="indoor-history-panel__chart-plot-wrap">
-                  <svg
-                    ref={chartSvgRef}
-                    className="indoor-history-panel__chart"
-                    viewBox={`0 0 ${PLOT_W} ${PLOT_H}`}
-                    preserveAspectRatio="none"
-                    aria-label={`${metric.label} history chart`}
-                    onMouseMove={(e) => handleChartPointer(e.clientX, chartSvgRef.current)}
-                    onMouseLeave={() => setHover(null)}
-                    onTouchMove={(e) => {
-                      if (e.touches[0]) handleChartPointer(e.touches[0].clientX, chartSvgRef.current)
-                    }}
-                    onTouchEnd={() => setHover(null)}
-                  >
-                    <defs>
-                      <linearGradient id="indoorHistoryArea" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.22" />
-                        <stop offset="45%" stopColor="#bae6fd" stopOpacity="0.08" />
-                        <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-
-                    <rect x={0} y={0} width={PLOT_W} height={PLOT_H} rx="10" className="indoor-history-panel__plot-bg" />
-
-                    {geometry.axisLabels.map((axisLabel, index) => (
-                      <line
-                        key={`vgrid-${index}`}
-                        x1={axisLabel.x}
-                        y1={0}
-                        x2={axisLabel.x}
-                        y2={PLOT_H}
-                        className="indoor-history-panel__grid-line indoor-history-panel__grid-line--vertical"
-                      />
-                    ))}
-
-                    {geometry.gridValues.map((gridValue, index) => (
-                      <line
-                        key={`grid-${index}`}
-                        x1={0}
-                        y1={gridValue.y}
-                        x2={PLOT_W}
-                        y2={gridValue.y}
-                        className="indoor-history-panel__grid-line"
-                      />
-                    ))}
-
-                    {geometry.areaPathD ? (
-                      <path d={geometry.areaPathD} className="indoor-history-panel__area" />
-                    ) : null}
-
-                    {geometry.linePathD ? (
-                      <path
-                        d={geometry.linePathD}
-                        className="indoor-history-panel__line-path"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    ) : null}
-
-                    {hover ? (
-                      <line
-                        x1={hover.x}
-                        y1={0}
-                        x2={hover.x}
-                        y2={PLOT_H}
-                        className="indoor-history-panel__hover-line"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    ) : null}
-                  </svg>
-
-                  {hover ? (
-                    <div
-                      className="indoor-history-panel__tooltip"
-                      style={{
-                        left: `${(hover.x / PLOT_W) * 100}%`,
-                      }}
-                    >
-                      <div className="indoor-history-panel__tooltip-time">{hover.time}</div>
-                      <div className="indoor-history-panel__tooltip-value">
-                        <span className="indoor-history-panel__tooltip-dot" />
-                        {hover.label}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="indoor-history-panel__x-axis-ticks">
-                  {geometry.axisLabels.map((axisLabel, index) => (
-                    <span
-                      key={`label-${index}`}
-                      className={`indoor-history-panel__x-axis-tick${
-                        index === 0 ? ' indoor-history-panel__x-axis-tick--start' : ''
-                      }${index === geometry.axisLabels.length - 1 ? ' indoor-history-panel__x-axis-tick--end' : ''}`}
-                    >
-                      {formatRangeLabel(points[axisLabel.index]?.time, locale, timeZone, selectedRange)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="indoor-history-panel__legend">
-              <span className="indoor-history-panel__legend-item">
-                <span className="indoor-history-panel__legend-swatch indoor-history-panel__legend-swatch--line" />
-                {metric.label} levels
-              </span>
-              {missingBuckets > 0 ? (
-                <span className="indoor-history-panel__legend-item indoor-history-panel__legend-item--muted">
-                  <span className="indoor-history-panel__legend-swatch indoor-history-panel__legend-swatch--gap" />
-                  {missingBuckets} gap{missingBuckets === 1 ? '' : 's'} in range
-                </span>
-              ) : null}
-            </div>
-
-            <p className="indoor-history-panel__caption">
-              The graph shows the {metric.label === 'AQI' ? 'AQI' : metric.label.toLowerCase()}{' '}
-              {metric.unit === 'aqi' ? 'index' : 'levels'} over the selected time period.
-            </p>
-          </div>
+          {renderMainChartCard(false)}
 
           <div className="indoor-history-panel__footer">
             <p className="indoor-history-panel__footer-status">

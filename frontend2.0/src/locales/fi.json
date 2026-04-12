@@ -141,6 +141,8 @@
   "dashboard.connectSensorPrompt": "Yhdistä anturi aloittaaksesi huonetietojen näkemisen.",
   "dashboard.locations": "Sijainnit",
   "dashboard.airQualityTrends": "Ilmanlaatutrendit",
+  "dashboard.trendsIndoorEmptyTitle": "Sisäilmatrendit vaativat anturin",
+  "dashboard.trendsIndoorEmptyDesc": "Yhdistä sisäilma-anturi, jotta AirIQ voi piirtää tallennetut mittaukset tähän ulkoilmatrendien rinnalle.",
   "dashboard.noData": "Ei tietoja",
   "dashboard.good": "Hyvä",
   "dashboard.setupNeeded": "Asennus tarvitaan",

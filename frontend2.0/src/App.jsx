@@ -986,7 +986,7 @@ export default function App() {
       setIsLoadingIndoorHistory(false)
       return undefined
     }
-    if (route !== '/indoor') {
+    if (route !== '/indoor' && route !== '/trends') {
       return undefined
     }
     let cancelled = false
@@ -1956,24 +1956,54 @@ export default function App() {
       {route === '/trends' ? (<>
         <div className="app-page">
           <div className="app-page-header"><h2>{t('dashboard.airQualityTrends')}</h2><p>{heroLocation}</p></div>
-          <div className="app-card">
-            <PM25Chart
-              history={liveAirData?.history}
-              forecast={liveAirData?.forecast}
-              currentValue={selectedOutdoorTrendMetric?.currentValue ?? null}
-              currentLabel={t('now')}
-              unit={selectedOutdoorTrendMetric?.unit ?? 'ug/m3'}
-              metricKey={selectedOutdoorTrendMetric?.key ?? 'pm25'}
-              metricLabel={selectedOutdoorTrendMetric?.label ?? 'PM2.5'}
-              metricOptions={outdoorTrendMetricOptions}
-              onMetricChange={setOutdoorTrendMetric}
-              valueTransform={selectedOutdoorTrendMetric?.valueTransform}
-              valueDigits={selectedOutdoorTrendMetric?.valueDigits ?? 1}
-              measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
-              sourceProvider={sourceProvider}
-              sourceMethod={sourceMethod}
-              sourceDistanceKm={liveAirData?.source?.distance_km}
-            />
+          <div className="app-trends-section">
+            <h3 className="app-trends-section__title">{t('dashboard.aiOutdoor')}</h3>
+            <div className="app-card">
+              <PM25Chart
+                history={liveAirData?.history}
+                forecast={liveAirData?.forecast}
+                currentValue={selectedOutdoorTrendMetric?.currentValue ?? null}
+                currentLabel={t('now')}
+                unit={selectedOutdoorTrendMetric?.unit ?? 'ug/m3'}
+                metricKey={selectedOutdoorTrendMetric?.key ?? 'pm25'}
+                metricLabel={selectedOutdoorTrendMetric?.label ?? 'PM2.5'}
+                metricOptions={outdoorTrendMetricOptions}
+                onMetricChange={setOutdoorTrendMetric}
+                valueTransform={selectedOutdoorTrendMetric?.valueTransform}
+                valueDigits={selectedOutdoorTrendMetric?.valueDigits ?? 1}
+                measurementTime={liveAirData?.measurement_window?.from ?? liveAirData?.measurement_window?.to}
+                sourceProvider={sourceProvider}
+                sourceMethod={sourceMethod}
+                sourceDistanceKm={liveAirData?.source?.distance_km}
+              />
+            </div>
+          </div>
+          <div className="app-trends-section">
+            <h3 className="app-trends-section__title">{t('dashboard.aiIndoor')}</h3>
+            <div className="app-card">
+              {hasConnectedIndoorSensor ? (
+                <IndoorHistoryPanel
+                  layoutMode="trends"
+                  initialMetric="pm25_ug_m3"
+                  historyData={indoorHistory}
+                  isLoading={isLoadingIndoorHistory}
+                  error={indoorHistoryError}
+                  selectedRange={indoorHistoryRange}
+                  onRangeChange={setIndoorHistoryRange}
+                  onRefresh={() => setIndoorHistoryRefreshNonce((n) => n + 1)}
+                  token={token}
+                  canManageMockData={false}
+                  locale="en-GB"
+                  timeZone={intlTimezone}
+                />
+              ) : (
+                <div className="app-empty-state app-empty-state--compact">
+                  <h3>{t('dashboard.trendsIndoorEmptyTitle')}</h3>
+                  <p>{t('dashboard.trendsIndoorEmptyDesc')}</p>
+                  <button type="button" className="app-btn-primary" onClick={() => handleAddDevice('sensor')}>{t('indoor.connectSensor')}</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </>) : route === '/discord-alerts' ? (<>
@@ -2038,6 +2068,7 @@ export default function App() {
               insightFeedbackVote={sleepInsight?.date ? (sleepInsightFeedbackVotes[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
               insightFeedbackBusy={Boolean(sleepInsight?.date ? sleepInsightFeedbackBusy[`sleep-insight-${sleepInsight.date}`] : false)}
               insightFeedbackError={sleepInsight?.date ? (sleepInsightFeedbackErrors[`sleep-insight-${sleepInsight.date}`] ?? '') : ''}
+              allowGeminiHealthInsights={allowGeminiHealthInsights}
               onRefreshInsight={clearSleepInsight}
               locale="en-GB"
               timeZone={intlTimezone}
@@ -2069,6 +2100,7 @@ export default function App() {
               canGenerateInsight={canAccessPremiumInsights}
               onGenerateInsight={handleGenerateTrainingInsight}
               onOpenSubscription={user?.role === 'admin' ? null : handleOpenSubscription}
+              allowGeminiHealthInsights={allowGeminiHealthInsights}
               locale="en-GB"
               timeZone={intlTimezone}
             />

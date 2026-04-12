@@ -141,6 +141,8 @@
   "dashboard.connectSensorPrompt": "Conecta un sensor para empezar a ver los datos de la habitación.",
   "dashboard.locations": "Ubicaciones",
   "dashboard.airQualityTrends": "Tendencias de calidad del aire",
+  "dashboard.trendsIndoorEmptyTitle": "Las tendencias interiores requieren un sensor",
+  "dashboard.trendsIndoorEmptyDesc": "Conecta tu sensor interior para que AirIQ muestre aquí las lecturas almacenadas junto a las tendencias exteriores.",
   "dashboard.noData": "Sin datos",
   "dashboard.good": "Bueno",
   "dashboard.setupNeeded": "Configuración necesaria",

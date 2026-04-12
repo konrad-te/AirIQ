@@ -257,6 +257,7 @@ export default function SleepHistoryPanel({
   insightFeedbackVote = '',
   insightFeedbackBusy = false,
   insightFeedbackError = '',
+  allowGeminiHealthInsights = false,
   onRefreshInsight,
   locale = 'en-GB',
   timeZone = 'Europe/Warsaw',
@@ -474,6 +475,17 @@ export default function SleepHistoryPanel({
     : []
   const showInsightFeedback = typeof onInsightFeedback === 'function' && Boolean(insightData)
   const canGenerateForSelection = canGenerateInsight && typeof onGenerateInsight === 'function' && Boolean(selectedInsightPoint?.calendar_date)
+  const geminiNotice = typeof insightData?.gemini_explanation_note === 'string' && insightData.gemini_explanation_note.trim()
+    ? {
+        title: t('insight.geminiUnavailableTitle'),
+        body: insightData.gemini_explanation_note,
+      }
+    : (!allowGeminiHealthInsights && canGenerateInsight && insightData
+        ? {
+            title: 'AI wording is off',
+            body: 'This insight is using the standard explanation because AI health insights are off in Settings > Preferences. Turn on Google Gemini there, save preferences, then regenerate this insight.',
+          }
+        : null)
 
   const renderImportPanel = ({ showTitle = true } = {}) => (
     <div className="sleep-history-panel__import">
@@ -759,14 +771,6 @@ export default function SleepHistoryPanel({
                 </div>
               </div>
 
-              <div className="sleep-history-panel__insight-info" role="region" aria-label={t('insight.aiPrivacyTitle')}>
-                <p className="sleep-history-panel__insight-info__title">{t('insight.aiPrivacyTitle')}</p>
-                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP1')}</p>
-                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP2')}</p>
-                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP3')}</p>
-                <p className="sleep-history-panel__insight-info__p">{t('insight.aiPrivacyP4')}</p>
-              </div>
-
               {!canGenerateInsight ? (
                 <div className="sleep-history-panel__insight-state">
                   <div>
@@ -823,18 +827,36 @@ export default function SleepHistoryPanel({
                     </div>
                   </div>
 
-                  {typeof insightData.gemini_explanation_note === 'string' && insightData.gemini_explanation_note.trim() !== '' ? (
+                  {geminiNotice ? (
                     <div className="sleep-history-panel__insight-gemini-note" role="status">
-                      <p className="sleep-history-panel__insight-gemini-note__title">{t('insight.geminiUnavailableTitle')}</p>
-                      <p className="sleep-history-panel__insight-gemini-note__body">{insightData.gemini_explanation_note}</p>
+                      <p className="sleep-history-panel__insight-gemini-note__title">{geminiNotice.title}</p>
+                      <p className="sleep-history-panel__insight-gemini-note__body">{geminiNotice.body}</p>
                     </div>
                   ) : null}
 
                   <div className="sleep-history-panel__insight-summary">
                     <div className="sleep-history-panel__insight-summary-copy">
-                      <span className="sleep-history-panel__insight-source">
-                        {insightData.explanation?.source === 'gemini' ? 'Gemini explanation' : 'Rule-based explanation'}
-                      </span>
+                      <div className="sleep-history-panel__insight-source-row">
+                        <span className="sleep-history-panel__insight-source">
+                          {insightData.explanation?.source === 'gemini' ? 'Gemini explanation' : 'Rule-based explanation'}
+                        </span>
+                        <div className="sleep-history-panel__insight-privacy">
+                          <button
+                            type="button"
+                            className="sleep-history-panel__insight-privacy-trigger"
+                            aria-label={t('insight.aiPrivacyTitle')}
+                          >
+                            About data
+                          </button>
+                          <div className="sleep-history-panel__insight-privacy-tooltip" role="note">
+                            <p className="sleep-history-panel__insight-privacy-title">{t('insight.aiPrivacyTitle')}</p>
+                            <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP1')}</p>
+                            <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP2')}</p>
+                            <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP3')}</p>
+                            <p className="sleep-history-panel__insight-privacy-body">{t('insight.aiPrivacyP4')}</p>
+                          </div>
+                        </div>
+                      </div>
                       <h4>{insightData.explanation?.headline || 'Sleep insight'}</h4>
                       <p>{insightData.explanation?.summary}</p>
                     </div>
