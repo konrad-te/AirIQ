@@ -15,8 +15,9 @@ class GarminTrainingActivity(Base):
     __table_args__ = (
         UniqueConstraint(
             "user_id",
+            "provider",
             "activity_id",
-            name="uq_garmin_training_activities_user_activity",
+            name="uq_garmin_training_activities_user_provider_activity",
         ),
     )
 

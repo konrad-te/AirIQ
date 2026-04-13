@@ -52,6 +52,10 @@ from backend.routers.households import router as households_router
 from backend.routers.integrations import get_qingping_latest_reading
 from backend.routers.integrations import router as integrations_router
 from backend.routers.sleep import router as sleep_router
+from backend.routers.strava import (
+    callback_alias_router as strava_callback_alias_router,
+    router as strava_router,
+)
 from backend.routers.training import router as training_router
 from backend.schemas.feedback import FeedbackCreateSchema, FeedbackOutSchema
 from backend.schemas.suggestion_feedback import (
@@ -152,6 +156,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(households_router)
 app.include_router(integrations_router)
+app.include_router(strava_router)
+app.include_router(strava_callback_alias_router)
 app.include_router(sleep_router)
 app.include_router(ai_router)
 app.include_router(training_router)

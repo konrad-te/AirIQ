@@ -110,6 +110,17 @@ def _normalize_activity_calories(calories_value: Any, bmr_value: Any) -> float |
     return _kilojoules_to_kcal(active_energy_kj)
 
 
+def _normalize_strava_calories(raw_payload: dict[str, Any]) -> float | None:
+    calories = _to_optional_float(raw_payload.get("calories"))
+    if calories is not None:
+        return calories
+
+    kilojoules = _to_optional_float(raw_payload.get("kilojoules"))
+    if kilojoules is not None:
+        return round(kilojoules, 1)
+    return None
+
+
 def _activity_display_calories(activity: GarminTrainingActivity) -> float | None:
     raw_payload = activity.raw_payload_json if isinstance(activity.raw_payload_json, dict) else None
     if raw_payload:
@@ -119,6 +130,11 @@ def _activity_display_calories(activity: GarminTrainingActivity) -> float | None
         )
         if normalized_calories is not None:
             return normalized_calories
+
+        if activity.provider == "strava":
+            normalized_strava_calories = _normalize_strava_calories(raw_payload)
+            if normalized_strava_calories is not None:
+                return normalized_strava_calories
 
     return _to_float(activity.calories)
 
@@ -152,11 +168,19 @@ def _load_status_from_totals(duration_minutes: float, total_calories: float, *, 
     return "moderate"
 
 
-def _query_user_training_rows(db: Session, *, user_id: int) -> list[GarminTrainingActivity]:
+def _query_user_training_rows(
+    db: Session,
+    *,
+    user_id: int,
+    provider: str = "garmin",
+) -> list[GarminTrainingActivity]:
     return (
         db.execute(
             select(GarminTrainingActivity)
-            .where(GarminTrainingActivity.user_id == user_id)
+            .where(
+                GarminTrainingActivity.user_id == user_id,
+                GarminTrainingActivity.provider == provider,
+            )
             .order_by(GarminTrainingActivity.start_time_gmt.desc().nullslast())
         )
         .scalars()
@@ -903,7 +927,7 @@ def _build_rule_based_explanation(
         "training_note": None,
         "caveats": [
             "This is a training-pattern summary, not a diagnosis of fitness or recovery.",
-            "Garmin activity and sleep data can point to load and recovery signals, but they do not replace coaching context, soreness, or readiness measures.",
+            "Activity and sleep data can point to load and recovery signals, but they do not replace coaching context, soreness, or readiness measures.",
         ],
     }
 
@@ -913,9 +937,10 @@ def build_training_insight(
     *,
     current_user: User,
     target_date: date,
+    provider: str = "garmin",
     window_mode: InsightWindowMode = "7d",
 ) -> dict[str, Any]:
-    rows = _query_user_training_rows(db, user_id=current_user.id)
+    rows = _query_user_training_rows(db, user_id=current_user.id, provider=provider)
     day_buckets = _bucket_rows_by_date(rows)
     start_date = target_date - timedelta(days=TRAINING_WINDOW_DAYS - 1)
 
@@ -963,6 +988,7 @@ def build_training_insight(
             "has_heart_rate": period.get("weighted_average_heart_rate") is not None,
             "recent_baseline_days": baseline.get("period_count", 0),
             "window_mode": "7d",
+            "provider": provider,
         },
         "findings": findings,
         "actions": actions,

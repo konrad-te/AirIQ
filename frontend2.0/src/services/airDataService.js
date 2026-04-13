@@ -185,8 +185,13 @@ export async function getSleepInsight(token, date, options = {}) {
   return response.json()
 }
 
-export async function getTrainingHistory(token, range = '90d') {
-  const response = await fetch(`${API_BASE_URL}/api/training/history?range=${encodeURIComponent(range)}`, {
+export async function getTrainingHistory(token, range = '90d', options = {}) {
+  const params = new URLSearchParams({ range })
+  if (options.provider === 'garmin' || options.provider === 'strava') {
+    params.set('provider', options.provider)
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/training/history?${params.toString()}`, {
     cache: 'no-store',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -219,6 +224,9 @@ export async function getTrainingInsight(token, date, options = {}) {
   }
   if (options.window === '7d' || options.window === 'day') {
     params.set('window', options.window)
+  }
+  if (options.provider === 'garmin' || options.provider === 'strava') {
+    params.set('provider', options.provider)
   }
 
   const response = await fetch(`${API_BASE_URL}/api/ai/training-insight?${params.toString()}`, {

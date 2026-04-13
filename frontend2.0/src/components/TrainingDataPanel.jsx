@@ -12,7 +12,7 @@ const MAX_VISIBLE_ACTIVITIES = 18
 const RANGE_OPTIONS = ['30d', '90d', '180d', 'all']
 const TRAINING_SOURCES = [
   { key: 'garmin', label: 'Garmin import', detail: 'Upload Garmin export files' },
-  { key: 'strava', label: 'Strava', detail: 'Coming soon' },
+  { key: 'strava', label: 'Strava', detail: 'Connect and sync activities' },
 ]
 const METRICS = [
   { key: 'activity_count_value', label: 'Activities', shortLabel: 'Activities', unit: 'count' },
@@ -225,6 +225,8 @@ export default function TrainingDataPanel({
   calendarTrainingData = trainingData,
   isLoading,
   error,
+  selectedSource = 'garmin',
+  onSelectedSourceChange = null,
   selectedRange,
   onRangeChange,
   onImport,
@@ -232,6 +234,13 @@ export default function TrainingDataPanel({
   importNotice,
   importError,
   onRefresh,
+  stravaStatus = null,
+  stravaStatusLoading = false,
+  stravaBusy = false,
+  stravaNotice = '',
+  stravaError = '',
+  onConnectStrava = null,
+  onSyncStrava = null,
   selectedInsightDate,
   onSelectInsightDate,
   insightData,
@@ -247,7 +256,6 @@ export default function TrainingDataPanel({
   timeZone = 'Europe/Warsaw',
 }) {
   const { t } = useTranslation()
-  const [selectedSource, setSelectedSource] = useState('garmin')
   const [selectedFiles, setSelectedFiles] = useState([])
   const [selectedMetric, setSelectedMetric] = useState('training_time_hours')
   const [activityPage, setActivityPage] = useState(0)
@@ -287,6 +295,7 @@ export default function TrainingDataPanel({
     { key: 'source', label: 'Source', value: shortHealthDataSourceLabel(trainingData?.source_label) },
   ], [selectedInsightPoint, trainingData?.source_label])
   const selectedDayActivities = useMemo(() => activities.filter((activity) => getActivityCalendarDate(activity) === selectedInsightPoint?.calendar_date).slice(0, 6), [activities, selectedInsightPoint?.calendar_date])
+  const isStravaSource = selectedSource === 'strava'
   const canGenerateForSelection = canGenerateInsight && typeof onGenerateInsight === 'function' && Boolean(selectedInsightPoint?.calendar_date)
   const insightTopStats = useMemo(() => !insightData ? [] : [
     { key: 'active-days', label: 'Active days', value: `${formatNumber(insightData.day?.active_day_count, 0)} / 7` },
@@ -383,7 +392,7 @@ export default function TrainingDataPanel({
           role="tab"
           aria-selected={selectedSource === source.key}
           className={`training-data-panel__source-option${selectedSource === source.key ? ' training-data-panel__source-option--active' : ''}`}
-          onClick={() => setSelectedSource(source.key)}
+          onClick={() => onSelectedSourceChange?.(source.key)}
         >
           <span className="training-data-panel__source-option-label">{source.label}</span>
           <span className={`training-data-panel__source-option-detail${source.key === 'strava' ? ' training-data-panel__source-option-detail--soon' : ''}`}>{source.detail}</span>
@@ -449,7 +458,7 @@ export default function TrainingDataPanel({
   ) : null
   const helpModal = helpModalContent && typeof document !== 'undefined' ? createPortal(helpModalContent, document.body) : null
 
-  if (selectedSource === 'strava') {
+  if (isStravaSource && stravaStatus?.is_connected !== true) {
     return (
       <section className="indoor-history-panel sleep-history-panel training-data-panel" aria-label="Training data overview">
         <div className="indoor-history-panel__top">
@@ -460,9 +469,13 @@ export default function TrainingDataPanel({
         {renderSourcePicker()}
         <div className="training-data-panel__coming-soon">
           <p className="training-data-panel__coming-soon-eyebrow">Strava</p>
-          <h3>Coming soon</h3>
-          <p>Strava import and account connection are not available in AirIQ yet. Garmin import is still the working option today.</p>
-          <p>When this lands, the plan is to support direct Strava sync instead of sending you through a broken setup flow.</p>
+          <h3>{stravaStatusLoading ? 'Checking Strava connection...' : 'Connect Strava to sync activities'}</h3>
+          <p>Use your Strava account to pull recent activities into AirIQ without replacing the Garmin data you already imported.</p>
+          <div className="training-data-panel__coming-soon-actions">
+            {typeof onConnectStrava === 'function' ? <button type="button" className="training-data-panel__refresh-btn" onClick={onConnectStrava} disabled={stravaBusy || stravaStatusLoading}>{stravaBusy ? 'Opening Strava...' : 'Connect Strava'}</button> : null}
+          </div>
+          {stravaNotice ? <p className="training-data-panel__import-notice">{stravaNotice}</p> : null}
+          {stravaError ? <p className="training-data-panel__import-error">{stravaError}</p> : null}
         </div>
       </section>
     )
@@ -473,7 +486,7 @@ export default function TrainingDataPanel({
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
           {renderSourcePicker()}
-          <div className="indoor-history-panel__state indoor-history-panel__state--loading"><div className="indoor-history-panel__spinner" aria-hidden /><div><h4>Loading training history...</h4><p>Pulling imported Garmin sessions from your timeline.</p></div></div>
+          <div className="indoor-history-panel__state indoor-history-panel__state--loading"><div className="indoor-history-panel__spinner" aria-hidden /><div><h4>Loading training history...</h4><p>{isStravaSource ? 'Pulling synced Strava activities from your timeline.' : 'Pulling imported Garmin sessions from your timeline.'}</p></div></div>
         </section>
         {helpModal}
       </>
@@ -485,7 +498,7 @@ export default function TrainingDataPanel({
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
           {renderSourcePicker()}
-          {renderImportSection()}
+          {!isStravaSource ? renderImportSection() : null}
           <div className="indoor-history-panel__state indoor-history-panel__state--error"><h4>Could not load training history</h4><p>{error}</p></div>
         </section>
         {helpModal}
@@ -498,10 +511,13 @@ export default function TrainingDataPanel({
       <>
         <section className="indoor-history-panel sleep-history-panel training-data-panel">
           {renderSourcePicker()}
-          {renderImportSection()}
+          {!isStravaSource ? renderImportSection() : null}
           <div className="indoor-history-panel__state indoor-history-panel__state--empty">
-            <h4>No imported training data yet</h4>
-            <p>Your training chart will appear here after you import. Use <strong>How to import the training data</strong> above for step-by-step export instructions.</p>
+            <h4>{isStravaSource ? 'No synced Strava activities yet' : 'No imported training data yet'}</h4>
+            <p>{isStravaSource ? 'Your training chart will appear here after you sync Strava. AirIQ will add newer Strava activities without deleting your earlier Garmin imports.' : <>Your training chart will appear here after you import. Use <strong>How to import the training data</strong> above for step-by-step export instructions.</>}</p>
+            {isStravaSource && typeof onSyncStrava === 'function' ? <button type="button" className="training-data-panel__refresh-btn" onClick={onSyncStrava} disabled={stravaBusy}>{stravaBusy ? 'Syncing...' : 'Sync Strava now'}</button> : null}
+            {stravaNotice ? <p className="training-data-panel__import-notice">{stravaNotice}</p> : null}
+            {stravaError ? <p className="training-data-panel__import-error">{stravaError}</p> : null}
           </div>
         </section>
         {helpModal}
@@ -516,12 +532,24 @@ export default function TrainingDataPanel({
           <h2 className="indoor-history-panel__page-title">Training data history</h2>
         </div>
         <div className="sleep-history-panel__top-actions">
-          <button type="button" className="sleep-history-panel__import-new-btn" onClick={() => setIsImportModalOpen(true)}>
-            Import new data
-          </button>
+          {!isStravaSource ? (
+            <button type="button" className="sleep-history-panel__import-new-btn" onClick={() => setIsImportModalOpen(true)}>
+              Import new data
+            </button>
+          ) : typeof onSyncStrava === 'function' ? (
+            <button type="button" className="sleep-history-panel__import-new-btn" onClick={onSyncStrava} disabled={stravaBusy}>
+              {stravaBusy ? 'Syncing...' : 'Sync Strava'}
+            </button>
+          ) : null}
         </div>
       </div>
       {renderSourcePicker()}
+      {isStravaSource && (stravaNotice || stravaError) ? (
+        <div className="training-data-panel__source-feedback">
+          {stravaNotice ? <p className="training-data-panel__import-notice">{stravaNotice}</p> : null}
+          {stravaError ? <p className="training-data-panel__import-error">{stravaError}</p> : null}
+        </div>
+      ) : null}
 
       <div className="sleep-history-panel__night-dashboard training-data-panel__dashboard">
         <section className="sleep-history-panel__selected-day">
@@ -755,7 +783,7 @@ export default function TrainingDataPanel({
           </div>
         </div>
         <div className="indoor-history-panel__legend"><span className="indoor-history-panel__legend-item"><span className="indoor-history-panel__legend-swatch indoor-history-panel__legend-swatch--line" />{metric.label}</span></div>
-        <p className="indoor-history-panel__caption">Each point represents one training day aggregated from your Garmin sessions. Click any point to switch the selected day for the AI analysis.</p>
+        <p className="indoor-history-panel__caption">Each point represents one training day aggregated from your {isStravaSource ? 'Strava activities' : 'Garmin sessions'}. Click any point to switch the selected day for the AI analysis.</p>
       </div>
       <div className="training-data-panel__support-grid">
         <section className="training-data-panel__section">
@@ -771,6 +799,8 @@ export default function TrainingDataPanel({
               <article key={sport.sport_key} className="training-data-panel__sport-card">
                 <div className="training-data-panel__sport-head">
                   <strong>{sport.label}</strong>
+                </div>
+                <div className="training-data-panel__sport-meta">
                   <span>{sport.activity_count} session{sport.activity_count === 1 ? '' : 's'}</span>
                 </div>
                 <div className="training-data-panel__sport-metrics">
@@ -845,7 +875,7 @@ export default function TrainingDataPanel({
         {typeof onRefresh === 'function' ? <button type="button" className="indoor-history-panel__refresh-btn" onClick={onRefresh}>Refresh timeline</button> : null}
       </div>
 
-      {isImportModalOpen ? (
+      {isImportModalOpen && !isStravaSource ? (
         <div className="sleep-history-panel__modal-backdrop" onClick={() => setIsImportModalOpen(false)}>
           <div className="sleep-history-panel__modal sleep-history-panel__modal--import" role="dialog" aria-modal="true" aria-labelledby="training-import-modal-title" onClick={(event) => event.stopPropagation()}>
             <div className="sleep-history-panel__modal-head">

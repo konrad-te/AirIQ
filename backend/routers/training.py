@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/training", tags=["training"])
 KILOJOULES_PER_KILOCALORIE = 4.184
+SUPPORTED_TRAINING_PROVIDERS = {"garmin", "strava"}
 
 TRAINING_HISTORY_RANGE_TO_WINDOW = {
     "30d": timedelta(days=30),
@@ -129,6 +130,17 @@ def _normalize_activity_calories(calories_value: Any, bmr_value: Any) -> float |
     return _kilojoules_to_kcal(active_energy_kj)
 
 
+def _normalize_strava_calories(raw_payload: dict[str, Any]) -> float | None:
+    calories = _to_optional_float(raw_payload.get("calories"))
+    if calories is not None:
+        return calories
+
+    kilojoules = _to_optional_float(raw_payload.get("kilojoules"))
+    if kilojoules is not None:
+        return round(kilojoules, 1)
+    return None
+
+
 def _normalize_training_activity(
     row: dict[str, Any],
     *,
@@ -144,6 +156,7 @@ def _normalize_training_activity(
         return None
 
     return {
+        "provider": "garmin",
         "activity_id": normalized_activity_id,
         "external_uuid": (
             f"{row.get('uuidMsb')}:{row.get('uuidLsb')}"
@@ -170,7 +183,7 @@ def _normalize_training_activity(
 
 
 def _apply_activity_fields(record: GarminTrainingActivity, normalized: dict[str, Any]) -> None:
-    record.provider = "garmin"
+    record.provider = str(normalized.get("provider") or "garmin")
     record.activity_id = normalized["activity_id"]
     record.external_uuid = normalized.get("external_uuid")
     record.source_file_name = normalized.get("source_file_name")
@@ -207,6 +220,11 @@ def _activity_display_calories(activity: GarminTrainingActivity) -> float | None
         )
         if normalized_calories is not None:
             return normalized_calories
+
+        if activity.provider == "strava":
+            normalized_strava_calories = _normalize_strava_calories(raw_payload)
+            if normalized_strava_calories is not None:
+                return normalized_strava_calories
 
     stored_value = _to_float(activity.calories)
     return stored_value
@@ -350,6 +368,7 @@ def _build_history_response(
     rows: list[GarminTrainingActivity],
     *,
     range_key: str,
+    provider: str,
     current_user: User,
     db: Session,
 ) -> TrainingHistoryResponseSchema:
@@ -437,7 +456,7 @@ def _build_history_response(
 
     return TrainingHistoryResponseSchema(
         range=range_key,
-        source_label="Garmin activity import",
+        source_label="Garmin activity import" if provider == "garmin" else "Strava activity sync",
         latest_activity_at=latest_row.start_time_gmt if latest_row else None,
         latest_imported_at=latest_row.updated_at if latest_row else None,
         total_activities=len(rows),
@@ -521,6 +540,7 @@ async def import_training_files(
             db.execute(
                 select(GarminTrainingActivity).where(
                     GarminTrainingActivity.user_id == current_user.id,
+                    GarminTrainingActivity.provider == "garmin",
                     GarminTrainingActivity.activity_id.in_(activity_ids),
                 )
             )
@@ -573,6 +593,7 @@ async def import_training_files(
 def get_training_history(
     response: Response,
     range_key: str = Query("90d", alias="range"),
+    provider: str = Query("garmin"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TrainingHistoryResponseSchema:
@@ -581,8 +602,13 @@ def get_training_history(
 
     if range_key not in TRAINING_HISTORY_RANGE_TO_WINDOW:
         raise HTTPException(status_code=400, detail="Unsupported training history range.")
+    if provider not in SUPPORTED_TRAINING_PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unsupported training provider.")
 
-    stmt = select(GarminTrainingActivity).where(GarminTrainingActivity.user_id == current_user.id)
+    stmt = select(GarminTrainingActivity).where(
+        GarminTrainingActivity.user_id == current_user.id,
+        GarminTrainingActivity.provider == provider,
+    )
     window = TRAINING_HISTORY_RANGE_TO_WINDOW[range_key]
     if window is not None:
         start_at = datetime.now(UTC) - window
@@ -602,6 +628,7 @@ def get_training_history(
     return _build_history_response(
         rows,
         range_key=range_key,
+        provider=provider,
         current_user=current_user,
         db=db,
     )

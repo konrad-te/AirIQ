@@ -422,6 +422,7 @@ def get_sleep_insight(
 def get_training_insight(
     target_date: str = Query(..., alias="date"),
     window: str = Query("7d"),
+    provider: str = Query("garmin"),
     include_ai: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -433,6 +434,8 @@ def get_training_insight(
         )
     if window not in {"day", "7d"}:
         raise HTTPException(status_code=400, detail="Training insight window must be '7d'.")
+    if provider not in {"garmin", "strava"}:
+        raise HTTPException(status_code=400, detail="Unsupported training provider.")
 
     try:
         parsed_date = datetime.strptime(target_date, "%Y-%m-%d").date()
@@ -444,6 +447,7 @@ def get_training_insight(
             db,
             current_user=current_user,
             target_date=parsed_date,
+            provider=provider,
             window_mode="7d",
         )
     except ValueError as exc:

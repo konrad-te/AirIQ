@@ -85,3 +85,55 @@ export async function selectQingpingDevice(token, deviceId) {
 
   return data
 }
+
+export async function getStravaIntegrationStatus(token) {
+  const authToken = requireAuthToken(token)
+  const response = await fetch(`${API_BASE_URL}/api/integrations/strava/status`, {
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(data.detail || 'Failed to load Strava integration status.')
+  }
+
+  return data
+}
+
+export async function getStravaConnectUrl(token) {
+  const authToken = requireAuthToken(token)
+  const response = await fetch(`${API_BASE_URL}/api/integrations/strava/connect-url`, {
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(data.detail || 'Failed to prepare Strava connection.')
+  }
+
+  return data
+}
+
+export async function syncStravaActivities(token) {
+  const authToken = requireAuthToken(token)
+  const response = await fetch(`${API_BASE_URL}/api/integrations/strava/sync`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(data.detail || 'Failed to sync Strava activities.')
+  }
+
+  return data
+}

@@ -432,19 +432,34 @@
 
 .training-data-panel__sport-card {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.5rem;
   padding: 0.95rem 1rem;
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(246, 251, 253, 0.98), rgba(236, 246, 250, 0.98));
   border: 1px solid rgba(184, 222, 227, 0.72);
 }
 
-.training-data-panel__sport-head,
 .training-data-panel__sport-metrics {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.training-data-panel__sport-head {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.training-data-panel__sport-head strong {
+  min-width: 0;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.training-data-panel__sport-meta {
+  display: flex;
+  align-items: center;
 }
 
 .training-data-panel__sport-metrics {
@@ -546,6 +561,12 @@
 .training-data-panel__coming-soon p {
   color: #5c789a;
   line-height: 1.6;
+}
+
+.training-data-panel__coming-soon-actions,
+.training-data-panel__source-feedback {
+  display: grid;
+  gap: 0.55rem;
 }
 
 .training-data-panel__modal-backdrop {

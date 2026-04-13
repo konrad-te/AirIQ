@@ -40,6 +40,31 @@ def _round(value: float | None, digits: int = 1) -> float | None:
     return round(value, digits)
 
 
+def _training_calories(activity: GarminTrainingActivity) -> float | None:
+    stored_calories = _to_float(activity.calories)
+    if stored_calories is not None:
+        return stored_calories
+
+    raw_payload = activity.raw_payload_json if isinstance(activity.raw_payload_json, dict) else None
+    if not raw_payload or activity.provider != "strava":
+        return stored_calories
+
+    calories = raw_payload.get("calories")
+    if calories not in (None, ""):
+        try:
+            return float(calories)
+        except (TypeError, ValueError):
+            pass
+
+    kilojoules = raw_payload.get("kilojoules")
+    if kilojoules not in (None, ""):
+        try:
+            return round(float(kilojoules), 1)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def _avg(values: list[float]) -> float | None:
     if not values:
         return None
@@ -493,7 +518,7 @@ def _load_outdoor_context(
 def _training_intensity(activity: GarminTrainingActivity) -> str | None:
     avg_hr = _to_float(activity.average_heart_rate)
     duration_minutes = _to_float(activity.duration_minutes)
-    calories = _to_float(activity.calories)
+    calories = _training_calories(activity)
     if avg_hr is not None:
         if avg_hr >= 155 or (duration_minutes is not None and duration_minutes >= 90 and avg_hr >= 145):
             return "hard"
@@ -554,7 +579,7 @@ def _load_training_context(
         "sport_type": activity.sport_type or activity.activity_type,
         "start_time_gmt": activity.start_time_gmt,
         "duration_minutes": _round(_to_float(activity.duration_minutes)),
-        "calories": _round(_to_float(activity.calories)),
+        "calories": _round(_training_calories(activity)),
         "average_heart_rate": _round(_to_float(activity.average_heart_rate)),
         "intensity": _training_intensity(activity),
         "hours_before_sleep": _round(hours_before_sleep),

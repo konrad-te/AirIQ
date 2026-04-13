@@ -290,15 +290,20 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: var(--glass-bg);
-  backdrop-filter: saturate(180%) blur(var(--glass-blur));
-  -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
-  border: 0.5px solid var(--glass-border);
+  /* Nearly solid so busy dashboard content does not bleed through */
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: saturate(180%) blur(32px);
+  -webkit-backdrop-filter: saturate(180%) blur(32px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--app-radius);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 12px 48px rgba(0, 0, 0, 0.14),
+    0 4px 16px rgba(0, 0, 0, 0.08);
   z-index: 95;
   overflow: hidden;
   min-width: 220px;
+  isolation: isolate;
 }
 
 .app-dropdown--notif { min-width: 300px; }

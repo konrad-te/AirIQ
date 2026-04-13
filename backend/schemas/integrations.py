@@ -69,3 +69,33 @@ class QingpingLatestReadingResponseSchema(BaseModel):
     pm10_ug_m3: float | None = None
     co2_ppm: float | None = None
     battery_pct: float | None = None
+
+
+class StravaConnectUrlResponseSchema(BaseModel):
+    ok: bool
+    provider: str
+    authorization_url: str
+
+
+class StravaStatusResponseSchema(BaseModel):
+    ok: bool
+    provider: str
+    is_configured: bool
+    is_connected: bool
+    athlete_id: int | None = None
+    athlete_username: str | None = None
+    athlete_name: str | None = None
+    scope: str | None = None
+    token_expires_at: datetime | None = None
+    last_synced_at: datetime | None = None
+
+
+class StravaSyncResponseSchema(BaseModel):
+    ok: bool
+    provider: str
+    message: str
+    fetched: int
+    imported: int
+    updated: int
+    skipped: int
+    last_synced_at: datetime | None = None

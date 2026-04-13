@@ -29,7 +29,7 @@ import { useAuth } from './context/AuthContext'
 import { MAX_DASHBOARD_SUGGESTIONS } from './types/suggestions'
 import { geocodeAddress, getAirQualityData, getHomeSuggestions, getIndoorSensorData, getIndoorSensorHistory, getSleepHistory, getSleepInsight, getTrainingHistory, getTrainingInsight, importSleepDataFiles, importTrainingDataFiles, reverseGeocodeCoordinates, suggestAddresses } from './services/airDataService'
 import { addSavedLocation, getPreferences, getSavedLocations, previewAdminSuggestions, removeSavedLocation, resendActivation, submitSuggestionFeedback, updateUserPlan } from './services/authService'
-import { getQingpingIntegrationStatus } from './services/integrationService'
+import { getQingpingIntegrationStatus, getStravaConnectUrl, getStravaIntegrationStatus, syncStravaActivities } from './services/integrationService'
 const mockData = {
   location: 'Stockholm, Sweden',
 }
@@ -347,6 +347,10 @@ export default function App() {
   const [trainingPreviewError, setTrainingPreviewError] = useState('')
   const [trainingPreviewRefreshNonce, setTrainingPreviewRefreshNonce] = useState(0)
   const [trainingHistoryRange, setTrainingHistoryRange] = useState('90d')
+  const [selectedTrainingSource, setSelectedTrainingSource] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('training_source') === 'strava' ? 'strava' : 'garmin'
+  })
   const [selectedTrainingInsightDate, setSelectedTrainingInsightDate] = useState('')
   const [selectedTrainingInsightWindow, setSelectedTrainingInsightWindow] = useState('7d')
   const [trainingInsight, setTrainingInsight] = useState(null)
@@ -355,6 +359,11 @@ export default function App() {
   const [requestedTrainingInsightDate, setRequestedTrainingInsightDate] = useState('')
   const [requestedTrainingInsightWindow, setRequestedTrainingInsightWindow] = useState('7d')
   const [trainingInsightRefreshNonce, setTrainingInsightRefreshNonce] = useState(0)
+  const [stravaStatus, setStravaStatus] = useState(null)
+  const [isLoadingStravaStatus, setIsLoadingStravaStatus] = useState(false)
+  const [isWorkingStrava, setIsWorkingStrava] = useState(false)
+  const [stravaNotice, setStravaNotice] = useState('')
+  const [stravaError, setStravaError] = useState('')
   const [allowGeminiHealthInsights, setAllowGeminiHealthInsights] = useState(false)
   const prevAllowGeminiHealthInsightsRef = useRef(null)
   const [isImportingTrainingData, setIsImportingTrainingData] = useState(false)
@@ -510,6 +519,39 @@ export default function App() {
     setRequestedTrainingInsightDate(selectedTrainingInsightDate)
     setRequestedTrainingInsightWindow(selectedTrainingInsightWindow)
     setTrainingInsightRefreshNonce((value) => value + 1)
+  }
+  const handleConnectStrava = async () => {
+    if (!token) return
+    setIsWorkingStrava(true)
+    setStravaError('')
+    setStravaNotice('')
+    try {
+      const payload = await getStravaConnectUrl(token)
+      if (typeof payload?.authorization_url !== 'string' || payload.authorization_url.trim() === '') {
+        throw new Error('Strava did not return an authorization URL.')
+      }
+      window.location.assign(payload.authorization_url)
+    } catch (error) {
+      setStravaError(error instanceof Error ? error.message : 'Failed to start Strava connection.')
+      setIsWorkingStrava(false)
+    }
+  }
+  const handleSyncStrava = async () => {
+    if (!token) return
+    setIsWorkingStrava(true)
+    setStravaError('')
+    setStravaNotice('')
+    try {
+      const result = await syncStravaActivities(token)
+      setStravaNotice(result?.message || 'Strava sync finished.')
+      setTrainingPreviewRefreshNonce((value) => value + 1)
+      const statusPayload = await getStravaIntegrationStatus(token)
+      setStravaStatus(statusPayload)
+    } catch (error) {
+      setStravaError(error instanceof Error ? error.message : 'Failed to sync Strava activities.')
+    } finally {
+      setIsWorkingStrava(false)
+    }
   }
   const handlePlanChange = async (nextPlan) => {
     if (!token) return
@@ -798,6 +840,25 @@ export default function App() {
   }, [token, isLoadingAuth, i18n])
 
   useEffect(() => {
+    if (route !== '/training') return
+    const params = new URLSearchParams(window.location.search)
+    const source = params.get('training_source')
+    const stravaResult = params.get('strava')
+    const message = params.get('message')
+    if (source === 'strava') {
+      setSelectedTrainingSource('strava')
+    }
+    if (stravaResult === 'connected') {
+      setStravaNotice('Strava connected successfully.')
+    } else if (stravaResult === 'error') {
+      setStravaError(message || 'Strava connection failed.')
+    } else {
+      return
+    }
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [route])
+
+  useEffect(() => {
     const onPrefsUpdated = () => {
       if (!token || isLoadingAuth) return
       getPreferences(token)
@@ -812,6 +873,42 @@ export default function App() {
     window.addEventListener('airtq-preferences-updated', onPrefsUpdated)
     return () => window.removeEventListener('airtq-preferences-updated', onPrefsUpdated)
   }, [token, isLoadingAuth])
+
+  useEffect(() => {
+    if (isLoadingAuth || !token) {
+      setStravaStatus(null)
+      setIsLoadingStravaStatus(false)
+      return undefined
+    }
+    if (route !== '/training') {
+      return undefined
+    }
+    let cancelled = false
+    const loadStravaStatus = async () => {
+      try {
+        if (!cancelled) {
+          setIsLoadingStravaStatus(true)
+        }
+        const payload = await getStravaIntegrationStatus(token)
+        if (!cancelled) {
+          setStravaStatus(payload)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStravaStatus(null)
+          setStravaError(error instanceof Error ? error.message : 'Failed to load Strava status.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingStravaStatus(false)
+        }
+      }
+    }
+    loadStravaStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [token, isLoadingAuth, route, trainingPreviewRefreshNonce])
 
   useEffect(() => {
     if (prevAllowGeminiHealthInsightsRef.current === null) {
@@ -1180,6 +1277,15 @@ export default function App() {
     if (route !== '/training') {
       return undefined
     }
+    if (selectedTrainingSource === 'strava' && stravaStatus?.is_connected !== true) {
+      setTrainingPreview(null)
+      setTrainingCalendarHistory(null)
+      setTrainingPreviewError('')
+      setIsLoadingTrainingPreview(false)
+      setSelectedTrainingInsightDate('')
+      clearTrainingInsight()
+      return undefined
+    }
     let cancelled = false
     const loadTrainingPreview = async () => {
       try {
@@ -1188,8 +1294,11 @@ export default function App() {
           setTrainingPreviewError('')
         }
         const historyRequests = trainingHistoryRange === 'all'
-          ? [getTrainingHistory(token, 'all')]
-          : [getTrainingHistory(token, trainingHistoryRange), getTrainingHistory(token, 'all')]
+          ? [getTrainingHistory(token, 'all', { provider: selectedTrainingSource })]
+          : [
+              getTrainingHistory(token, trainingHistoryRange, { provider: selectedTrainingSource }),
+              getTrainingHistory(token, 'all', { provider: selectedTrainingSource }),
+            ]
         const [chartResult, calendarResult] = await Promise.allSettled(historyRequests)
         if (chartResult.status !== 'fulfilled') {
           throw chartResult.reason
@@ -1216,7 +1325,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [token, isLoadingAuth, route, trainingHistoryRange, trainingPreviewRefreshNonce])
+  }, [token, isLoadingAuth, route, trainingHistoryRange, trainingPreviewRefreshNonce, selectedTrainingSource, stravaStatus?.is_connected])
   useEffect(() => {
     if (route !== '/training') return
     const selectionHistory = trainingCalendarHistory ?? trainingPreview
@@ -1257,6 +1366,7 @@ export default function App() {
         const payload = await getTrainingInsight(token, requestedTrainingInsightDate, {
           includeAi: allowGeminiHealthInsights,
           window: requestedTrainingInsightWindow,
+          provider: selectedTrainingSource,
         })
         if (!cancelled) {
           setTrainingInsight(payload)
@@ -1287,6 +1397,7 @@ export default function App() {
     selectedTrainingInsightWindow,
     trainingInsightRefreshNonce,
     allowGeminiHealthInsights,
+    selectedTrainingSource,
   ])
   useEffect(() => {
     if (!selectedTrainingInsightDate) {
@@ -1304,6 +1415,13 @@ export default function App() {
     if (route !== '/training' || canAccessPremiumInsights) return
     clearTrainingInsight()
   }, [route, canAccessPremiumInsights])
+  useEffect(() => {
+    clearTrainingInsight()
+    setTrainingPreview(null)
+    setTrainingCalendarHistory(null)
+    setTrainingPreviewError('')
+    setSelectedTrainingInsightDate('')
+  }, [selectedTrainingSource])
   const handleTrainingImport = async (files) => {
     if (!token || !files?.length) return
     setIsImportingTrainingData(true)
@@ -2083,6 +2201,12 @@ export default function App() {
               calendarTrainingData={trainingCalendarHistory ?? trainingPreview}
               isLoading={isLoadingTrainingPreview}
               error={trainingPreviewError}
+              selectedSource={selectedTrainingSource}
+              onSelectedSourceChange={(nextSource) => {
+                setSelectedTrainingSource(nextSource)
+                setStravaNotice('')
+                setStravaError('')
+              }}
               selectedRange={trainingHistoryRange}
               onRangeChange={setTrainingHistoryRange}
               onImport={handleTrainingImport}
@@ -2090,6 +2214,13 @@ export default function App() {
               importNotice={trainingImportNotice}
               importError={trainingImportError}
               onRefresh={() => setTrainingPreviewRefreshNonce((value) => value + 1)}
+              stravaStatus={stravaStatus}
+              stravaStatusLoading={isLoadingStravaStatus}
+              stravaBusy={isWorkingStrava}
+              stravaNotice={stravaNotice}
+              stravaError={stravaError}
+              onConnectStrava={handleConnectStrava}
+              onSyncStrava={handleSyncStrava}
               selectedInsightDate={selectedTrainingInsightDate}
               onSelectInsightDate={setSelectedTrainingInsightDate}
               insightData={trainingInsight}

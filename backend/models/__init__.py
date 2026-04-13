@@ -21,6 +21,7 @@ from .user import User
 from .user_qingping_integration import UserQingpingIntegration
 from .user_preference import UserPreference
 from .user_sessions import UserSession
+from .user_strava_integration import UserStravaIntegration
 
 __all__ = [
     "Base",
@@ -46,4 +47,5 @@ __all__ = [
     "UserQingpingIntegration",
     "UserPreference",
     "UserSession",
+    "UserStravaIntegration",
 ]

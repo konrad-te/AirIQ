@@ -68,6 +68,7 @@ _RESERVE_NEXT_ID_TABLES: frozenset[str] = frozenset(
         "households",
         "user_preferences",
         "user_sessions",
+        "user_strava_integrations",
         "users",
     }
 )

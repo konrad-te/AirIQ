@@ -634,9 +634,14 @@ export default function OutdoorDayAdvicePanel({
       className={`outdoor-panel outdoor-panel--${summaryTone}`}
       aria-label={useNextDayPlan ? 'Outdoor outlook for tomorrow' : 'Outdoor outlook for today'}
     >
-      {/* ── Top bar: location + date + badge ── */}
+      {/* ── Top bar: date → day status → address (right) ── */}
       <div className="outdoor-panel__topbar">
-        <div className="outdoor-panel__topbar-left">
+        <span className="outdoor-panel__date">{dateLabel}</span>
+        <span className={`outdoor-panel__badge outdoor-panel__badge--${summaryTone}`}>
+          <span className="outdoor-panel__badge-dot" aria-hidden />
+          {overallDay.label}
+        </span>
+        <div className="outdoor-panel__topbar-address">
           {onLocationClick ? (
             <button type="button" className="outdoor-panel__location" onClick={onLocationClick}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
@@ -646,12 +651,7 @@ export default function OutdoorDayAdvicePanel({
           ) : (
             <span className="outdoor-panel__location outdoor-panel__location--static">{locationLabel}</span>
           )}
-          <span className="outdoor-panel__date">{dateLabel}</span>
         </div>
-        <span className={`outdoor-panel__badge outdoor-panel__badge--${summaryTone}`}>
-          <span className="outdoor-panel__badge-dot" aria-hidden />
-          {overallDay.label}
-        </span>
       </div>
 
       {/* ── Summary hero with banner ── */}
