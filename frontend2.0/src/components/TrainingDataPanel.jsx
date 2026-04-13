@@ -421,7 +421,7 @@ export default function TrainingDataPanel({
           onClick={() => onSelectedSourceChange?.(source.key)}
         >
           <span className="training-data-panel__source-option-label">{source.label}</span>
-          <span className={`training-data-panel__source-option-detail${source.key === 'strava' ? ' training-data-panel__source-option-detail--soon' : ''}`}>{source.detail}</span>
+          <span className="training-data-panel__source-option-detail">{source.detail}</span>
         </button>
       ))}
     </div>
