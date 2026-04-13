@@ -12,25 +12,20 @@ from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend.models import (
     CityPoint,
-    DataProvider,
-    GeocodeCacheEntry,
+    Feedback,
     GlobeAqCache,
-    IngestRun,
-    LocationStationCache,
-    ProviderCacheEntry,
+    SuggestionFeedback,
     User,
     UserSession,
 )
 
 logger = logging.getLogger(__name__)
 
-WEBHOOK_URL = os.getenv(
-    "DISCORD_WEBHOOK_URL",
-)
+WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
 
 def _status_color(ok: bool) -> int:
-    return 0x2ECC71 if ok else 0xE74C3C  # green / red
+    return 0x2ECC71 if ok else 0xE74C3C
 
 
 def _format_bytes(value: int) -> str:
@@ -55,7 +50,9 @@ def _get_disk_usage_snapshot(path: str = "/") -> dict[str, int]:
 
 def _get_database_size_bytes(db: Session) -> int | None:
     try:
-        return db.execute(select(func.pg_database_size(func.current_database()))).scalar_one()
+        return db.execute(
+            select(func.pg_database_size(func.current_database()))
+        ).scalar_one()
     except Exception:
         logger.exception("Failed to read Postgres database size for Discord monitor")
         return None
@@ -65,7 +62,6 @@ def build_status_embed(db: Session) -> dict:
     now = datetime.now(UTC)
     online_threshold = now - timedelta(minutes=15)
 
-    # Users
     total_users = db.execute(select(func.count(User.id))).scalar_one()
     online_users = db.execute(
         select(func.count(func.distinct(UserSession.user_id))).where(
@@ -75,7 +71,6 @@ def build_status_embed(db: Session) -> dict:
         )
     ).scalar_one()
 
-    # AQ coverage
     total_cities = db.execute(
         select(func.count(CityPoint.id)).where(CityPoint.is_active.is_(True))
     ).scalar_one()
@@ -91,52 +86,37 @@ def build_status_embed(db: Session) -> dict:
     ).scalar_one()
     coverage_pct = round(globe_fresh / total_cities * 100, 1) if total_cities else 0
 
-    # Cache health
-    provider_active = db.execute(
-        select(func.count(ProviderCacheEntry.id)).where(
-            ProviderCacheEntry.expires_at >= now
+    total_feedback = db.execute(select(func.count(Feedback.id))).scalar_one()
+    unread_feedback = db.execute(
+        select(func.count(Feedback.id)).where(Feedback.is_read.is_(False))
+    ).scalar_one()
+    total_suggestion_feedback = db.execute(
+        select(func.count(SuggestionFeedback.id))
+    ).scalar_one()
+    unread_suggestion_feedback = db.execute(
+        select(func.count(SuggestionFeedback.id)).where(
+            SuggestionFeedback.is_reviewed.is_(False)
         )
     ).scalar_one()
-    provider_expired = db.execute(
-        select(func.count(ProviderCacheEntry.id)).where(
-            ProviderCacheEntry.expires_at < now
-        )
-    ).scalar_one()
-    geocode_active = db.execute(
-        select(func.count(GeocodeCacheEntry.id)).where(
-            GeocodeCacheEntry.expires_at >= now
-        )
-    ).scalar_one()
-    location_active = db.execute(
-        select(func.count(LocationStationCache.id)).where(
-            LocationStationCache.expires_at >= now
-        )
-    ).scalar_one()
-
-    # Latest ingest run
-    latest_ingest = db.execute(
-        select(IngestRun, DataProvider)
-        .join(DataProvider, DataProvider.id == IngestRun.provider_id)
-        .order_by(IngestRun.id.desc())
-        .limit(1)
-    ).first()
-
-    ingest_status = "No runs yet"
-    if latest_ingest:
-        run, provider = latest_ingest
-        age_min = int((now - run.started_at.replace(tzinfo=UTC)).total_seconds() / 60)
-        ingest_status = (
-            f"`{run.status}` via {provider.provider_code} "
-            f"— {run.success_count}/{run.total_points} cities "
-            f"({age_min}m ago)"
-        )
 
     disk_usage = _get_disk_usage_snapshot("/")
     database_size_bytes = _get_database_size_bytes(db)
     overall_ok = globe_stale == 0 or coverage_pct >= 80
 
+    storage_value = (
+        f"Server disk free: **{_format_bytes(disk_usage['free'])}** / "
+        f"{_format_bytes(disk_usage['total'])}\n"
+        f"Database used: **{_format_bytes(database_size_bytes)}**"
+        if database_size_bytes is not None
+        else (
+            f"Server disk free: **{_format_bytes(disk_usage['free'])}** / "
+            f"{_format_bytes(disk_usage['total'])}\n"
+            "Database used: unavailable"
+        )
+    )
+
     return {
-        "title": "AirIQ — Hourly Status",
+        "title": "AirIQ - Server Status",
         "color": _status_color(overall_ok),
         "timestamp": now.isoformat(),
         "fields": [
@@ -146,39 +126,17 @@ def build_status_embed(db: Session) -> dict:
                 "inline": False,
             },
             {
-                "name": "AQ Globe Coverage",
+                "name": "Feedback Inbox",
                 "value": (
-                    f"Fresh: **{globe_fresh}** | Stale: **{globe_stale}** "
-                    f"| Total: {total_cities} ({coverage_pct}%)"
+                    f"Product feedback: **{total_feedback}** total | **{unread_feedback}** unread\n"
+                    f"Suggestion feedback: **{total_suggestion_feedback}** total | "
+                    f"**{unread_suggestion_feedback}** unreviewed"
                 ),
-                "inline": False,
-            },
-            {
-                "name": "Cache Health",
-                "value": (
-                    f"Provider active: **{provider_active}** expired: {provider_expired}\n"
-                    f"Geocode active: **{geocode_active}** | Location active: **{location_active}**"
-                ),
-                "inline": False,
-            },
-            {
-                "name": "Latest Ingest",
-                "value": ingest_status,
                 "inline": False,
             },
             {
                 "name": "Storage",
-                "value": (
-                    f"EC2 disk free: **{_format_bytes(disk_usage['free'])}** / "
-                    f"{_format_bytes(disk_usage['total'])}\n"
-                    f"DB size: **{_format_bytes(database_size_bytes)}**"
-                    if database_size_bytes is not None
-                    else (
-                        f"EC2 disk free: **{_format_bytes(disk_usage['free'])}** / "
-                        f"{_format_bytes(disk_usage['total'])}\n"
-                        "DB size: unavailable"
-                    )
-                ),
+                "value": storage_value,
                 "inline": False,
             },
         ],
@@ -188,7 +146,7 @@ def build_status_embed(db: Session) -> dict:
 
 def send_discord_status() -> None:
     if not WEBHOOK_URL:
-        logger.warning("DISCORD_WEBHOOK_URL not set — skipping status report")
+        logger.warning("DISCORD_WEBHOOK_URL not set - skipping status report")
         return
 
     db = SessionLocal()

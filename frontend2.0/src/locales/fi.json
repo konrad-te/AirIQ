@@ -155,6 +155,11 @@
   "dashboard.refreshSuggestions": "Päivitä ehdotukset",
   "dashboard.refreshingSuggestions": "Päivitetään...",
 
+  "dashboard.forecastHeadingToday": "Tämän päivän ennuste",
+  "dashboard.forecastHeadingTomorrow": "Huomisen ennuste",
+  "dashboard.forecastHeadingHint": "Näyttää seuraavan päivän ennusteen klo 18.00 jälkeen nykyisessä aikavyöhykkeessäsi.",
+  "dashboard.forecastHeadingAria": "Päivän ennuste — osoita tai kohdista näppäimistöllä, milloin näytetään tänään vs. huominen",
+
   "dashboard.aiDailyPlan": "Tekoälyn päiväsuunnitelma",
   "dashboard.aiHint": "Luo henkilökohtaisia ulko- ja sisätilasuosituksia Gemini-tekoälyn avulla nykyisten ilmanlaatulukemiesi perusteella.",
   "dashboard.aiGenerate": "Luo suositukset",
@@ -257,6 +262,8 @@
   "suggestions.loadingDesc": "Tarkistetaan viimeisimmät sisä- ja ulkotilaolot.",
   "suggestions.empty": "Ei tärkeitä ehdotuksia juuri nyt.",
   "suggestions.emptyDesc": "Nykyiset sisä- ja ulkotilaolosuhteet vaikuttavat vakailta.",
+  "suggestions.noSensor": "Yhdistä anturi päästäksesi alkuun",
+  "suggestions.noSensorDesc": "Kun sisäanturisi on yhdistetty, AirIQ analysoi ilmanlaatusi ja antaa sinulle yksilöllisiä suosituksia reaaliajassa.",
   "suggestions.actionFeed": "Toimintasyöte",
   "suggestions.topSuggestions": "Tärkeimmät ehdotukset",
   "suggestions.showingOf": "Näytetään {{shown}} / {{total}}",

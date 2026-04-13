@@ -19,6 +19,7 @@ import MapboxGlobe from './pages/MapboxGlobe'
 import NewLandingPage from './pages/NewLandingPage'
 import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
+import DataSourcesPage from './pages/DataSourcesPage'
 import SettingsPage from './pages/SettingsPage'
 import DiscordAlertsPanel from './components/DiscordAlertsPanel'
 import ActivatePage from './pages/ActivatePage'
@@ -435,6 +436,10 @@ export default function App() {
     window.history.pushState({}, '', '/feedback')
     setRoute('/feedback')
   }
+  const handleOpenDataSources = () => {
+    window.history.pushState({}, '', '/sources')
+    setRoute('/sources')
+  }
   const handleOpenAdmin = () => {
     window.history.pushState({}, '', '/admin')
     setRoute('/admin')
@@ -770,8 +775,8 @@ export default function App() {
     }
     setIsLoadingAirData(true)
     setLiveAirError('')
-    setCurrentLocationLabel('Detecting your location...')
-    setStatusMessage('Getting your location...')
+    setCurrentLocationLabel(t('location.detecting'))
+    setStatusMessage(t('location.gettingLocation'))
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         const coordsLabel = formatLocationFallbackLabel(coords.latitude, coords.longitude)
@@ -795,8 +800,18 @@ export default function App() {
         setLocModalView('confirm')
       },
       (error) => {
+        let message = t('location.unableToGetLocation')
+        if (error?.code === 1) {
+          message = 'Location access was blocked. Allow location for localhost in your browser and try again.'
+        } else if (error?.code === 2) {
+          message = 'Your browser could not determine your location right now.'
+        } else if (error?.code === 3) {
+          message = 'Location request timed out. Try again in a moment.'
+        } else if (typeof error?.message === 'string' && error.message.trim()) {
+          message = error.message
+        }
         setIsLoadingAirData(false)
-        setLiveAirError(error.message || t('location.unableToGetLocation'))
+        setLiveAirError(message)
         setStatusMessage('')
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
@@ -1602,6 +1617,9 @@ export default function App() {
   if (route === '/feedback') {
     return <FeedbackPage onBack={handleBackToLanding} />
   }
+  if (route === '/sources') {
+    return <DataSourcesPage onBack={handleBackToLanding} onOpenFeedback={handleOpenFeedback} />
+  }
   if (route === '/admin') {
     return <AdminPage onBack={handleBackToLanding} />
   }
@@ -1841,7 +1859,7 @@ export default function App() {
     : sourceTooltipMessage
   const weatherSourceLabel = (() => {
     if (weatherSourceMeta?.available === false) return 'Unavailable'
-    if (weatherSourceMeta?.provider === 'open-meteo') return 'Open-Meteo weather model'
+    if (weatherSourceMeta?.provider === 'open-meteo') return 'Open-Meteo'
     if (typeof weatherSourceMeta?.provider === 'string' && weatherSourceMeta.provider.trim()) {
       return weatherSourceMeta.provider
     }
@@ -2265,7 +2283,7 @@ export default function App() {
             onRefresh={handleRefreshOutdoor}
             canRefresh={outdoorCanRefresh}
             isRefreshing={isLoadingAirData}
-            airSourceLabel={airSourceSummary}
+            airSourceLabel={sourceProviderLabel}
             airSourceDetail={airSourceDetail}
             weatherSourceLabel={weatherSourceLabel}
             weatherSourceDetail={weatherSourceDetail}
@@ -2340,6 +2358,8 @@ export default function App() {
                 feedbackVotes={dashboardSuggestionFeedbackVotes}
                 feedbackBusy={dashboardSuggestionFeedbackBusy}
                 feedbackErrors={dashboardSuggestionFeedbackErrors}
+                hasSensor={hasConnectedIndoorSensor}
+                onConnectSensor={() => setIsDeviceSetupOpen(true)}
               />
           </div>
         </div>
@@ -2356,9 +2376,8 @@ export default function App() {
             <p>{t('footer.tagline')}</p>
           </div>
           <div className="app-footer-links">
-            <a href="#privacy">{t('footer.privacy')}</a>
-            <a href="#sources">{t('footer.dataSources')}</a>
-            <a href="#help">{t('footer.help')}</a>
+            <button type="button" onClick={handleOpenDataSources}>{t('footer.dataSources')}</button>
+            <button type="button" onClick={handleOpenFeedback}>{t('footer.help')}</button>
           </div>
         </div>
       </footer>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import ForgotPasswordModal from '../components/ForgotPasswordModal'
+import LandingOutdoorDemo from '../components/LandingOutdoorDemo'
 import LoginModal from '../components/LoginModal'
 import RegisterModal from '../components/RegisterModal'
 import './NewLandingPage.css'
@@ -62,6 +63,7 @@ export default function NewLandingPage({ onReactivated }) {
             <div className="lp-nav-links">
               <a href="#features" className="lp-nav-link" onClick={closeMobile}>Features</a>
               <a href="#how-it-works" className="lp-nav-link" onClick={closeMobile}>How it works</a>
+              <a href="#sources" className="lp-nav-link" onClick={closeMobile}>Data sources</a>
               <a href="#integrations" className="lp-nav-link" onClick={closeMobile}>Integrations</a>
             </div>
             <div className="lp-nav-actions">
@@ -90,7 +92,7 @@ export default function NewLandingPage({ onReactivated }) {
 
       {/* ── HERO ── */}
       <section className="lp-hero">
-        <div className="lp-container lp-hero-grid">
+        <div className="lp-container">
           <div className="lp-hero-content" data-animate>
             <span className="lp-hero-badge">Air Quality &amp; Wellness Platform</span>
             <h1 className="lp-hero-title">
@@ -111,56 +113,6 @@ export default function NewLandingPage({ onReactivated }) {
               <button className="lp-btn lp-btn--outline lp-btn--lg" onClick={openLogin}>Log in</button>
             </div>
           </div>
-
-          <div className="lp-hero-visual" data-animate>
-            <div className="lp-hero-glow" />
-            <div className="lp-dash">
-              <div className="lp-dash-topbar">
-                <div className="lp-dash-dots"><span /><span /><span /></div>
-                <span className="lp-dash-title">Dashboard</span>
-              </div>
-              <div className="lp-dash-body">
-                <div className="lp-dash-top">
-                  <div className="lp-dash-aqi">
-                    <svg viewBox="0 0 80 80" className="lp-dash-ring">
-                      <circle cx="40" cy="40" r="34" fill="none" stroke="#E2E8F0" strokeWidth="6" />
-                      <circle cx="40" cy="40" r="34" fill="none" stroke="#22C55E" strokeWidth="6" strokeDasharray="170 214" strokeLinecap="round" transform="rotate(-90 40 40)" />
-                    </svg>
-                    <div className="lp-dash-aqi-inner">
-                      <span className="lp-dash-aqi-num">42</span>
-                      <span className="lp-dash-aqi-lbl">AQI</span>
-                    </div>
-                  </div>
-                  <div className="lp-dash-tiles">
-                    <div className="lp-dash-tile">
-                      <span className="lp-dash-tile-lbl">PM2.5</span>
-                      <span className="lp-dash-tile-val">8.3 <small>µg/m³</small></span>
-                    </div>
-                    <div className="lp-dash-tile">
-                      <span className="lp-dash-tile-lbl">Temperature</span>
-                      <span className="lp-dash-tile-val">21° <small>C</small></span>
-                    </div>
-                    <div className="lp-dash-tile">
-                      <span className="lp-dash-tile-lbl">CO₂</span>
-                      <span className="lp-dash-tile-val">612 <small>ppm</small></span>
-                    </div>
-                    <div className="lp-dash-tile">
-                      <span className="lp-dash-tile-lbl">Sleep Score</span>
-                      <span className="lp-dash-tile-val lp-dash-tile-val--blue">87</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="lp-dash-chart">
-                  <span className="lp-dash-chart-lbl">24h Air Quality</span>
-                  <div className="lp-dash-bars">
-                    {[35,40,52,60,55,48,42,38,35,30,28,32].map((v,i) => (
-                      <div key={i} className="lp-dash-bar" style={{ height: `${v}%` }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -177,6 +129,9 @@ export default function NewLandingPage({ onReactivated }) {
               <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
               <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
             </IntegrationBadge>
+            <IntegrationBadge name="Strava">
+              <path d="M4 16l4-8 3 5 3-9 4 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </IntegrationBadge>
             <IntegrationBadge name="Qingping">
               <rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" fill="none" />
               <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.5" fill="none" />
@@ -184,6 +139,10 @@ export default function NewLandingPage({ onReactivated }) {
             <IntegrationBadge name="OpenWeather">
               <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" fill="none" />
               <path d="M3 12h18M12 3c2.5 3 4 6 4 9s-1.5 6-4 9c-2.5-3-4-6-4-9s1.5-6 4-9z" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            </IntegrationBadge>
+            <IntegrationBadge name="Mapbox">
+              <path d="M12 21s7-4.35 7-10a7 7 0 10-14 0c0 5.65 7 10 7 10z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+              <circle cx="12" cy="11" r="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
             </IntegrationBadge>
             <IntegrationBadge name="Google Gemini">
               <path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
@@ -262,30 +221,8 @@ export default function NewLandingPage({ onReactivated }) {
             </ul>
           </div>
           <div className="lp-feature-visual" data-animate>
-            <div className="lp-fcard lp-fcard--outdoor">
-              <div className="lp-fcard-head">
-                <span className="lp-fcard-dot lp-fcard-dot--green" />
-                <span>Stockholm, Sweden</span>
-              </div>
-              <div className="lp-fcard-aqi-row">
-                <div className="lp-fcard-ring-wrap">
-                  <svg viewBox="0 0 100 100" className="lp-fcard-ring">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="#E2E8F0" strokeWidth="8" />
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="#22C55E" strokeWidth="8" strokeDasharray="210 264" strokeLinecap="round" transform="rotate(-90 50 50)" />
-                  </svg>
-                  <div className="lp-fcard-ring-inner">
-                    <span className="lp-fcard-ring-val">42</span>
-                    <span className="lp-fcard-ring-unit">AQI</span>
-                  </div>
-                </div>
-                <span className="lp-fcard-status lp-fcard-status--good">Good</span>
-              </div>
-              <div className="lp-fcard-stats">
-                <div><span>PM2.5</span><strong>8.3</strong></div>
-                <div><span>PM10</span><strong>22</strong></div>
-                <div><span>Wind</span><strong>12 km/h</strong></div>
-                <div><span>UV</span><strong>3</strong></div>
-              </div>
+            <div className="lp-feature-outdoor-shell">
+              <LandingOutdoorDemo highlightForecastMetricKey="pm25" />
             </div>
           </div>
         </div>
@@ -380,6 +317,95 @@ export default function NewLandingPage({ onReactivated }) {
       </section>
 
       {/* ── CTA ── */}
+      <section className="lp-sources" id="sources">
+        <div className="lp-container">
+          <div className="lp-section-header" data-animate>
+            <h2 className="lp-section-title">Data sources, explained clearly</h2>
+            <p className="lp-section-subtitle">
+              AirIQ keeps the live dashboard compact, but it should still be obvious where numbers
+              come from and how the app chooses between measured, nearby, and fallback data.
+            </p>
+          </div>
+
+          <div className="lp-sources-intro" data-animate>
+            <div className="lp-sources-pill">How AirIQ decides</div>
+            <p>
+              For outdoor air quality, AirIQ tries to use the most location-aware source available
+              for your saved place. If Airly point data is available, AirIQ can use an interpolated
+              estimate for your exact coordinates. If that is not available, it falls back to a
+              nearby measured station such as Airly or OpenAQ. If measured coverage is missing or
+              unavailable, AirIQ can fall back to a broader model estimate instead. Weather data is
+              handled separately from pollution data, so wind, rain, UV, temperature, humidity, and
+              cloud can come from a different provider than PM2.5 or PM10.
+            </p>
+          </div>
+
+          <div className="lp-sources-grid">
+            <DataSourceCard
+              eyebrow="Outdoor air"
+              title="Measured first, fallback when needed"
+              description="AirIQ tries to show the most useful outdoor pollution data it can get for the exact place you saved."
+              items={[
+                'Best case: point-based Airly estimate for your coordinates.',
+                'If exact-point coverage is unavailable, AirIQ can use the nearest Airly or OpenAQ station.',
+                'If nearby measured air is missing, the app can use a broader model estimate instead.',
+                'The outdoor hover always shows the actual provider in a short format, for example Source: Airly.',
+              ]}
+            />
+            <DataSourceCard
+              eyebrow="Weather"
+              title="Weather is merged separately"
+              description="Weather values stay available even when pollution coverage changes because they do not depend on the same source path."
+              items={[
+                'Temperature, rain, wind, humidity, cloud cover, and UV are handled separately from PM values.',
+                'This is why Source can differ between PM tiles and weather tiles.',
+                'The dashboard shows the provider name directly instead of hiding the source logic.',
+              ]}
+            />
+            <DataSourceCard
+              eyebrow="Indoor"
+              title="Your own room stays the authority"
+              description="Indoor readings come from your connected Qingping device, not from a regional estimate."
+              items={[
+                'Temperature, humidity, PM, and CO2 reflect your own indoor sensor data.',
+                'Indoor and outdoor advice can differ a lot because they describe different environments.',
+                'AirIQ compares indoor and outdoor conditions when deciding whether ventilation makes sense.',
+              ]}
+            />
+            <DataSourceCard
+              eyebrow="Health data"
+              title="Imported and connected by the user"
+              description="Sleep, recovery, and training insights are only built from the health data you decide to provide."
+              items={[
+                'Garmin imports add sleep and training files you upload manually.',
+                'Strava sync adds training sessions you authorize through your own account.',
+                'Garmin and Strava can coexist because AirIQ stores the provider for each activity instead of mixing them blindly.',
+              ]}
+            />
+            <DataSourceCard
+              eyebrow="AI wording"
+              title="Analysis first, wording second"
+              description="The app computes findings from your environmental and health data before any optional wording layer is applied."
+              items={[
+                'The numbers and findings come from air, weather, indoor sensor, Garmin, and Strava data.',
+                'If Google Gemini wording is enabled, it writes an optional explanation on top of that existing analysis.',
+                'If AI wording is off, AirIQ still returns the same underlying analysis with standard rule-based text.',
+              ]}
+            />
+            <DataSourceCard
+              eyebrow="Tooltips"
+              title="Compact on the dashboard, explained on hover"
+              description="The metric tiles stay small, but hovering over them should still tell you what the value means."
+              items={[
+                'PM2.5 and PM10 explain what the particles are and what safer ranges look like.',
+                'Wind, rain, humidity, UV, temperature, and cloud explain how to interpret the number or range.',
+                'The source line is intentionally short: Source: Airly, Source: OpenAQ, or Source: Open-Meteo.',
+              ]}
+            />
+          </div>
+        </div>
+      </section>
+
       <section className="lp-cta">
         <div className="lp-container lp-cta-inner" data-animate>
           <h2 className="lp-cta-title">Start understanding your air today</h2>
@@ -415,6 +441,7 @@ export default function NewLandingPage({ onReactivated }) {
               <h4>Product</h4>
               <a href="#features">Features</a>
               <a href="#how-it-works">How it works</a>
+              <a href="#sources">Data sources</a>
               <a href="#integrations">Integrations</a>
             </div>
             <div className="lp-footer-col">
@@ -457,5 +484,20 @@ function SleepBar({ label, pct, time, cls }) {
       </div>
       <span className="lp-fcard-stage-time">{time}</span>
     </div>
+  )
+}
+
+function DataSourceCard({ eyebrow, title, description, items }) {
+  return (
+    <article className="lp-source-card" data-animate>
+      <span className="lp-source-card-eyebrow">{eyebrow}</span>
+      <h3 className="lp-source-card-title">{title}</h3>
+      <p className="lp-source-card-desc">{description}</p>
+      <ul className="lp-source-card-list">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </article>
   )
 }

@@ -155,6 +155,11 @@
   "dashboard.refreshSuggestions": "Opdater forslag",
   "dashboard.refreshingSuggestions": "Opdaterer...",
 
+  "dashboard.forecastHeadingToday": "Dagens prognose",
+  "dashboard.forecastHeadingTomorrow": "Morgendagens prognose",
+  "dashboard.forecastHeadingHint": "Viser morgendagens prognose efter kl. 18:00 i din nuværende tidszone.",
+  "dashboard.forecastHeadingAria": "Daglig prognose — hold musen over eller fokuser for hvornår i dag kontra i morgen vises",
+
   "dashboard.aiDailyPlan": "AI-dagsplan",
   "dashboard.aiHint": "Generer personlige udendørs- og indendørsanbefalinger drevet af Gemini baseret på dine aktuelle luftkvalitetsaflæsninger.",
   "dashboard.aiGenerate": "Generer anbefalinger",
@@ -257,6 +262,8 @@
   "suggestions.loadingDesc": "Tjekker dine seneste indendørs- og udendørsforhold.",
   "suggestions.empty": "Ingen vigtige forslag lige nu.",
   "suggestions.emptyDesc": "Aktuelle indendørs- og udendørsforhold ser stabile ud.",
+  "suggestions.noSensor": "Tilslut en sensor for at komme i gang",
+  "suggestions.noSensorDesc": "Når din indendørssensor er tilsluttet, analyserer AirIQ din luftkvalitet og giver dig personlige anbefalinger i realtid.",
   "suggestions.actionFeed": "Handlingsfeed",
   "suggestions.topSuggestions": "Topforslag",
   "suggestions.showingOf": "Viser {{shown}} af {{total}}",

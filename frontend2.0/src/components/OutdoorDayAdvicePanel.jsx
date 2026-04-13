@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import banner2 from '../assets/banner2.png'
 import './OutdoorDayAdvicePanel.css'
 
@@ -88,6 +89,13 @@ function formatCloudCoverRange(range) {
   }
 
   return `${min}-${max}%`
+}
+
+function getCloudPrimaryLabel(range, representativeSkyRow) {
+  if (range || representativeSkyRow) {
+    return getSkyCondition(representativeSkyRow || {}).label
+  }
+  return 'Mixed sky'
 }
 
 function formatRainTotal(value) {
@@ -488,6 +496,58 @@ function buildBikeRideClosingLine(airBand, totalRain, windKmh, maxTemp) {
   return 'Overall reasonable for a bike ride if you dress for the temperature.'
 }
 
+function getMetricTooltipCopy(key, isForecast = false) {
+  switch (key) {
+    case 'temp':
+      return {
+        lead: 'Temperature shapes outdoor comfort and how hard effort feels.',
+        guidance: isForecast
+          ? 'This forecast card shows the day range. Around 18-24 C usually feels mild for most people.'
+          : 'Around 18-24 C usually feels mild for most people, but wind, sun, clothing, and humidity all matter.',
+      }
+    case 'rain':
+      return {
+        lead: 'Rain is the amount of precipitation expected or measured for the period shown.',
+        guidance: 'Around 0-1 mm is light rain, 1-4 mm is showery, and 5 mm or more usually means a properly wet spell.',
+      }
+    case 'wind':
+      return {
+        lead: 'Wind changes comfort, cooling, and cycling effort even when the temperature looks fine.',
+        guidance: 'Below 20 km/h feels light, 20-35 km/h is breezy, and 40 km/h or more usually feels strong.',
+      }
+    case 'humidity':
+      return {
+        lead: 'Humidity is the amount of moisture in the air.',
+        guidance: 'Around 30-60% often feels comfortable. Higher humidity can make warm weather feel heavier and stuffier.',
+      }
+    case 'pm25':
+      return {
+        lead: 'PM2.5 are very fine particles small enough to travel deep into the lungs.',
+        guidance: 'A safer outdoor level is under 10 ug/m3. Around 10-25 is moderate, and above 25 deserves more caution for exercise.',
+      }
+    case 'pm10':
+      return {
+        lead: 'PM10 are larger particles like dust, ash, and road debris that still affect breathing comfort.',
+        guidance: 'A good outdoor level is under 20 ug/m3. Around 20-50 is moderate, and above 50 is a rougher air day.',
+      }
+    case 'uv':
+      return {
+        lead: 'UV Index estimates how strong the sun is for skin exposure.',
+        guidance: 'UV 0-2 is low, 3-5 moderate, 6-7 high, and 8+ very high. Longer outdoor sessions need more sun protection as the index rises.',
+      }
+    case 'cloud':
+      return {
+        lead: 'Cloud cover shows how much of the sky is covered by clouds.',
+        guidance: 'Around 0-30% means mostly clear skies, 30-70% mixed cloud, and 70% or more usually means mostly cloudy or overcast conditions.',
+      }
+    default:
+      return {
+        lead: 'This metric helps describe current outdoor conditions.',
+        guidance: 'Hover the card to see what the value means and where it comes from.',
+      }
+  }
+}
+
 export default function OutdoorDayAdvicePanel({
   airData,
   locale = DEFAULT_LOCALE,
@@ -503,7 +563,10 @@ export default function OutdoorDayAdvicePanel({
   airSourceDetail = '',
   weatherSourceLabel = '',
   weatherSourceDetail = '',
+  /** When set (e.g. landing page demo), keeps this forecast tile's tooltip visible */
+  highlightForecastMetricKey = '',
 }) {
+  const { t } = useTranslation()
   const now = new Date()
   const nowParts = getDateParts(now, timeZone)
   const currentRow = getCurrentRow(airData, timeZone)
@@ -591,7 +654,8 @@ export default function OutdoorDayAdvicePanel({
     ? `${Math.round(baselineCurrentRow.cloud_cover_pct)}%`
     : '--'
 
-  const forecastCloudLabel = `${skyCondition.label}, ${formatCloudCoverRange(cloudCoverRange)}`
+  const forecastCloudLabel = getCloudPrimaryLabel(cloudCoverRange, representativeSkyRow)
+  const forecastCloudPct = formatCloudCoverRange(cloudCoverRange)
 
   const forecastMetrics = [
     { key: 'temp', label: 'Temp', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Day range: min / max across the forecast.' },
@@ -601,7 +665,18 @@ export default function OutdoorDayAdvicePanel({
     { key: 'pm25', label: 'PM2.5', value: formatPm(peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25), detail: formatPeakDetail(peakPm25Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Peak fine particles (daytime window when available).' },
     { key: 'pm10', label: 'PM10', value: formatPm(peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10), detail: formatPeakDetail(peakPm10Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Peak coarse particles for the day.' },
     { key: 'uv', label: 'UV Index', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Peak UV index from the hourly forecast.' },
-    { key: 'cloud', label: 'Cloud', value: forecastCloudLabel, detail: 'Typical range', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Sky condition and how cloudiness varies through the day.' },
+    { key: 'cloud', label: 'Cloud', value: forecastCloudLabel, detail: forecastCloudPct, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Sky condition and how cloudiness varies through the day.' },
+  ]
+
+  const forecastMetricCards = [
+    { key: 'temp', label: 'Temp', value: formatTemperatureRange(tempRange), detail: formatTemperatureDetail(peakTempRow, locale, timeZone), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('temp', true) },
+    { key: 'rain', label: 'Rain', value: formatRainTotal(totalRain), detail: 'Expected total', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('rain', true) },
+    { key: 'wind', label: 'Wind', value: formatWindKmh(peakWindRow?.wind_speed_ms), detail: formatPeakDetail(peakWindRow, locale, timeZone, 'Peak speed'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('wind', true) },
+    { key: 'humidity', label: 'Humidity', value: formatHumidityRange(humidityRange), detail: 'Range', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('humidity', true) },
+    { key: 'pm25', label: 'PM2.5', value: formatPm(peakPm25Row?.pm25 ?? baselineCurrentRow?.pm25), detail: formatPeakDetail(peakPm25Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, ...getMetricTooltipCopy('pm25', true) },
+    { key: 'pm10', label: 'PM10', value: formatPm(peakPm10Row?.pm10 ?? baselineCurrentRow?.pm10), detail: formatPeakDetail(peakPm10Row, locale, timeZone), source: airSourceLabel, sourceDetail: airSourceDetail, ...getMetricTooltipCopy('pm10', true) },
+    { key: 'uv', label: 'UV Index', value: formatUv(peakUvRow?.uv_index), detail: formatPeakDetail(peakUvRow, locale, timeZone, 'Peak index'), source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('uv', true) },
+    { key: 'cloud', label: 'Cloud', value: forecastCloudLabel, detail: forecastCloudPct, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('cloud', true) },
   ]
 
   const cr = currentReadings || {}
@@ -614,19 +689,28 @@ export default function OutdoorDayAdvicePanel({
     return '--'
   }
 
-  const liveCloudMerged = liveSky.label !== 'Mixed sky'
-    ? `${liveSky.label}, ${liveCloudPct}`
-    : liveCloudPct
+  const liveCloudLabel = liveSky.label !== 'Mixed sky' ? liveSky.label : 'Cloud'
 
   const currentMetrics = [
     { key: 'temp', label: 'Temp', value: cr.temperature ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 18–24 °C' },
     { key: 'wind', label: 'Wind', value: cr.wind ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Light: <20 km/h · Strong: >50 km/h' },
     { key: 'humidity', label: 'Humidity', value: cr.humidity ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Comfortable: 30–60%' },
-    { key: 'cloud', label: 'Cloud', value: liveCloudMerged, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Current cloud amount at observation time.' },
+    { key: 'cloud', label: 'Cloud', value: liveCloudLabel, detail: liveCloudPct, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Current cloud amount at observation time.' },
     { key: 'pm25', label: 'PM2.5', value: formatLivePm(cr.pm25), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <10 · Moderate: 10–25 · Poor: >25' },
     { key: 'pm10', label: 'PM10', value: formatLivePm(cr.pm10), source: airSourceLabel, sourceDetail: airSourceDetail, range: 'Good: <20 · Moderate: 20–50 · Poor: >50' },
     { key: 'uv', label: 'UV', value: cr.uv ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Low: 0–2 · Moderate: 3–5 · High: 6+' },
     { key: 'rain', label: 'Rain', value: cr.rain ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, range: 'Rate or amount from the latest hour when available.' },
+  ]
+
+  const currentMetricCards = [
+    { key: 'temp', label: 'Temp', value: cr.temperature ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('temp') },
+    { key: 'wind', label: 'Wind', value: cr.wind ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('wind') },
+    { key: 'humidity', label: 'Humidity', value: cr.humidity ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('humidity') },
+    { key: 'cloud', label: 'Cloud', value: liveCloudLabel, detail: liveCloudPct, source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('cloud') },
+    { key: 'pm25', label: 'PM2.5', value: formatLivePm(cr.pm25), source: airSourceLabel, sourceDetail: airSourceDetail, ...getMetricTooltipCopy('pm25') },
+    { key: 'pm10', label: 'PM10', value: formatLivePm(cr.pm10), source: airSourceLabel, sourceDetail: airSourceDetail, ...getMetricTooltipCopy('pm10') },
+    { key: 'uv', label: 'UV', value: cr.uv ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('uv') },
+    { key: 'rain', label: 'Rain', value: cr.rain ?? '--', source: weatherSourceLabel, sourceDetail: weatherSourceDetail, ...getMetricTooltipCopy('rain') },
   ]
 
   return (
@@ -662,16 +746,35 @@ export default function OutdoorDayAdvicePanel({
       <div className="outdoor-panel__metrics">
         {/* ── Forecast ── */}
         <div className="outdoor-panel__section outdoor-panel__section--metrics">
-          <h4 className="outdoor-panel__section-title">{selectedLabel.toUpperCase()}&apos;S FORECAST</h4>
+          <div
+            className="outdoor-panel__forecast-heading-wrap"
+            tabIndex={0}
+            aria-label={t('dashboard.forecastHeadingAria')}
+          >
+            <h4 className="outdoor-panel__section-title">
+              {useNextDayPlan ? t('dashboard.forecastHeadingTomorrow') : t('dashboard.forecastHeadingToday')}
+            </h4>
+            <div className="outdoor-panel__forecast-heading-tip" role="tooltip">
+              <p>{t('dashboard.forecastHeadingHint')}</p>
+            </div>
+          </div>
           <div className="outdoor-panel__grid">
-            {forecastMetrics.map((m) => (
-              <div key={m.key} className="outdoor-panel__tile" tabIndex={0}>
+            {forecastMetricCards.map((m) => (
+              <div
+                key={m.key}
+                className={`outdoor-panel__tile${highlightForecastMetricKey === m.key ? ' outdoor-panel__tile--tooltip-pinned' : ''}`}
+                tabIndex={0}
+              >
                 <span className="outdoor-panel__tile-label">{m.label}</span>
-                <strong className="outdoor-panel__tile-value">{m.value}</strong>
+                <div className="outdoor-panel__tile-value-row">
+                  <strong className="outdoor-panel__tile-value">{m.value}</strong>
+                  {m.sideValue ? <span className="outdoor-panel__tile-side-value">{m.sideValue}</span> : null}
+                </div>
                 <span className="outdoor-panel__tile-detail">{m.detail}</span>
                 <div className="outdoor-panel__tooltip" role="tooltip">
                   <strong>{m.label}</strong>
-                  {m.range ? <p className="outdoor-panel__tooltip-range">{m.range}</p> : null}
+                  {m.lead ? <p className="outdoor-panel__tooltip-lead">{m.lead}</p> : null}
+                  {m.guidance ? <p className="outdoor-panel__tooltip-range">{m.guidance}</p> : null}
                   {m.source ? <p className="outdoor-panel__tooltip-source">Source: {m.source}</p> : null}
                   {m.sourceDetail ? <p className="outdoor-panel__tooltip-detail">{m.sourceDetail}</p> : null}
                 </div>
@@ -687,13 +790,18 @@ export default function OutdoorDayAdvicePanel({
             <span className="outdoor-panel__live-badge"><span className="outdoor-panel__live-dot" />Live</span>
           </div>
           <div className="outdoor-panel__grid">
-            {currentMetrics.map((m) => (
+            {currentMetricCards.map((m) => (
               <div key={m.key} className="outdoor-panel__tile" tabIndex={0}>
                 <span className="outdoor-panel__tile-label">{m.label}</span>
-                <strong className="outdoor-panel__tile-value">{m.value}</strong>
+                <div className="outdoor-panel__tile-value-row">
+                  <strong className="outdoor-panel__tile-value">{m.value}</strong>
+                  {m.sideValue ? <span className="outdoor-panel__tile-side-value">{m.sideValue}</span> : null}
+                </div>
+                {m.detail ? <span className="outdoor-panel__tile-detail">{m.detail}</span> : null}
                 <div className="outdoor-panel__tooltip" role="tooltip">
                   <strong>{m.label}</strong>
-                  {m.range ? <p className="outdoor-panel__tooltip-range">{m.range}</p> : null}
+                  {m.lead ? <p className="outdoor-panel__tooltip-lead">{m.lead}</p> : null}
+                  {m.guidance ? <p className="outdoor-panel__tooltip-range">{m.guidance}</p> : null}
                   {m.source ? <p className="outdoor-panel__tooltip-source">Source: {m.source}</p> : null}
                   {m.sourceDetail ? <p className="outdoor-panel__tooltip-detail">{m.sourceDetail}</p> : null}
                 </div>

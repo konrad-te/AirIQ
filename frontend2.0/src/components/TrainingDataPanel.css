@@ -391,6 +391,13 @@
   font-size: 1.1rem;
 }
 
+.training-data-panel__date-span {
+  display: inline-block;
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+  color: #6a84a2;
+}
+
 .training-data-panel__pager {
   display: inline-flex;
   align-items: center;

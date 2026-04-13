@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import logoAiriq from '../assets/airiq_logo2.0.png'
 import SuggestionsPanel from '../components/SuggestionsPanel'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -97,16 +96,23 @@ function AccessDenied({ onBack }) {
     <div className="admin-page">
       <AdminHeader onBack={onBack} />
       <main className="admin-main">
-        <div className="admin-card">
+        <div className="admin-card admin-card--denied">
           <div className="admin-denied">
-            <div className="admin-denied-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
+            <div className="admin-denied-hero">
+              <div className="admin-denied-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </div>
+              <span className="admin-denied-kicker">Admin area</span>
             </div>
             <h1 className="admin-denied-title">Access Denied</h1>
-            <p className="admin-denied-body">This page is restricted to administrators. You do not have permission to view it.</p>
-            <button type="button" className="btn btn-primary admin-denied-btn" onClick={onBack}>Back to dashboard</button>
+            <p className="admin-denied-body">
+              This page is restricted to administrators. Your current account does not have access to admin tools, feedback review, or platform controls.
+            </p>
+            <div className="admin-denied-actions">
+              <button type="button" className="btn btn-primary admin-denied-btn" onClick={onBack}>Back to dashboard</button>
+            </div>
           </div>
         </div>
       </main>
@@ -124,7 +130,6 @@ function AdminHeader({ onBack }) {
           </svg>
           Back
         </button>
-        <img src={logoAiriq} alt="AirIQ" className="admin-logo" />
       </div>
     </header>
   )

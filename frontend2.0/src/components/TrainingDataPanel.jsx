@@ -97,6 +97,19 @@ function formatLongDate(calendarDate, locale, timeZone) {
   }).format(date)
 }
 
+function formatDatasetDateRange(startValue, endValue, locale, timeZone) {
+  const start = toDate(startValue)
+  const end = toDate(endValue)
+  if (!start || !end) return ''
+  const formatter = new Intl.DateTimeFormat(locale, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone,
+  })
+  return `${formatter.format(start)} - ${formatter.format(end)}`
+}
+
 function formatInsightDateRange(startDate, endDate, locale, timeZone) {
   const start = toDate(`${startDate}T12:00:00`)
   const end = toDate(`${endDate}T12:00:00`)
@@ -279,6 +292,19 @@ export default function TrainingDataPanel({
     safeActivityPage * MAX_VISIBLE_ACTIVITIES,
     (safeActivityPage + 1) * MAX_VISIBLE_ACTIVITIES,
   )
+  const datasetDateSpanLabel = useMemo(() => {
+    if (!activities.length) return ''
+    let earliest = null
+    let latest = null
+    for (const activity of activities) {
+      const date = toDate(activity?.start_time_local || activity?.start_time_gmt)
+      if (!date) continue
+      if (!earliest || date < earliest) earliest = date
+      if (!latest || date > latest) latest = date
+    }
+    if (!earliest || !latest) return ''
+    return formatDatasetDateRange(earliest, latest, locale, timeZone)
+  }, [activities, locale, timeZone])
   const sportBreakdown = Array.isArray(trainingData?.sport_breakdown) ? trainingData.sport_breakdown.slice(0, 6) : []
   const latestImportLabel = trainingData?.latest_imported_at ? formatDateTime(trainingData.latest_imported_at, locale, timeZone) : 'No imports yet'
   const hasImportedDays = calendarPoints.some((point) => point.activity_count > 0)
@@ -791,6 +817,7 @@ export default function TrainingDataPanel({
             <div>
               <p className="training-data-panel__eyebrow">Breakdown</p>
               <h3>Top sports</h3>
+              {datasetDateSpanLabel ? <span className="training-data-panel__date-span">{datasetDateSpanLabel}</span> : null}
             </div>
             <span>{sportBreakdown.length} shown</span>
           </div>
@@ -817,6 +844,7 @@ export default function TrainingDataPanel({
             <div>
               <p className="training-data-panel__eyebrow">Timeline</p>
               <h3>Recent sessions</h3>
+              {datasetDateSpanLabel ? <span className="training-data-panel__date-span">{datasetDateSpanLabel}</span> : null}
             </div>
             <div className="training-data-panel__section-tools">
               <span>Showing {visibleActivities.length > 0 ? (safeActivityPage * MAX_VISIBLE_ACTIVITIES) + 1 : 0}-{(safeActivityPage * MAX_VISIBLE_ACTIVITIES) + visibleActivities.length} of {activities.length}</span>

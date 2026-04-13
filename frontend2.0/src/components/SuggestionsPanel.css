@@ -1,8 +1,8 @@
 .suggestions-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 0 1.15rem 1rem;
+  gap: 0.75rem;
+  padding: 0 1.25rem 1.15rem;
 }
 
 .suggestions-panel__header {
@@ -30,10 +30,10 @@
 }
 
 .suggestions-panel__title {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: #1D1D1F;
-  letter-spacing: -0.02em;
+  color: #1A1A1C;
+  letter-spacing: -0.025em;
 }
 
 .suggestions-panel__count {
@@ -58,14 +58,20 @@
 
 /* Empty / Loading states */
 .suggestions-panel--empty,
-.suggestions-panel--loading {
+.suggestions-panel--loading,
+.suggestions-panel--no-sensor {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   min-height: 180px;
-  border-radius: var(--app-radius-sm, 12px);
+  border-radius: var(--app-radius-sm, 14px);
   background: rgba(0, 0, 0, 0.02);
-  padding: 1.25rem;
+  padding: 1.35rem;
+}
+
+.suggestions-panel--no-sensor {
+  background: linear-gradient(135deg, rgba(0, 113, 227, 0.03) 0%, rgba(90, 200, 250, 0.03) 100%);
+  border: 1.5px dashed rgba(0, 113, 227, 0.12);
 }
 
 .suggestions-panel__loading-body,
@@ -164,38 +170,40 @@
   --suggestion-ink: #0055B3;
   position: relative;
   border: 0.5px solid var(--suggestion-border);
-  border-radius: var(--app-radius-sm, 12px);
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: saturate(160%) blur(16px);
-  -webkit-backdrop-filter: saturate(160%) blur(16px);
-  padding: 0.9rem 1rem;
-  transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
+  border-left: 3px solid var(--suggestion-accent);
+  border-radius: var(--app-radius-sm, 14px);
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: saturate(160%) blur(20px);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  padding: 1rem 1.1rem 1rem 1rem;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
 }
 
 .suggestion-card:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07);
   border-color: rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.78);
+  transform: translateY(-1px);
 }
 
 .suggestion-card--high {
   --suggestion-accent: #FF3B30;
-  --suggestion-soft: rgba(255, 59, 48, 0.06);
-  --suggestion-border: rgba(255, 59, 48, 0.12);
+  --suggestion-soft: rgba(255, 59, 48, 0.07);
+  --suggestion-border: rgba(255, 59, 48, 0.1);
   --suggestion-ink: #C5221F;
 }
 
 .suggestion-card--medium {
   --suggestion-accent: #FF9F0A;
-  --suggestion-soft: rgba(255, 159, 10, 0.06);
-  --suggestion-border: rgba(255, 159, 10, 0.12);
+  --suggestion-soft: rgba(255, 159, 10, 0.07);
+  --suggestion-border: rgba(255, 159, 10, 0.1);
   --suggestion-ink: #8B6914;
 }
 
 .suggestion-card--low {
   --suggestion-accent: #30D158;
-  --suggestion-soft: rgba(48, 209, 88, 0.06);
-  --suggestion-border: rgba(48, 209, 88, 0.12);
+  --suggestion-soft: rgba(48, 209, 88, 0.07);
+  --suggestion-border: rgba(48, 209, 88, 0.1);
   --suggestion-ink: #1B7F37;
 }
 
@@ -220,15 +228,15 @@
   border-radius: 999px;
   background: var(--suggestion-soft);
   color: var(--suggestion-ink);
-  padding: 0.25rem 0.55rem;
-  font-size: 0.66rem;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 
 .suggestion-card__badge-dot {
-  width: 6px;
-  height: 6px;
+  width: 6.5px;
+  height: 6.5px;
   border-radius: 999px;
   background: var(--suggestion-accent);
 }
@@ -256,11 +264,11 @@
 .suggestion-card__tag {
   display: inline-flex;
   align-items: center;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.03);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.035);
   color: #48484A;
-  padding: 0.2rem 0.45rem;
-  font-size: 0.65rem;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.66rem;
   font-weight: 600;
   line-height: 1;
   border: none;
@@ -295,22 +303,22 @@
 
 .suggestion-card__section--impact {
   padding-left: 1.15rem;
-  border-left: 1.5px solid rgba(0, 0, 0, 0.05);
+  border-left: 1.5px solid rgba(0, 0, 0, 0.04);
 }
 
 .suggestion-card__section-label {
-  font-size: 0.6rem;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #AEAEB2;
+  color: #A0A0A6;
 }
 
 .suggestion-card__section-copy {
   margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.6;
-  color: #48484A;
+  font-size: 0.87rem;
+  line-height: 1.65;
+  color: #3C3C40;
 }
 
 /* Feedback row */
@@ -320,7 +328,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.55rem;
-  padding-top: 0.55rem;
+  padding-top: 0.65rem;
+  margin-top: 0.15rem;
   border-top: 0.5px solid rgba(0, 0, 0, 0.04);
 }
 
@@ -356,22 +365,23 @@
 
 .suggestion-card__feedback-btn {
   border: 0.5px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.65);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: #48484A;
-  border-radius: 8px;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.72rem;
+  border-radius: 9px;
+  padding: 0.38rem 0.75rem;
+  font-size: 0.73rem;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s, transform 0.18s;
 }
 
 .suggestion-card__feedback-btn:hover:not(:disabled) {
   border-color: rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transform: translateY(-0.5px);
 }
 
 .suggestion-card__feedback-btn:disabled {
@@ -400,6 +410,53 @@
 
 .suggestion-card__feedback-status { color: #1B7F37; }
 .suggestion-card__feedback-error { color: #FF3B30; }
+
+/* ───── No-sensor CTA state ───── */
+.suggestions-panel__empty-icon--sensor {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(0, 113, 227, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #007AFF;
+}
+
+.suggestions-panel--no-sensor .suggestions-panel__empty-copy h3 {
+  color: #1A1A1C;
+}
+
+.suggestions-panel--no-sensor .suggestions-panel__empty-copy p {
+  max-width: 380px;
+}
+
+.suggestions-panel__connect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  padding: 0.5rem 1.15rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--app-primary, #0071E3);
+  color: white;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--app-font, 'Inter', system-ui, sans-serif);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.suggestions-panel__connect-btn:hover {
+  background: var(--app-primary-hover, #005BBF);
+  box-shadow: 0 4px 14px rgba(0, 113, 227, 0.2);
+  transform: translateY(-1px);
+}
+
+.suggestions-panel__connect-btn:active {
+  transform: scale(0.97);
+}
 
 /* ── Responsive ── */
 @media (max-width: 900px) {

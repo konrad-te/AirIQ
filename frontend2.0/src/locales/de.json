@@ -155,6 +155,11 @@
   "dashboard.refreshSuggestions": "Vorschläge aktualisieren",
   "dashboard.refreshingSuggestions": "Wird aktualisiert...",
 
+  "dashboard.forecastHeadingToday": "Prognose für heute",
+  "dashboard.forecastHeadingTomorrow": "Prognose für morgen",
+  "dashboard.forecastHeadingHint": "Zeigt ab 18:00 Uhr in deiner aktuellen Zeitzone die Prognose für den nächsten Tag.",
+  "dashboard.forecastHeadingAria": "Tagesprognose — mit Maus oder Fokus: wann heute oder morgen angezeigt wird",
+
   "dashboard.aiDailyPlan": "KI-Tagesplan",
   "dashboard.aiHint": "Erstelle personalisierte Empfehlungen für drinnen und draußen mit Gemini, basierend auf deinen aktuellen Luftqualitätsmessungen.",
   "dashboard.aiGenerate": "Empfehlungen generieren",
@@ -257,6 +262,8 @@
   "suggestions.loadingDesc": "Deine aktuellen Innen- und Außenbedingungen werden geprüft.",
   "suggestions.empty": "Keine wichtigen Vorschläge im Moment.",
   "suggestions.emptyDesc": "Die aktuellen Innen- und Außenbedingungen sehen stabil aus.",
+  "suggestions.noSensor": "Sensor verbinden, um loszulegen",
+  "suggestions.noSensorDesc": "Sobald Ihr Raumsensor verbunden ist, analysiert AirIQ Ihre Luftqualität und gibt Ihnen personalisierte Empfehlungen in Echtzeit.",
   "suggestions.actionFeed": "Aktionsfeed",
   "suggestions.topSuggestions": "Top-Vorschläge",
   "suggestions.showingOf": "{{shown}} von {{total}} angezeigt",

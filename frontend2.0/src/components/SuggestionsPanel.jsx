@@ -14,6 +14,8 @@ import { MAX_DASHBOARD_SUGGESTIONS } from '../types/suggestions'
  *   feedbackErrors?: Record<string, string>,
  *   headerActions?: import('react').ReactNode,
  *   variant?: 'default' | 'globeConsole',
+ *   hasSensor?: boolean,
+ *   onConnectSensor?: (() => void) | null,
  * }} props
  */
 export default function SuggestionsPanel({
@@ -25,6 +27,8 @@ export default function SuggestionsPanel({
   feedbackErrors = {},
   headerActions = null,
   variant = 'default',
+  hasSensor = true,
+  onConnectSensor = null,
 }) {
   const { t } = useTranslation()
   const normalizedSuggestions = Array.isArray(suggestions)
@@ -76,17 +80,38 @@ export default function SuggestionsPanel({
   }
 
   if (visibleSuggestions.length === 0) {
+    const showSensorPrompt = !hasSensor
     return (
-      <div className="suggestions-panel suggestions-panel--empty">
+      <div className={`suggestions-panel ${showSensorPrompt ? 'suggestions-panel--no-sensor' : 'suggestions-panel--empty'}`}>
         {header}
         <div className="suggestions-panel__empty-body">
-          <div className="suggestions-panel__empty-icon" aria-hidden>
-            <span />
-          </div>
-          <div className="suggestions-panel__empty-copy">
-            <h3>{t('suggestions.empty')}</h3>
-            <p>{t('suggestions.emptyDesc')}</p>
-          </div>
+          {showSensorPrompt ? (
+            <>
+              <div className="suggestions-panel__empty-icon suggestions-panel__empty-icon--sensor" aria-hidden>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 10 9-7 9 7" /><path d="M5 9.8V21h14V9.8" /><path d="M9 21v-6a3 3 0 0 1 6 0v6" /></svg>
+              </div>
+              <div className="suggestions-panel__empty-copy">
+                <h3>{t('suggestions.noSensor')}</h3>
+                <p>{t('suggestions.noSensorDesc')}</p>
+              </div>
+              {onConnectSensor && (
+                <button type="button" className="suggestions-panel__connect-btn" onClick={onConnectSensor}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+                  Connect sensor
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="suggestions-panel__empty-icon" aria-hidden>
+                <span />
+              </div>
+              <div className="suggestions-panel__empty-copy">
+                <h3>{t('suggestions.empty')}</h3>
+                <p>{t('suggestions.emptyDesc')}</p>
+              </div>
+            </>
+          )}
         </div>
       </div>
     )
