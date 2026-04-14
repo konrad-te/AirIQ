@@ -72,10 +72,7 @@ def evaluate_ventilation(
             impact=_build_clear_impact(indoor),
             primary_reason="Outdoor air is too polluted for ventilation.",
             secondary_reasons=_build_clear_secondary_reasons(indoor, fallback=True),
-            advice=(
-                "Consider using an air purifier or reducing indoor pollution "
-                "sources."
-            ),
+            advice=None,
             note=note,
             based_on=_ordered_fields(
                 *outdoor.based_on_fields,
@@ -291,7 +288,7 @@ def _build_blocked_recommendation(assessment: _IndoorAssessment) -> str:
     indoor_context = _describe_indoor_need(assessment, emphasize=True)
     return (
         f"{indoor_context}, but outdoor air is too polluted for opening windows "
-        "right now. Use an air purifier or reduce indoor pollution sources instead."
+        "right now."
     )
 
 

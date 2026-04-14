@@ -3,6 +3,7 @@ import ForgotPasswordModal from '../components/ForgotPasswordModal'
 import LandingOutdoorDemo from '../components/LandingOutdoorDemo'
 import LoginModal from '../components/LoginModal'
 import RegisterModal from '../components/RegisterModal'
+import heroImage from '../assets/image.png'
 import './NewLandingPage.css'
 
 export default function NewLandingPage({ onReactivated }) {
@@ -93,24 +94,40 @@ export default function NewLandingPage({ onReactivated }) {
       {/* ── HERO ── */}
       <section className="lp-hero">
         <div className="lp-container">
-          <div className="lp-hero-content" data-animate>
-            <span className="lp-hero-badge">Air Quality &amp; Wellness Platform</span>
-            <h1 className="lp-hero-title">
-              Breathe smarter.<br />
-              Sleep better.<br />
-              <span className="lp-hero-accent">Perform at your peak.</span>
-            </h1>
-            <p className="lp-hero-subtitle">
-              AirIQ connects outdoor air quality, indoor sensors, and your Garmin
-              wearable data to deliver personalized, AI&#8209;powered recommendations
-              for healthier living.
-            </p>
-            <div className="lp-hero-actions">
-              <button className="lp-btn lp-btn--primary lp-btn--lg" onClick={openRegister}>
-                Get started free
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
-              </button>
-              <button className="lp-btn lp-btn--outline lp-btn--lg" onClick={openLogin}>Log in</button>
+          <div className="lp-hero-inner">
+            <div className="lp-hero-content" data-animate>
+              <span className="lp-hero-badge">Air Quality &amp; Wellness Platform</span>
+              <h1 className="lp-hero-title">
+                Breathe smarter.<br />
+                Sleep better.<br />
+                <span className="lp-hero-accent">Perform at your peak.</span>
+              </h1>
+              <p className="lp-hero-subtitle">
+                AirIQ connects outdoor air quality, indoor sensors, and your Garmin
+                wearable data to deliver personalized, AI&#8209;powered recommendations
+                for healthier living.
+              </p>
+              <div className="lp-hero-actions">
+                <button className="lp-btn lp-btn--primary lp-btn--lg" onClick={openRegister}>
+                  Get started free
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
+                </button>
+                <button className="lp-btn lp-btn--outline lp-btn--lg" onClick={openLogin}>Log in</button>
+              </div>
+            </div>
+            <div className="lp-hero-visual" data-animate>
+              <div className="lp-hero-mockup" aria-hidden>
+                <div className="lp-hero-mockup-glow" />
+                <img
+                  className="lp-hero-mockup-img"
+                  src={heroImage}
+                  width={1200}
+                  height={900}
+                  alt="AirIQ dashboard showing air quality, weather, and recommendations"
+                  loading="eager"
+                  decoding="async"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -204,20 +221,21 @@ export default function NewLandingPage({ onReactivated }) {
         </div>
       </section>
 
-      {/* ── FEATURE 1: OUTDOOR ── */}
+      {/* ── FEATURE 1: Suggestions from indoor + outdoor context ── */}
       <section className="lp-feature lp-feature--alt" id="how-it-works">
         <div className="lp-container lp-feature-grid">
           <div className="lp-feature-content" data-animate>
-            <span className="lp-feature-eyebrow">Outdoor Monitoring</span>
-            <h2 className="lp-feature-heading">Know what you're breathing</h2>
+            <span className="lp-feature-eyebrow">Smart suggestions</span>
+            <h2 className="lp-feature-heading">Guidance from the air inside and out</h2>
             <p className="lp-feature-desc">
-              Track real-time air quality at any location worldwide. AirIQ pulls data from trusted
-              global monitoring networks and presents it in a clear, actionable format.
+              AirIQ pairs trusted outdoor readings at your locations with indoor sensor data when you
+              connect a device. That combined picture drives suggestions you can use right away —
+              not just numbers on a chart.
             </p>
             <ul className="lp-feature-list">
-              <li>Real-time PM2.5, PM10, and AQI at your saved locations</li>
-              <li>Weather conditions including wind, UV index, and rain</li>
-              <li>Historical trends to spot patterns over time</li>
+              <li>Recommendations that weigh outdoor pollution, weather, and indoor air together</li>
+              <li>Clear prompts for ventilation, activity, and daily planning based on both sides</li>
+              <li>Context for your saved places plus home readings, so advice matches your setup</li>
             </ul>
           </div>
           <div className="lp-feature-visual" data-animate>

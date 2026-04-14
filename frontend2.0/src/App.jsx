@@ -2093,8 +2093,10 @@ export default function App() {
         <div className="app-page">
           <div className="app-page-header"><h2>{t('dashboard.airQualityTrends')}</h2><p>{heroLocation}</p></div>
           <div className="app-trends-section">
-            <h3 className="app-trends-section__title">{t('dashboard.aiOutdoor')}</h3>
-            <div className="app-card">
+            <div className="app-card app-card--trend">
+              <div className="app-trends-card__header">
+                <span className="app-trends-card__eyebrow">{t('dashboard.aiOutdoor')}</span>
+              </div>
               <PM25Chart
                 history={liveAirData?.history}
                 forecast={liveAirData?.forecast}
@@ -2115,8 +2117,10 @@ export default function App() {
             </div>
           </div>
           <div className="app-trends-section">
-            <h3 className="app-trends-section__title">{t('dashboard.aiIndoor')}</h3>
-            <div className="app-card">
+            <div className="app-card app-card--trend">
+              <div className="app-trends-card__header">
+                <span className="app-trends-card__eyebrow">{t('dashboard.aiIndoor')}</span>
+              </div>
               {hasConnectedIndoorSensor ? (
                 <IndoorHistoryPanel
                   layoutMode="trends"

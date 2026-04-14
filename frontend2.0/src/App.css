@@ -493,7 +493,7 @@
 .app-trends-section {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .app-trends-section__title {
@@ -515,6 +515,30 @@
   overflow: hidden;
   box-shadow: var(--glass-shadow);
   transition: box-shadow 0.3s ease;
+}
+
+.app-card--trend {
+  padding: 1rem 1.05rem 1.05rem;
+}
+
+.app-trends-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+}
+
+.app-trends-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.34rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(26, 107, 240, 0.08);
+  color: #6b88ab;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
 }
 
 .app-card:hover {
