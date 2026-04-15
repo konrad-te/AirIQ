@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     SmallInteger,
     String,
@@ -116,6 +117,34 @@ class UserPreference(Base):
         String(64),
         nullable=True,
     )
+
+    pm25_medium_threshold: Mapped[float | None] = mapped_column(
+        Float, nullable=True,
+    )
+    pm25_high_threshold: Mapped[float | None] = mapped_column(
+        Float, nullable=True,
+    )
+    pm25_critical_threshold: Mapped[float | None] = mapped_column(
+        Float, nullable=True,
+    )
+    pm10_medium_threshold: Mapped[float | None] = mapped_column(
+        Float, nullable=True,
+    )
+    pm10_high_threshold: Mapped[float | None] = mapped_column(
+        Float, nullable=True,
+    )
+    pm10_critical_threshold: Mapped[float | None] = mapped_column(
+        Float, nullable=True,
+    )
+
+    outdoor_temp_high_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    uv_high_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    indoor_co2_medium_ppm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    indoor_co2_high_ppm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    indoor_humidity_low_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    indoor_humidity_high_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    indoor_temp_hot_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    indoor_temp_cold_c: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

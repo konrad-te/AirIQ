@@ -30,11 +30,14 @@ from backend.schemas.auth import (
     TokenSchema,
     UserRegisterResponseSchema,
     UserOutSchema,
+    ALL_THRESHOLD_DEFAULTS,
     UserPreferenceOutSchema,
     UserPreferenceUpdateSchema,
     UserRegisterSchema,
     UserUpdateSchema,
 )
+
+_THRESHOLD_FIELDS = tuple(ALL_THRESHOLD_DEFAULTS.keys())
 from backend.security import (
     create_database_token,
     create_email_token,
@@ -55,6 +58,10 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 def user_preference_to_out(pref: UserPreference) -> UserPreferenceOutSchema:
+    pm_kwargs = {
+        field: getattr(pref, field, None) or default
+        for field, default in ALL_THRESHOLD_DEFAULTS.items()
+    }
     return UserPreferenceOutSchema(
         theme=pref.theme,
         language_code=pref.language_code,
@@ -70,6 +77,7 @@ def user_preference_to_out(pref: UserPreference) -> UserPreferenceOutSchema:
         discord_indoor_include_medium_priority=getattr(
             pref, "discord_indoor_include_medium_priority", False
         ),
+        **pm_kwargs,
     )
 
 
@@ -503,6 +511,11 @@ def update_preferences(
             pref.discord_indoor_include_medium_priority = bool(
                 update.discord_indoor_include_medium_priority
             )
+        for field in _THRESHOLD_FIELDS:
+            if field in set_fields:
+                value = getattr(update, field, None)
+                if value is not None:
+                    setattr(pref, field, float(value))
         if "discord_outlook_webhook_url" in set_fields:
             raw = update.discord_outlook_webhook_url
             if raw is None or not str(raw).strip():

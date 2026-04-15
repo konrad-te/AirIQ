@@ -13,8 +13,31 @@ import './SettingsPage.css'
 const SECTIONS = [
   { id: 'profile', labelKey: 'settings.profile' },
   { id: 'preferences', labelKey: 'settings.preferences' },
+  { id: 'airAlerts', labelKey: 'settings.airAlerts' },
   { id: 'password', labelKey: 'settings.changePassword' },
   { id: 'delete', labelKey: 'settings.deleteAccount' },
+]
+
+const PM_DEFAULTS = {
+  pm25_medium_threshold: 25,
+  pm25_high_threshold: 50,
+  pm25_critical_threshold: 75,
+  pm10_medium_threshold: 50,
+  pm10_high_threshold: 100,
+  pm10_critical_threshold: 150,
+  outdoor_temp_high_c: 30,
+  uv_high_threshold: 6,
+  indoor_co2_medium_ppm: 800,
+  indoor_co2_high_ppm: 1200,
+  indoor_humidity_low_pct: 30,
+  indoor_humidity_high_pct: 70,
+  indoor_temp_hot_c: 28,
+  indoor_temp_cold_c: 16,
+}
+
+const EU_STANDARDS = [
+  { pollutant: 'PM2.5', annual: '25 µg/m³', daily: '—', who: '5 µg/m³ (annual)', aqiBands: 'Good <10 · Fair 10–20 · Moderate 20–25 · Poor 25–50 · Very Poor 50–75 · Extremely Poor >75', note: 'Fine particles that penetrate deep into the lungs and bloodstream. The EU annual limit is 25 µg/m³. The European Air Quality Index rates >25 as "Poor", >50 as "Very Poor", and >75 as "Extremely Poor".' },
+  { pollutant: 'PM10', annual: '40 µg/m³', daily: '50 µg/m³ (max 35×/yr)', who: '15 µg/m³ (annual)', aqiBands: 'Good <20 · Fair 20–40 · Moderate 40–50 · Poor 50–100 · Very Poor 100–150 · Extremely Poor >150', note: 'Coarser particles (dust, pollen, mold). The EU daily limit is 50 µg/m³ (max 35 exceedances/year). The European AQI rates >50 as "Poor", >100 as "Very Poor", and >150 as "Extremely Poor".' },
 ]
 
 const LANGUAGES = [
@@ -444,6 +467,215 @@ function PreferencesSection() {
   )
 }
 
+function ThresholdSlider({ id, label, value, onChange, min = 1, max = 200, disabled, hint, unit = 'µg/m³' }) {
+  return (
+    <div className="settings-threshold-row">
+      <div className="settings-threshold-head">
+        <label htmlFor={id} className="settings-label">{label}</label>
+        <span className="settings-threshold-value">{value}{unit ? ` ${unit}` : ''}</span>
+      </div>
+      <input
+        id={id}
+        type="range"
+        className="settings-threshold-slider"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+      />
+      {hint && <p className="settings-threshold-hint">{hint}</p>}
+    </div>
+  )
+}
+
+function AirAlertsSection() {
+  const { t } = useTranslation()
+  const { token } = useAuth()
+  const [thresholds, setThresholds] = useState({ ...PM_DEFAULTS })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState('')
+  const [showEuPanel, setShowEuPanel] = useState(false)
+
+  useEffect(() => {
+    getPreferences(token)
+      .then((prefs) => {
+        const next = { ...PM_DEFAULTS }
+        for (const key of Object.keys(PM_DEFAULTS)) {
+          if (prefs[key] != null) next[key] = prefs[key]
+        }
+        setThresholds(next)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [token])
+
+  const update = (key, val) => {
+    setThresholds((prev) => ({ ...prev, [key]: val }))
+    setError('')
+    setSuccess(false)
+  }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    if (thresholds.pm25_medium_threshold >= thresholds.pm25_high_threshold ||
+        thresholds.pm25_high_threshold >= thresholds.pm25_critical_threshold) {
+      setError('PM2.5 thresholds must increase: medium < high < critical.')
+      return
+    }
+    if (thresholds.pm10_medium_threshold >= thresholds.pm10_high_threshold ||
+        thresholds.pm10_high_threshold >= thresholds.pm10_critical_threshold) {
+      setError('PM10 thresholds must increase: medium < high < critical.')
+      return
+    }
+    if (thresholds.indoor_co2_medium_ppm >= thresholds.indoor_co2_high_ppm) {
+      setError('CO₂ medium threshold must be lower than high threshold.')
+      return
+    }
+    if (thresholds.indoor_humidity_low_pct >= thresholds.indoor_humidity_high_pct) {
+      setError('Humidity low threshold must be lower than high threshold.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    setSuccess(false)
+    try {
+      const updated = await updatePreferences(token, thresholds)
+      const next = { ...PM_DEFAULTS }
+      for (const key of Object.keys(PM_DEFAULTS)) {
+        if (updated[key] != null) next[key] = updated[key]
+      }
+      setThresholds(next)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReset = () => {
+    setThresholds({ ...PM_DEFAULTS })
+    setError('')
+    setSuccess(false)
+  }
+
+  if (loading) return <div className="settings-loading">{t('settings.loadingPreferences')}</div>
+
+  return (
+    <div className="settings-section">
+      <div className="settings-air-alerts-header">
+        <div>
+          <h2 className="settings-section-title">{t('settings.airAlertsTitle')}</h2>
+          <p className="settings-section-desc">{t('settings.airAlertsDesc')}</p>
+        </div>
+        <button type="button" className="btn btn-ghost settings-eu-btn" onClick={() => setShowEuPanel((v) => !v)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+          {showEuPanel ? 'Hide EU standards' : 'EU standards'}
+        </button>
+      </div>
+
+      {showEuPanel && (
+        <div className="settings-eu-panel">
+          <h3 className="settings-eu-panel-title">EU &amp; WHO Air Quality Standards</h3>
+          <p className="settings-eu-panel-intro">
+            The EU sets legally binding limits, while the WHO provides stricter health-based guidelines.
+            AirIQ uses your custom thresholds below to determine when to warn you. The defaults are based on levels where health effects become measurable.
+          </p>
+          <table className="settings-eu-table">
+            <thead>
+              <tr>
+                <th>Pollutant</th>
+                <th>EU annual limit</th>
+                <th>EU daily limit</th>
+                <th>WHO guideline</th>
+              </tr>
+            </thead>
+            <tbody>
+              {EU_STANDARDS.map((row) => (
+                <tr key={row.pollutant}>
+                  <td><strong>{row.pollutant}</strong></td>
+                  <td>{row.annual}</td>
+                  <td>{row.daily}</td>
+                  <td>{row.who}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="settings-eu-aqi-bands">
+            <strong>European Air Quality Index (AQI) bands</strong>
+            {EU_STANDARDS.map((row) => (
+              <p key={row.pollutant}><strong>{row.pollutant}:</strong> {row.aqiBands}</p>
+            ))}
+          </div>
+          {EU_STANDARDS.map((row) => (
+            <p key={row.pollutant} className="settings-eu-note">
+              <strong>{row.pollutant}:</strong> {row.note}
+            </p>
+          ))}
+          <div className="settings-eu-how">
+            <strong>How AirIQ uses your thresholds</strong>
+            <ul>
+              <li><span className="settings-eu-dot settings-eu-dot--medium" /> <strong>Medium</strong> — Heads-up: air quality is getting worse. Sensitive groups should take care.</li>
+              <li><span className="settings-eu-dot settings-eu-dot--high" /> <strong>High</strong> — Take action: reduce exposure, ventilate if indoor air is cleaner, avoid intense outdoor exercise.</li>
+              <li><span className="settings-eu-dot settings-eu-dot--critical" /> <strong>Critical</strong> — Urgent: air is unhealthy for everyone. Stay indoors, close windows, use a purifier if possible.</li>
+            </ul>
+            <p>These tiers apply to both indoor and outdoor readings. Below each threshold, no air quality warning is shown.</p>
+          </div>
+        </div>
+      )}
+
+      <form className="settings-form settings-form--wide" onSubmit={handleSave}>
+        <fieldset className="settings-threshold-group" disabled={saving}>
+          <legend className="settings-threshold-legend">PM2.5 (fine particles)</legend>
+          <ThresholdSlider id="pm25-medium" label="Medium warning" value={thresholds.pm25_medium_threshold} onChange={(v) => update('pm25_medium_threshold', v)} hint={`Default: ${PM_DEFAULTS.pm25_medium_threshold} µg/m³`} disabled={saving} />
+          <ThresholdSlider id="pm25-high" label="High warning" value={thresholds.pm25_high_threshold} onChange={(v) => update('pm25_high_threshold', v)} hint={`Default: ${PM_DEFAULTS.pm25_high_threshold} µg/m³`} disabled={saving} />
+          <ThresholdSlider id="pm25-critical" label="Critical warning" value={thresholds.pm25_critical_threshold} onChange={(v) => update('pm25_critical_threshold', v)} hint={`Default: ${PM_DEFAULTS.pm25_critical_threshold} µg/m³`} disabled={saving} />
+        </fieldset>
+
+        <fieldset className="settings-threshold-group" disabled={saving}>
+          <legend className="settings-threshold-legend">PM10 (coarse particles)</legend>
+          <ThresholdSlider id="pm10-medium" label="Medium warning" value={thresholds.pm10_medium_threshold} onChange={(v) => update('pm10_medium_threshold', v)} hint={`Default: ${PM_DEFAULTS.pm10_medium_threshold} µg/m³`} disabled={saving} />
+          <ThresholdSlider id="pm10-high" label="High warning" value={thresholds.pm10_high_threshold} onChange={(v) => update('pm10_high_threshold', v)} hint={`Default: ${PM_DEFAULTS.pm10_high_threshold} µg/m³`} disabled={saving} />
+          <ThresholdSlider id="pm10-critical" label="Critical warning" value={thresholds.pm10_critical_threshold} onChange={(v) => update('pm10_critical_threshold', v)} hint={`Default: ${PM_DEFAULTS.pm10_critical_threshold} µg/m³`} disabled={saving} />
+        </fieldset>
+
+        <fieldset className="settings-threshold-group" disabled={saving}>
+          <legend className="settings-threshold-legend">Outdoor weather</legend>
+          <ThresholdSlider id="temp-high" label="High temperature alert" value={thresholds.outdoor_temp_high_c} onChange={(v) => update('outdoor_temp_high_c', v)} min={20} max={50} unit="°C" hint={`Default: ${PM_DEFAULTS.outdoor_temp_high_c}°C — high priority when reached`} disabled={saving} />
+          <ThresholdSlider id="uv-high" label="UV index high alert" value={thresholds.uv_high_threshold} onChange={(v) => update('uv_high_threshold', v)} min={1} max={15} unit="" hint={`Default: ${PM_DEFAULTS.uv_high_threshold} — high priority when reached`} disabled={saving} />
+          <p className="settings-threshold-hint">Rain alerts are automatic (medium for rain, high for heavy rain / storms) and not adjustable.</p>
+        </fieldset>
+
+        <fieldset className="settings-threshold-group" disabled={saving}>
+          <legend className="settings-threshold-legend">Indoor air</legend>
+          <ThresholdSlider id="co2-medium" label="CO₂ medium warning" value={thresholds.indoor_co2_medium_ppm} onChange={(v) => update('indoor_co2_medium_ppm', v)} min={400} max={2000} unit="ppm" hint={`Default: ${PM_DEFAULTS.indoor_co2_medium_ppm} ppm`} disabled={saving} />
+          <ThresholdSlider id="co2-high" label="CO₂ high warning" value={thresholds.indoor_co2_high_ppm} onChange={(v) => update('indoor_co2_high_ppm', v)} min={400} max={3000} unit="ppm" hint={`Default: ${PM_DEFAULTS.indoor_co2_high_ppm} ppm`} disabled={saving} />
+          <ThresholdSlider id="humidity-low" label="Humidity low alert" value={thresholds.indoor_humidity_low_pct} onChange={(v) => update('indoor_humidity_low_pct', v)} min={0} max={50} unit="%" hint={`Default: ${PM_DEFAULTS.indoor_humidity_low_pct}%`} disabled={saving} />
+          <ThresholdSlider id="humidity-high" label="Humidity high alert" value={thresholds.indoor_humidity_high_pct} onChange={(v) => update('indoor_humidity_high_pct', v)} min={50} max={100} unit="%" hint={`Default: ${PM_DEFAULTS.indoor_humidity_high_pct}%`} disabled={saving} />
+          <ThresholdSlider id="temp-hot" label="Indoor temp hot alert" value={thresholds.indoor_temp_hot_c} onChange={(v) => update('indoor_temp_hot_c', v)} min={20} max={40} unit="°C" hint={`Default: ${PM_DEFAULTS.indoor_temp_hot_c}°C`} disabled={saving} />
+          <ThresholdSlider id="temp-cold" label="Indoor temp cold alert" value={thresholds.indoor_temp_cold_c} onChange={(v) => update('indoor_temp_cold_c', v)} min={0} max={22} unit="°C" hint={`Default: ${PM_DEFAULTS.indoor_temp_cold_c}°C`} disabled={saving} />
+        </fieldset>
+
+        {error && <p className="settings-error" role="alert">{error}</p>}
+        {success && <p className="settings-success" role="status">{t('settings.preferencesSaved')}</p>}
+        <div className="settings-threshold-actions">
+          <button type="submit" className="btn btn-primary settings-save-btn" disabled={saving}>
+            {saving ? t('common.saving') : t('settings.savePreferences')}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={handleReset} disabled={saving}>
+            Reset to defaults
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export default function SettingsPage({ onBack, onAccountDeleted }) {
   const { t } = useTranslation()
   const [activeSection, setActiveSection] = useState('profile')
@@ -464,6 +696,7 @@ export default function SettingsPage({ onBack, onAccountDeleted }) {
     switch (activeSection) {
       case 'profile': return <ProfileSection />
       case 'preferences': return <PreferencesSection />
+      case 'airAlerts': return <AirAlertsSection />
       case 'password': return <ChangePasswordSection />
       case 'delete': return <DeleteAccountSection onDeleted={onAccountDeleted} />
       default: return null

@@ -43,6 +43,7 @@ from backend.models import (
     ProviderCacheEntry,
     SuggestionFeedback,
     User,
+    UserPreference,
     UserQingpingIntegration,
     UserSession,
 )
@@ -72,14 +73,18 @@ from backend.services.city_seed import seed_city_points
 from backend.services.globe_ingest import run_globe_ingest
 from backend.services.indoor_air import (
     evaluate_high_indoor_pm25,
+    evaluate_indoor_co2,
+    evaluate_high_indoor_humidity,
     evaluate_low_indoor_humidity,
 )
+from backend.services.weather_alerts import evaluate_rain, evaluate_uv
 from backend.services.mock_indoor_readings import (
     delete_mock_indoor_readings,
     get_user_qingping_device,
     seed_mock_indoor_readings,
 )
 from backend.services.outdoor_activity import evaluate_outdoor_activity
+from backend.schemas.auth import ALL_THRESHOLD_DEFAULTS
 from backend.services.recommendation_config import (
     get_recommendation_config,
     update_recommendation_config,
@@ -314,6 +319,7 @@ def _build_dashboard_suggestions_payload(
     settings: dict[str, float],
     outdoor_data: dict,
     indoor_data: dict | None,
+    pm_thresholds: dict[str, float] | None = None,
 ) -> dict:
     outdoor_current = (
         outdoor_data.get("current") if isinstance(outdoor_data, dict) else {}
@@ -333,12 +339,15 @@ def _build_dashboard_suggestions_payload(
         indoor_pm10=_to_float(indoor_payload.get("pm10_ug_m3")),
         indoor_humidity_pct=_to_float(indoor_payload.get("humidity_pct")),
         wind_kmh=_wind_ms_to_kmh(outdoor_current.get("wind_speed_ms")),
+        rain_mm=_to_float(outdoor_current.get("rain_mm")),
+        weather_code=int(outdoor_current["weather_code"]) if outdoor_current.get("weather_code") is not None else None,
     )
     return _build_suggestions_payload_from_context(
         ventilation_context,
         settings=settings,
         outdoor_data=outdoor_data,
         include_outdoor_activity_suggestion=False,
+        pm_thresholds=pm_thresholds,
     )
 
 
@@ -349,16 +358,20 @@ def _build_suggestions_payload_from_context(
     outdoor_data: dict | None = None,
     respect_sleep_time_window: bool = True,
     include_outdoor_activity_suggestion: bool = True,
+    pm_thresholds: dict[str, float] | None = None,
 ) -> dict:
-    ventilation_suggestion = evaluate_ventilation(ventilation_context)
+    pmt = {**ALL_THRESHOLD_DEFAULTS, **(pm_thresholds or {})}
+
+    ventilation_suggestion = evaluate_ventilation(ventilation_context, pm_thresholds=pmt)
     outdoor_activity_suggestion = (
-        evaluate_outdoor_activity(ventilation_context)
+        evaluate_outdoor_activity(ventilation_context, pm_thresholds=pmt)
         if include_outdoor_activity_suggestion
         else None
     )
     indoor_pm25_suggestion = evaluate_high_indoor_pm25(
         ventilation_context,
-        threshold=settings["indoor_pm25_high_threshold"],
+        threshold=pmt["pm25_medium_threshold"],
+        pm_thresholds=pmt,
         has_ventilation_recommendation=ventilation_suggestion is not None,
     )
     low_humidity_suggestion = evaluate_low_indoor_humidity(
@@ -373,24 +386,35 @@ def _build_suggestions_payload_from_context(
         ideal_max=settings["sleep_temp_ideal_max"],
         respect_time_window=respect_sleep_time_window,
     )
-    indoor_temperature_suggestion = evaluate_indoor_temperature(ventilation_context)
-    outdoor_temperature_suggestion = evaluate_outdoor_temperature(ventilation_context)
+    indoor_temperature_suggestion = evaluate_indoor_temperature(
+        ventilation_context, pm_thresholds=pmt,
+    )
+    outdoor_temperature_suggestion = evaluate_outdoor_temperature(
+        ventilation_context, pm_thresholds=pmt,
+    )
+    rain_suggestion = evaluate_rain(ventilation_context)
+    uv_suggestion = evaluate_uv(ventilation_context, pm_thresholds=pmt)
+    high_humidity_suggestion = evaluate_high_indoor_humidity(
+        ventilation_context, pm_thresholds=pmt,
+    )
+    co2_suggestion = evaluate_indoor_co2(ventilation_context, pm_thresholds=pmt)
 
     suggestions = []
-    if ventilation_suggestion is not None:
-        suggestions.append(ventilation_suggestion.model_dump())
-    if indoor_pm25_suggestion is not None:
-        suggestions.append(indoor_pm25_suggestion.model_dump())
-    if low_humidity_suggestion is not None:
-        suggestions.append(low_humidity_suggestion.model_dump())
-    if sleep_temperature_suggestion is not None:
-        suggestions.append(sleep_temperature_suggestion.model_dump())
-    if indoor_temperature_suggestion is not None:
-        suggestions.append(indoor_temperature_suggestion.model_dump())
-    if outdoor_temperature_suggestion is not None:
-        suggestions.append(outdoor_temperature_suggestion.model_dump())
-    if include_outdoor_activity_suggestion and outdoor_activity_suggestion is not None:
-        suggestions.append(outdoor_activity_suggestion.model_dump())
+    for suggestion in (
+        ventilation_suggestion,
+        indoor_pm25_suggestion,
+        low_humidity_suggestion,
+        high_humidity_suggestion,
+        co2_suggestion,
+        sleep_temperature_suggestion,
+        indoor_temperature_suggestion,
+        outdoor_temperature_suggestion,
+        rain_suggestion,
+        uv_suggestion,
+        outdoor_activity_suggestion if include_outdoor_activity_suggestion else None,
+    ):
+        if suggestion is not None:
+            suggestions.append(suggestion.model_dump())
 
     priority_rank = {"high": 0, "medium": 1, "low": 2}
     suggestions.sort(key=lambda item: priority_rank.get(item.get("priority"), 99))
@@ -760,6 +784,18 @@ def get_home_suggestions(
     outdoor_data = get_air_quality_data(lat, lon)
     settings = get_recommendation_config(db)
 
+    pref = (
+        db.execute(
+            select(UserPreference).where(UserPreference.user_id == current_user.id)
+        )
+        .scalars()
+        .first()
+    )
+    pm_thresholds = {
+        field: getattr(pref, field, None) or default
+        for field, default in ALL_THRESHOLD_DEFAULTS.items()
+    } if pref else None
+
     indoor_data: dict | None = None
     try:
         indoor_data = get_qingping_latest_reading(
@@ -776,6 +812,7 @@ def get_home_suggestions(
         settings=settings,
         outdoor_data=outdoor_data,
         indoor_data=indoor_data,
+        pm_thresholds=pm_thresholds,
     )
 
 

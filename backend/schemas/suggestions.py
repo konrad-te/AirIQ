@@ -10,6 +10,8 @@ VentilationSuggestionId = Literal[
     "open_windows_now",
     "ventilate_briefly",
     "ventilate_soon",
+    "ventilate_carefully",
+    "outdoor_moderate_hold",
 ]
 OutdoorActivitySuggestionId = Literal[
     "outdoor_activity",
@@ -19,6 +21,8 @@ OutdoorActivitySuggestionId = Literal[
 IndoorAirSuggestionId = Literal[
     "indoor_pm25_high",
     "indoor_humidity_low",
+    "indoor_humidity_high",
+    "indoor_co2_elevated",
 ]
 SleepSuggestionId = Literal[
     "sleep_temp_too_warm",
@@ -30,6 +34,9 @@ TemperatureSuggestionId = Literal[
     "indoor_temp_too_hot",
     "indoor_temp_too_cold",
 ]
+RainSuggestionId = Literal["rain_advisory", "heavy_rain_warning"]
+UvSuggestionId = Literal["uv_high"]
+IndoorCo2SuggestionId = Literal["indoor_co2_elevated"]
 SuggestionPriority = Literal["high", "medium", "low"]
 SuggestionSeverity = Literal["good", "ok", "caution", "warning", "danger"]
 
@@ -46,6 +53,8 @@ class VentilationContext(BaseModel):
     indoor_pm10: float | None = None
     indoor_humidity_pct: float | None = None
     wind_kmh: float | None = None
+    rain_mm: float | None = None
+    weather_code: int | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -145,6 +154,40 @@ class TemperatureSuggestion(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     advice: str | None = None
     note: str | None = None
+    based_on: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class RainSuggestion(BaseModel):
+    id: RainSuggestionId
+    family: Literal["weather"] = "weather"
+    category: Literal["weather"] = "weather"
+    priority: SuggestionPriority
+    severity: SuggestionSeverity | None = None
+    title: str
+    short_label: str | None = None
+    recommendation: str
+    impact: str | None = None
+    primary_reason: str
+    reasons: list[str] = Field(default_factory=list)
+    based_on: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class UvSuggestion(BaseModel):
+    id: UvSuggestionId
+    family: Literal["uv"] = "uv"
+    category: Literal["uv"] = "uv"
+    priority: SuggestionPriority
+    severity: SuggestionSeverity | None = None
+    title: str
+    short_label: str | None = None
+    recommendation: str
+    impact: str | None = None
+    primary_reason: str
+    reasons: list[str] = Field(default_factory=list)
     based_on: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="forbid")

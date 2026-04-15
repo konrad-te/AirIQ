@@ -5,7 +5,7 @@ from typing import Literal
 
 from backend.schemas.suggestions import VentilationContext, VentilationSuggestion
 
-OutdoorVentilationBucket = Literal["good", "acceptable", "poor"]
+OutdoorVentilationBucket = Literal["good", "acceptable", "moderate", "poor"]
 IndoorVentilationNeedBucket = Literal["clear", "slight", "none"]
 
 _FIELD_ORDER = (
@@ -37,8 +37,10 @@ class _IndoorAssessment:
 
 def get_outdoor_ventilation_bucket(
     context: VentilationContext,
+    *,
+    pm_thresholds: dict[str, float] | None = None,
 ) -> OutdoorVentilationBucket | None:
-    assessment = _assess_outdoor_air(context)
+    assessment = _assess_outdoor_air(context, pm_thresholds=pm_thresholds)
     return assessment.bucket if assessment else None
 
 
@@ -51,8 +53,10 @@ def get_indoor_ventilation_need_bucket(
 
 def evaluate_ventilation(
     context: VentilationContext,
+    *,
+    pm_thresholds: dict[str, float] | None = None,
 ) -> VentilationSuggestion | None:
-    outdoor = _assess_outdoor_air(context)
+    outdoor = _assess_outdoor_air(context, pm_thresholds=pm_thresholds)
     if outdoor is None:
         return None
 
@@ -95,6 +99,49 @@ def evaluate_ventilation(
                 "comfortable to breathe."
             ),
             primary_reason="Outdoor particle levels are too high for safe ventilation.",
+            secondary_reasons=[],
+            advice=None,
+            note=note,
+            based_on=_ordered_fields(
+                *outdoor.based_on_fields,
+                *indoor.provided_fields,
+                *note_fields,
+            ),
+        )
+
+    if outdoor.bucket == "moderate" and indoor.bucket == "clear":
+        return VentilationSuggestion(
+            id="ventilate_carefully",
+            priority="medium",
+            title="Ventilate carefully — outdoor air is moderate",
+            recommendation=_build_blocked_recommendation(indoor)
+            + " Outdoor air is not ideal but a brief airing may still help.",
+            impact=_build_clear_impact(indoor),
+            primary_reason="Outdoor air quality is moderate — ventilate briefly if needed.",
+            secondary_reasons=_build_clear_secondary_reasons(indoor, fallback=True),
+            advice="Keep it short — outdoor particle levels are elevated but not dangerous.",
+            note=note,
+            based_on=_ordered_fields(
+                *outdoor.based_on_fields,
+                *indoor.trigger_fields,
+                *note_fields,
+            ),
+        )
+
+    if outdoor.bucket == "moderate" and indoor.bucket != "clear":
+        return VentilationSuggestion(
+            id="outdoor_moderate_hold",
+            priority="medium",
+            title="Outdoor air is moderately polluted",
+            recommendation=(
+                "Outdoor particle levels are moderately elevated. "
+                "Ventilating is not urgent, but if you do, keep it brief."
+            ),
+            impact=(
+                "Moderately polluted outdoor air can still carry fine particles "
+                "inside, but short exposure is usually fine."
+            ),
+            primary_reason="Outdoor particle levels are moderately elevated.",
             secondary_reasons=[],
             advice=None,
             note=note,
@@ -170,14 +217,29 @@ def evaluate_ventilation(
     return None
 
 
-def _assess_outdoor_air(context: VentilationContext) -> _OutdoorAssessment | None:
+def _assess_outdoor_air(
+    context: VentilationContext,
+    *,
+    pm_thresholds: dict[str, float] | None = None,
+) -> _OutdoorAssessment | None:
     if context.outdoor_pm25 is None or context.outdoor_pm10 is None:
         return None
 
-    if context.outdoor_pm25 <= 12 and context.outdoor_pm10 <= 20:
+    t = pm_thresholds or {}
+    pm25_medium = t.get("pm25_medium_threshold", 25)
+    pm25_high = t.get("pm25_high_threshold", 50)
+    pm10_medium = t.get("pm10_medium_threshold", 50)
+    pm10_high = t.get("pm10_high_threshold", 100)
+
+    pm25 = context.outdoor_pm25
+    pm10 = context.outdoor_pm10
+
+    if pm25 <= 10 and pm10 <= 20:
         bucket: OutdoorVentilationBucket = "good"
-    elif context.outdoor_pm25 <= 20 and context.outdoor_pm10 <= 35:
+    elif pm25 <= pm25_medium and pm10 <= pm10_medium:
         bucket = "acceptable"
+    elif pm25 < pm25_high and pm10 < pm10_high:
+        bucket = "moderate"
     else:
         bucket = "poor"
 

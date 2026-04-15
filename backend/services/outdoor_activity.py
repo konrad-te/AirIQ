@@ -57,8 +57,10 @@ class _UvAssessment:
 
 def evaluate_outdoor_activity(
     context: VentilationContext,
+    *,
+    pm_thresholds: dict[str, float] | None = None,
 ) -> OutdoorActivitySuggestion:
-    air = _assess_air_quality(context)
+    air = _assess_air_quality(context, pm_thresholds=pm_thresholds)
     uv = _assess_uv(context.outdoor_uv_index)
 
     if air is None and uv is None:
@@ -190,13 +192,17 @@ def _build_uv_only_suggestion(
     )
 
 
-def _assess_air_quality(context: VentilationContext) -> _AirAssessment | None:
+def _assess_air_quality(
+    context: VentilationContext,
+    *,
+    pm_thresholds: dict[str, float] | None = None,
+) -> _AirAssessment | None:
     pollutant_levels: list[tuple[str, SuggestionSeverity]] = []
 
     if context.outdoor_pm25 is not None:
-        pollutant_levels.append(("outdoor_pm25", _pm25_severity(context.outdoor_pm25)))
+        pollutant_levels.append(("outdoor_pm25", _pm25_severity(context.outdoor_pm25, pm_thresholds)))
     if context.outdoor_pm10 is not None:
-        pollutant_levels.append(("outdoor_pm10", _pm10_severity(context.outdoor_pm10)))
+        pollutant_levels.append(("outdoor_pm10", _pm10_severity(context.outdoor_pm10, pm_thresholds)))
 
     if not pollutant_levels:
         return None
@@ -315,26 +321,42 @@ def _assess_uv(value: float | None) -> _UvAssessment | None:
     )
 
 
-def _pm25_severity(value: float) -> SuggestionSeverity:
-    if value <= 12:
+def _pm25_severity(
+    value: float,
+    pm_thresholds: dict[str, float] | None = None,
+) -> SuggestionSeverity:
+    t = pm_thresholds or {}
+    medium = t.get("pm25_medium_threshold", 25)
+    high = t.get("pm25_high_threshold", 50)
+    critical = t.get("pm25_critical_threshold", 75)
+
+    if value <= 10:
         return "good"
-    if value <= 25:
+    if value < medium:
         return "ok"
-    if value <= 35:
+    if value < high:
         return "caution"
-    if value <= 55:
+    if value < critical:
         return "warning"
     return "danger"
 
 
-def _pm10_severity(value: float) -> SuggestionSeverity:
+def _pm10_severity(
+    value: float,
+    pm_thresholds: dict[str, float] | None = None,
+) -> SuggestionSeverity:
+    t = pm_thresholds or {}
+    medium = t.get("pm10_medium_threshold", 50)
+    high = t.get("pm10_high_threshold", 100)
+    critical = t.get("pm10_critical_threshold", 150)
+
     if value <= 20:
         return "good"
-    if value <= 45:
+    if value < medium:
         return "ok"
-    if value <= 75:
+    if value < high:
         return "caution"
-    if value <= 100:
+    if value < critical:
         return "warning"
     return "danger"
 

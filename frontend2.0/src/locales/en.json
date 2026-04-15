@@ -121,6 +121,10 @@
   "settings.savePreferences": "Save preferences",
   "settings.loadingPreferences": "Loading preferences…",
 
+  "settings.airAlerts": "Air Quality Alerts",
+  "settings.airAlertsTitle": "Air Quality Alert Thresholds",
+  "settings.airAlertsDesc": "Set when AirIQ warns you about air quality, weather, and indoor conditions. Rain alerts are automatic.",
+
   "settings.passwordTitle": "Change Password",
   "settings.passwordDesc": "Use a strong password you don't use elsewhere.",
   "settings.currentPassword": "Current password",

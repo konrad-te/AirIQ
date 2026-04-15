@@ -657,6 +657,250 @@
   color: #0F172A;
 }
 
+/* ── Air Quality Alerts ── */
+.settings-air-alerts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-air-alerts-header .settings-section-title,
+.settings-air-alerts-header .settings-section-desc {
+  margin: 0;
+}
+
+.settings-air-alerts-header .settings-section-desc {
+  margin-top: 0.15rem;
+}
+
+.settings-eu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.settings-eu-panel {
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #F8FAFC, #FFFFFF);
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-eu-panel-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.settings-eu-panel-intro {
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #475569;
+  margin: 0;
+}
+
+.settings-eu-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.settings-eu-table th {
+  text-align: left;
+  font-weight: 600;
+  color: #64748B;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 2px solid #E2E8F0;
+  white-space: nowrap;
+}
+
+.settings-eu-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #F1F5F9;
+  color: #0F172A;
+}
+
+.settings-eu-note {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #475569;
+  margin: 0;
+}
+
+.settings-eu-aqi-bands {
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+}
+
+.settings-eu-aqi-bands > strong {
+  display: block;
+  font-size: 0.78rem;
+  color: #0F172A;
+  margin-bottom: 0.3rem;
+}
+
+.settings-eu-aqi-bands p {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #475569;
+  margin: 0.15rem 0 0;
+}
+
+.settings-eu-how {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: #EFF6FF;
+  border: 1px solid #DBEAFE;
+}
+
+.settings-eu-how > strong {
+  display: block;
+  font-size: 0.82rem;
+  color: #1E40AF;
+  margin-bottom: 0.5rem;
+}
+
+.settings-eu-how ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.settings-eu-how li {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #1E3A5F;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.settings-eu-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.settings-eu-dot--medium { background: #F59E0B; }
+.settings-eu-dot--high { background: #EF4444; }
+.settings-eu-dot--critical { background: #7C3AED; }
+
+.settings-eu-how > p {
+  font-size: 0.75rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.settings-form--wide {
+  max-width: none;
+}
+
+.settings-threshold-group {
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 1rem 1.15rem 1.15rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.settings-threshold-legend {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0F172A;
+  padding: 0 0.35rem;
+}
+
+.settings-threshold-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.settings-threshold-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-threshold-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1A6BF0;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-threshold-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #E2E8F0;
+  outline: none;
+  cursor: pointer;
+}
+
+.settings-threshold-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1A6BF0;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+}
+
+.settings-threshold-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1A6BF0;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+}
+
+.settings-threshold-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-threshold-hint {
+  font-size: 0.72rem;
+  color: #94A3B8;
+  margin: 0;
+}
+
+.settings-threshold-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 /* ── Responsive ── */
 @media (max-width: 760px) {
   .settings-body {

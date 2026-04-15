@@ -2,22 +2,26 @@ from __future__ import annotations
 
 from backend.schemas.suggestions import TemperatureSuggestion, VentilationContext
 
-HOT_CAUTION_C = 28.0
-HOT_WARNING_C = 32.0
 COLD_CAUTION_C = -5.0
 COLD_WARNING_C = -10.0
-INDOOR_HOT_CAUTION_C = 26.0
-INDOOR_HOT_WARNING_C = 30.0
 INDOOR_COLD_CAUTION_C = 16.0
 INDOOR_COLD_WARNING_C = 12.0
 
 
-def evaluate_outdoor_temperature(context: VentilationContext) -> TemperatureSuggestion | None:
+def evaluate_outdoor_temperature(
+    context: VentilationContext,
+    *,
+    pm_thresholds: dict[str, float] | None = None,
+) -> TemperatureSuggestion | None:
     temperature_c = context.outdoor_temperature_c
     if temperature_c is None:
         return None
 
-    if temperature_c >= HOT_WARNING_C:
+    t = pm_thresholds or {}
+    hot_high = t.get("outdoor_temp_high_c", 30.0)
+    hot_caution = hot_high - 2
+
+    if temperature_c >= hot_high:
         return TemperatureSuggestion(
             id="outdoor_temp_too_hot",
             priority="high",
@@ -37,7 +41,7 @@ def evaluate_outdoor_temperature(context: VentilationContext) -> TemperatureSugg
             based_on=["outdoor_temperature_c"],
         )
 
-    if temperature_c >= HOT_CAUTION_C:
+    if temperature_c >= hot_caution:
         return TemperatureSuggestion(
             id="outdoor_temp_too_hot",
             priority="medium",
@@ -98,12 +102,22 @@ def evaluate_outdoor_temperature(context: VentilationContext) -> TemperatureSugg
     return None
 
 
-def evaluate_indoor_temperature(context: VentilationContext) -> TemperatureSuggestion | None:
+def evaluate_indoor_temperature(
+    context: VentilationContext,
+    *,
+    pm_thresholds: dict[str, float] | None = None,
+) -> TemperatureSuggestion | None:
     temperature_c = context.indoor_temperature_c
     if temperature_c is None:
         return None
 
-    if temperature_c >= INDOOR_HOT_WARNING_C:
+    t = pm_thresholds or {}
+    hot_threshold = t.get("indoor_temp_hot_c", 28.0)
+    cold_threshold = t.get("indoor_temp_cold_c", 16.0)
+    hot_severe = hot_threshold + 4
+    cold_severe = cold_threshold - 4
+
+    if temperature_c >= hot_severe:
         return TemperatureSuggestion(
             id="indoor_temp_too_hot",
             priority="high",
@@ -122,7 +136,7 @@ def evaluate_indoor_temperature(context: VentilationContext) -> TemperatureSugge
             based_on=["indoor_temperature_c"],
         )
 
-    if temperature_c >= INDOOR_HOT_CAUTION_C:
+    if temperature_c >= hot_threshold:
         return TemperatureSuggestion(
             id="indoor_temp_too_hot",
             priority="medium",
@@ -140,7 +154,7 @@ def evaluate_indoor_temperature(context: VentilationContext) -> TemperatureSugge
             based_on=["indoor_temperature_c"],
         )
 
-    if temperature_c <= INDOOR_COLD_WARNING_C:
+    if temperature_c <= cold_severe:
         return TemperatureSuggestion(
             id="indoor_temp_too_cold",
             priority="high",
@@ -158,7 +172,7 @@ def evaluate_indoor_temperature(context: VentilationContext) -> TemperatureSugge
             based_on=["indoor_temperature_c"],
         )
 
-    if temperature_c <= INDOOR_COLD_CAUTION_C:
+    if temperature_c <= cold_threshold:
         return TemperatureSuggestion(
             id="indoor_temp_too_cold",
             priority="medium",
