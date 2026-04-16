@@ -399,13 +399,18 @@ def _build_suggestions_payload_from_context(
     )
     co2_suggestion = evaluate_indoor_co2(ventilation_context, pm_thresholds=pmt)
 
+    ventilation_covers_co2 = (
+        ventilation_suggestion is not None
+        and "indoor_co2_ppm" in getattr(ventilation_suggestion, "based_on", [])
+    )
+
     suggestions = []
     for suggestion in (
         ventilation_suggestion,
         indoor_pm25_suggestion,
         low_humidity_suggestion,
         high_humidity_suggestion,
-        co2_suggestion,
+        co2_suggestion if not ventilation_covers_co2 else None,
         sleep_temperature_suggestion,
         indoor_temperature_suggestion,
         outdoor_temperature_suggestion,
