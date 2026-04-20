@@ -36,6 +36,7 @@ The result is a project that feels more like a small product than a demo app.
 - Imports Garmin sleep and training exports for deeper health context.
 - Supports Strava integration for synced training activity data.
 - Combines environment and activity signals so recommendations are not isolated from recovery or exercise.
+- Generates AI-assisted training and recovery insights from imported activity, sleep, and environmental context, with product logic still grounded in structured data.
 
 ### Personalized guidance
 
@@ -63,7 +64,7 @@ The result is a project that feels more like a small product than a demo app.
 | Landing page with product framing, onboarding, and a more polished public-facing entry point. | ![Landing page](docs/readme/landing.png) |
 | Main dashboard that brings together outdoor conditions, indoor context, and recommendations in one place. | ![Dashboard](docs/readme/dashboard.png) |
 | Indoor history view for tracking how sensor readings change over time instead of showing only the latest value. | ![Indoor history](docs/readme/indoor-history.png) |
-| Training insights that connect imported activity data to recovery and environmental context. | ![Training insights](docs/readme/training-insights.png) |
+| AI-assisted training insights that turn imported activity data, recovery signals, and environmental context into more useful summaries and guidance. | ![Training insights](docs/readme/training-insights.png) |
 | Map view for exploring air-quality conditions spatially rather than only by a saved location. | ![Map view](docs/readme/map-view.png) |
 | Discord notifications sent to the user for proactive delivery of outdoor outlooks and indoor alerts. | ![Discord notifications](docs/readme/dc-notis.png) |
 | Alert settings where users can tune thresholds to their needs and compare them against reference standards. | ![Alert settings](docs/readme/alert-settings.png) |

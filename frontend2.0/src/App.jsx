@@ -410,6 +410,12 @@ export default function App() {
   const activeAirRequestRef = useRef(0)
   const [navScrolled, setNavScrolled] = useState(false)
   const [isHealthDropOpen, setIsHealthDropOpen] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isMobileHealthOpen, setIsMobileHealthOpen] = useState(false)
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+    setIsMobileHealthOpen(false)
+  }, [route])
   useEffect(() => {
     const onScroll = () => setNavScrolled(window.scrollY > 16)
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -1999,6 +2005,56 @@ export default function App() {
             <button type="button" className={`app-nav-link${route === '/discord-alerts' ? ' app-nav-link--active' : ''}`} onClick={handleOpenDiscordAlerts}>{t('nav.discordAlerts')}</button>
             <button type="button" className={`app-nav-link${route === '/globe' ? ' app-nav-link--active' : ''}`} onClick={handleOpenGlobe}>Globe</button>
           </div>
+
+          <button
+            type="button"
+            className="app-nav-hamburger"
+            onClick={() => setIsMobileMenuOpen(v => !v)}
+            aria-label="Open navigation menu"
+            aria-expanded={isMobileMenuOpen}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              {isMobileMenuOpen ? (
+                <>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </>
+              )}
+            </svg>
+          </button>
+
+          {isMobileMenuOpen && (
+            <>
+              <div className="app-backdrop" onClick={() => setIsMobileMenuOpen(false)} />
+              <div className="app-mobile-menu" role="menu">
+                <button type="button" className={`app-mobile-menu-item${isDashboard ? ' app-mobile-menu-item--active' : ''}`} onClick={() => { setIsMobileMenuOpen(false); handleBackToLanding() }}>Dashboard</button>
+                <button type="button" className={`app-mobile-menu-item${route === '/trends' ? ' app-mobile-menu-item--active' : ''}`} onClick={() => { setIsMobileMenuOpen(false); handleOpenTrends() }}>Trends</button>
+                <button
+                  type="button"
+                  className={`app-mobile-menu-item app-mobile-menu-item--parent${route === '/sleep' || route === '/training' ? ' app-mobile-menu-item--active' : ''}`}
+                  onClick={() => setIsMobileHealthOpen(v => !v)}
+                  aria-expanded={isMobileHealthOpen}
+                >
+                  <span>Health</span>
+                  <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={isMobileHealthOpen ? 'app-nav-chevron--open' : ''} aria-hidden><path d="M3 4.5l3 3 3-3" /></svg>
+                </button>
+                {isMobileHealthOpen && (
+                  <div className="app-mobile-menu-sub">
+                    <button type="button" className={`app-mobile-menu-item app-mobile-menu-item--sub${route === '/sleep' ? ' app-mobile-menu-item--active' : ''}`} onClick={() => { setIsMobileMenuOpen(false); handleOpenSleep() }}>Sleep Data</button>
+                    <button type="button" className={`app-mobile-menu-item app-mobile-menu-item--sub${route === '/training' ? ' app-mobile-menu-item--active' : ''}`} onClick={() => { setIsMobileMenuOpen(false); handleOpenTraining() }}>Training Data</button>
+                  </div>
+                )}
+                <button type="button" className={`app-mobile-menu-item${route === '/discord-alerts' ? ' app-mobile-menu-item--active' : ''}`} onClick={() => { setIsMobileMenuOpen(false); handleOpenDiscordAlerts() }}>{t('nav.discordAlerts')}</button>
+                <button type="button" className={`app-mobile-menu-item${route === '/globe' ? ' app-mobile-menu-item--active' : ''}`} onClick={() => { setIsMobileMenuOpen(false); handleOpenGlobe() }}>Globe</button>
+              </div>
+            </>
+          )}
 
           <div className="app-nav-actions">
             {user?.role === 'admin' && (
